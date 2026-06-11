@@ -4,15 +4,39 @@ import { supabase } from "./supabase";
 
 const DEPTS = ["HCTH", "QL-KTDL", "HT-NTS"];
 const DEPT_COLOR = { "HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981" };
-const ROLES_EMP = ["Trưởng phòng","Phó phòng","Chuyên viên","Nhân viên"];
-const ROLE_LABELS = { admin:"Quản trị viên", manager_hcth:"TP. HCTH (Toàn bộ)", manager:"Trưởng phòng", staff:"Nhân viên" };
+const ROLES_EMP = ["Trưởng phòng","Phó trưởng phòng","Chuyên viên","Nhân viên"];
 const VI_MONTHS = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
 const VI_DAYS = ["CN","T2","T3","T4","T5","T6","T7"];
 
+// ── ROLE CONFIG ──
+const ROLE_LABELS = {
+  admin:           "Quản trị viên",
+  director:        "Ban Giám đốc",
+  manager_hcth:    "TP. HCTH (Toàn bộ)",
+  manager:         "Trưởng phòng",
+  deputy_manager:  "Phó trưởng phòng",
+  staff:           "Nhân viên",
+};
+const ROLE_COLORS = {
+  admin:          ["#4338ca","#e0e7ff"],
+  director:       ["#7c3aed","#f3e8ff"],
+  manager_hcth:   ["#0369a1","#e0f2fe"],
+  manager:        ["#15803d","#dcfce7"],
+  deputy_manager: ["#0f766e","#ccfbf1"],
+  staff:          ["#92400e","#fef9c3"],
+};
+
+// Roles with full visibility (see all tasks)
+const FULL_ACCESS_ROLES  = ["admin","director","manager_hcth"];
+// Roles that can create/assign tasks
+const CAN_CREATE_ROLES   = ["admin","director","manager_hcth","manager","deputy_manager"];
+// Roles that can edit/delete any task (within scope)
+const MANAGER_ROLES      = ["admin","director","manager_hcth","manager","deputy_manager"];
+
 const DEFAULT_EMPLOYEES = [
   {id:"e1",name:"Nguyễn Thị Hoa",dept:"HCTH",role:"Trưởng phòng"},{id:"e2",name:"Trần Văn An",dept:"HCTH",role:"Chuyên viên"},{id:"e3",name:"Lê Thị Mai",dept:"HCTH",role:"Chuyên viên"},{id:"e4",name:"Phạm Văn Bình",dept:"HCTH",role:"Chuyên viên"},{id:"e5",name:"Hoàng Thị Lan",dept:"HCTH",role:"Chuyên viên"},{id:"e6",name:"Đỗ Văn Cường",dept:"HCTH",role:"Nhân viên"},{id:"e7",name:"Vũ Thị Thu",dept:"HCTH",role:"Nhân viên"},{id:"e8",name:"Ngô Văn Đức",dept:"HCTH",role:"Nhân viên"},{id:"e9",name:"Bùi Thị Hạnh",dept:"HCTH",role:"Nhân viên"},{id:"e10",name:"Đinh Văn Hùng",dept:"HCTH",role:"Nhân viên"},{id:"e11",name:"Lý Thị Hương",dept:"HCTH",role:"Nhân viên"},{id:"e12",name:"Trịnh Văn Khoa",dept:"HCTH",role:"Nhân viên"},{id:"e13",name:"Phan Thị Linh",dept:"HCTH",role:"Nhân viên"},
-  {id:"e14",name:"Nguyễn Văn Minh",dept:"QL-KTDL",role:"Trưởng phòng"},{id:"e15",name:"Trần Thị Nga",dept:"QL-KTDL",role:"Phó phòng"},{id:"e16",name:"Lê Văn Nam",dept:"QL-KTDL",role:"Chuyên viên"},{id:"e17",name:"Phạm Thị Oanh",dept:"QL-KTDL",role:"Chuyên viên"},{id:"e18",name:"Hoàng Văn Phong",dept:"QL-KTDL",role:"Chuyên viên"},{id:"e19",name:"Đỗ Thị Quỳnh",dept:"QL-KTDL",role:"Chuyên viên"},{id:"e20",name:"Vũ Văn Sơn",dept:"QL-KTDL",role:"Chuyên viên"},{id:"e21",name:"Ngô Thị Tâm",dept:"QL-KTDL",role:"Nhân viên"},{id:"e22",name:"Bùi Văn Thắng",dept:"QL-KTDL",role:"Nhân viên"},{id:"e23",name:"Đinh Thị Thủy",dept:"QL-KTDL",role:"Nhân viên"},{id:"e24",name:"Lý Văn Tiến",dept:"QL-KTDL",role:"Nhân viên"},{id:"e25",name:"Trịnh Thị Trang",dept:"QL-KTDL",role:"Nhân viên"},{id:"e26",name:"Phan Văn Trung",dept:"QL-KTDL",role:"Nhân viên"},{id:"e27",name:"Cao Thị Tuyết",dept:"QL-KTDL",role:"Nhân viên"},
-  {id:"e28",name:"Nguyễn Thị Út",dept:"HT-NTS",role:"Trưởng phòng"},{id:"e29",name:"Trần Văn Việt",dept:"HT-NTS",role:"Phó phòng"},{id:"e30",name:"Lê Thị Xuân",dept:"HT-NTS",role:"Chuyên viên"},{id:"e31",name:"Phạm Văn Yên",dept:"HT-NTS",role:"Chuyên viên"},{id:"e32",name:"Hoàng Thị Yến",dept:"HT-NTS",role:"Chuyên viên"},{id:"e33",name:"Đỗ Văn Dũng",dept:"HT-NTS",role:"Chuyên viên"},{id:"e34",name:"Vũ Thị Diệu",dept:"HT-NTS",role:"Chuyên viên"},{id:"e35",name:"Ngô Văn Hiếu",dept:"HT-NTS",role:"Nhân viên"},{id:"e36",name:"Bùi Thị Hiền",dept:"HT-NTS",role:"Nhân viên"},{id:"e37",name:"Đinh Văn Lộc",dept:"HT-NTS",role:"Nhân viên"},{id:"e38",name:"Lý Thị Lụa",dept:"HT-NTS",role:"Nhân viên"},{id:"e39",name:"Trịnh Văn Mạnh",dept:"HT-NTS",role:"Nhân viên"},{id:"e40",name:"Phan Thị Nhung",dept:"HT-NTS",role:"Nhân viên"},
+  {id:"e14",name:"Nguyễn Văn Minh",dept:"QL-KTDL",role:"Trưởng phòng"},{id:"e15",name:"Trần Thị Nga",dept:"QL-KTDL",role:"Phó trưởng phòng"},{id:"e16",name:"Lê Văn Nam",dept:"QL-KTDL",role:"Chuyên viên"},{id:"e17",name:"Phạm Thị Oanh",dept:"QL-KTDL",role:"Chuyên viên"},{id:"e18",name:"Hoàng Văn Phong",dept:"QL-KTDL",role:"Chuyên viên"},{id:"e19",name:"Đỗ Thị Quỳnh",dept:"QL-KTDL",role:"Chuyên viên"},{id:"e20",name:"Vũ Văn Sơn",dept:"QL-KTDL",role:"Chuyên viên"},{id:"e21",name:"Ngô Thị Tâm",dept:"QL-KTDL",role:"Nhân viên"},{id:"e22",name:"Bùi Văn Thắng",dept:"QL-KTDL",role:"Nhân viên"},{id:"e23",name:"Đinh Thị Thủy",dept:"QL-KTDL",role:"Nhân viên"},{id:"e24",name:"Lý Văn Tiến",dept:"QL-KTDL",role:"Nhân viên"},{id:"e25",name:"Trịnh Thị Trang",dept:"QL-KTDL",role:"Nhân viên"},{id:"e26",name:"Phan Văn Trung",dept:"QL-KTDL",role:"Nhân viên"},{id:"e27",name:"Cao Thị Tuyết",dept:"QL-KTDL",role:"Nhân viên"},
+  {id:"e28",name:"Nguyễn Thị Út",dept:"HT-NTS",role:"Trưởng phòng"},{id:"e29",name:"Trần Văn Việt",dept:"HT-NTS",role:"Phó trưởng phòng"},{id:"e30",name:"Lê Thị Xuân",dept:"HT-NTS",role:"Chuyên viên"},{id:"e31",name:"Phạm Văn Yên",dept:"HT-NTS",role:"Chuyên viên"},{id:"e32",name:"Hoàng Thị Yến",dept:"HT-NTS",role:"Chuyên viên"},{id:"e33",name:"Đỗ Văn Dũng",dept:"HT-NTS",role:"Chuyên viên"},{id:"e34",name:"Vũ Thị Diệu",dept:"HT-NTS",role:"Chuyên viên"},{id:"e35",name:"Ngô Văn Hiếu",dept:"HT-NTS",role:"Nhân viên"},{id:"e36",name:"Bùi Thị Hiền",dept:"HT-NTS",role:"Nhân viên"},{id:"e37",name:"Đinh Văn Lộc",dept:"HT-NTS",role:"Nhân viên"},{id:"e38",name:"Lý Thị Lụa",dept:"HT-NTS",role:"Nhân viên"},{id:"e39",name:"Trịnh Văn Mạnh",dept:"HT-NTS",role:"Nhân viên"},{id:"e40",name:"Phan Thị Nhung",dept:"HT-NTS",role:"Nhân viên"},
 ];
 
 const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x.toISOString().split("T")[0];};
@@ -32,6 +56,8 @@ const ProgressBar=({value,onChange,editable=false})=>(
     {editable&&<input type="range" min={0} max={100} step={5} value={value} onChange={e=>onChange(Number(e.target.value))} style={{width:"100%",marginTop:6,accentColor:"#4f46e5"}}/>}
   </div>
 );
+
+const RoleBadge=({role})=>{const[col,bg]=ROLE_COLORS[role]||["#475569","#f1f5f9"];return<span style={{fontSize:11,color:col,background:bg,padding:"2px 8px",borderRadius:8,whiteSpace:"nowrap"}}>{ROLE_LABELS[role]||role}</span>;};
 
 export default function App() {
   const [isMobile,setIsMobile]=useState(window.innerWidth<768);
@@ -80,27 +106,27 @@ export default function App() {
     return employees.find(e=>e.id===currentUser.employee_id)?.dept||null;
   },[currentUser,employees]);
 
-  const canSeeAll=useMemo(()=>["admin","manager_hcth"].includes(currentUser?.role),[currentUser]);
-  const canCreate=useMemo(()=>["admin","manager_hcth","manager"].includes(currentUser?.role),[currentUser]);
-  const isAdmin=currentUser?.role==="admin";
+  const canSeeAll  = useMemo(()=>FULL_ACCESS_ROLES.includes(currentUser?.role),[currentUser]);
+  const canCreate  = useMemo(()=>CAN_CREATE_ROLES.includes(currentUser?.role),[currentUser]);
+  const isAdmin    = currentUser?.role==="admin";
+  const isDirector = useMemo(()=>["admin","director"].includes(currentUser?.role),[currentUser]);
+
   const availableDepts=useMemo(()=>canSeeAll?DEPTS:userDept?[userDept]:DEPTS,[canSeeAll,userDept]);
 
   const canSeeTask=useMemo(()=>(t)=>{
     if(!currentUser)return false;
     if(canSeeAll)return true;
-    if(currentUser.role==="manager")return t.dept===userDept;
-    // staff: own + collab
+    if(["manager","deputy_manager"].includes(currentUser.role))return t.dept===userDept;
     if(t.eid===currentUser.employee_id)return true;
     return parseJSON(t.collab_eids,[]).includes(currentUser.employee_id);
   },[currentUser,canSeeAll,userDept]);
 
   const canEditTask=useMemo(()=>(t)=>{
     if(!currentUser)return false;
-    if(isAdmin)return true;
-    if(currentUser.role==="manager_hcth")return true;
-    if(currentUser.role==="manager")return t.dept===userDept;
+    if(FULL_ACCESS_ROLES.includes(currentUser.role))return true;
+    if(["manager","deputy_manager"].includes(currentUser.role))return t.dept===userDept;
     return false;
-  },[currentUser,isAdmin,userDept]);
+  },[currentUser,userDept]);
 
   // ── Login ──
   const handleLogin=async()=>{
@@ -202,31 +228,21 @@ export default function App() {
     return true;
   }),[computed,fStatus,fDept,fEid,search]);
 
-  // Calendar
   const calTasks=useMemo(()=>computed.filter(t=>{const d=new Date(t.deadline);return d.getFullYear()===calYear&&d.getMonth()===calMonth;}),[computed,calYear,calMonth]);
   const calTasksByDay=useMemo(()=>{const m={};calTasks.forEach(t=>{const day=new Date(t.deadline).getDate();if(!m[day])m[day]=[];m[day].push(t);});return m;},[calTasks]);
   const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
   const firstDay=new Date(calYear,calMonth,1).getDay();
 
-  // Reports
   const repTasks=useMemo(()=>computed.filter(t=>{const d=new Date(t.deadline);return d.getFullYear()===repYear&&d.getMonth()===repMonth;}),[computed,repYear,repMonth]);
   const repStats=useMemo(()=>{const total=repTasks.length,done=repTasks.filter(t=>t.status==="completed").length,over=repTasks.filter(t=>t.status==="overdue").length;return{total,done,over,rate:total?Math.round(done/total*100):0};},[repTasks]);
   const repDeptData=useMemo(()=>DEPTS.map(d=>{const dt=repTasks.filter(t=>t.dept===d);const done=dt.filter(t=>t.status==="completed").length;return{name:d,total:dt.length,done,over:dt.filter(t=>t.status==="overdue").length,rate:dt.length?Math.round(done/dt.length*100):0};}), [repTasks]);
-  const repEmpData=useMemo(()=>{
-    const res=(employees||[]).map(emp=>{const et=repTasks.filter(t=>t.eid===emp.id);const done=et.filter(t=>t.status==="completed").length,over=et.filter(t=>t.status==="overdue").length;return{...emp,total:et.length,done,over,rate:et.length?Math.round(done/et.length*100):0};});
-    return res.filter(e=>e.total>0).sort((a,b)=>b.rate-a.rate);
-  },[employees,repTasks]);
+  const repEmpData=useMemo(()=>{const res=(employees||[]).map(emp=>{const et=repTasks.filter(t=>t.eid===emp.id);const done=et.filter(t=>t.status==="completed").length,over=et.filter(t=>t.status==="overdue").length;return{...emp,total:et.length,done,over,rate:et.length?Math.round(done/et.length*100):0};});return res.filter(e=>e.total>0).sort((a,b)=>b.rate-a.rate);},[employees,repTasks]);
   const repMonthTrend=useMemo(()=>{const months=[];for(let i=5;i>=0;i--){const d=new Date(repYear,repMonth-i,1);const m=d.getMonth(),y=d.getFullYear();const mt=computed.filter(t=>{const td=new Date(t.deadline);return td.getFullYear()===y&&td.getMonth()===m;});months.push({name:`T${m+1}`,done:mt.filter(t=>t.status==="completed").length,total:mt.length});}return months;},[computed,repYear,repMonth]);
 
   const getEmp=id=>(employees||[]).find(e=>e.id===id);
   const deptEmps=dept=>(employees||[]).filter(e=>e.dept===dept);
 
-  // ── Task form helpers ──
-  const emptyTaskData=()=>{
-    const dept=availableDepts[0];
-    const first=(employees||[]).find(e=>e.dept===dept);
-    return{title:"",description:"",dept,eid:first?.id||"",prio:"medium",deadline:addDays(today,7),attachments:"[]",progress:0,collab_eids:"[]",collab_note:""};
-  };
+  const emptyTaskData=()=>{const dept=availableDepts[0];const first=(employees||[]).find(e=>e.dept===dept);return{title:"",description:"",dept,eid:first?.id||"",prio:"medium",deadline:addDays(today,7),attachments:"[]",progress:0,collab_eids:"[]",collab_note:""};};
   const openCreateTask=()=>setTaskForm({data:emptyTaskData(),editId:null});
   const openEditTask=t=>setTaskForm({data:{title:t.title,description:t.description||"",dept:t.dept,eid:t.eid,prio:t.prio,deadline:t.deadline,attachments:t.attachments||"[]",progress:t.progress||0,collab_eids:t.collab_eids||"[]",collab_note:t.collab_note||""},editId:t.id});
   const changeTaskDept=v=>{const f=(employees||[]).find(e=>e.dept===v);setTaskForm(tf=>({...tf,data:{...tf.data,dept:v,eid:f?f.id:""}}));};
@@ -249,7 +265,6 @@ export default function App() {
   const inp={padding:"7px 10px",border:"1px solid #d1d5db",borderRadius:7,fontSize:13,background:"#fff",color:"#111",width:"100%",boxSizing:"border-box"};
   const Chip=({s})=>(<span style={{background:STATUS[s].bg,color:STATUS[s].col,fontSize:12,padding:"2px 8px",borderRadius:12,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:6,height:6,borderRadius:"50%",background:STATUS[s].dot,flexShrink:0}}/>{STATUS[s].label}</span>);
   const PChip=({p})=>(<span style={{background:PRIO[p].bg,color:PRIO[p].col,fontSize:12,padding:"2px 8px",borderRadius:12}}>{PRIO[p].label}</span>);
-  const RoleBadge=({role})=>{const map={admin:["#4338ca","#e0e7ff"],manager_hcth:["#0369a1","#e0f2fe"],manager:["#15803d","#dcfce7"],staff:["#92400e","#fef9c3"]};const[col,bg]=map[role]||["#475569","#f1f5f9"];return<span style={{fontSize:11,color:col,background:bg,padding:"2px 8px",borderRadius:8}}>{ROLE_LABELS[role]||role}</span>;};
 
   const navItems=[
     {id:"dashboard",icon:"📊",label:"Tổng quan"},
@@ -281,7 +296,7 @@ export default function App() {
     <div style={{display:"flex",flexDirection:isMobile?"column":"row",height:"100vh",fontFamily:"system-ui,sans-serif",background:"#f8fafc",overflow:"hidden"}}>
       {toast&&<div style={{position:"fixed",top:16,right:16,zIndex:200,background:toast.type==="error"?"#fee2e2":"#dcfce7",color:toast.type==="error"?"#b91c1c":"#15803d",padding:"10px 18px",borderRadius:8,fontSize:13,boxShadow:"0 2px 8px rgba(0,0,0,0.12)"}}>{toast.msg}</div>}
 
-      {/* ── DESKTOP SIDEBAR ── */}
+      {/* SIDEBAR */}
       {!isMobile&&(
         <div style={{width:220,background:"#1e1b4b",display:"flex",flexDirection:"column",flexShrink:0}}>
           <div style={{padding:"16px 14px",borderBottom:"1px solid rgba(255,255,255,0.1)"}}>
@@ -297,11 +312,8 @@ export default function App() {
           </nav>
           <div style={{padding:"10px 14px",borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",flexDirection:"column",gap:6}}>
             {canSeeAll&&<button onClick={()=>setExModal(true)} style={{background:"rgba(99,102,241,0.25)",border:"none",borderRadius:7,padding:"8px 10px",cursor:"pointer",color:"#c7d2fe",fontSize:13,textAlign:"left"}}>📤 Xuất CSV</button>}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0"}}>
-              <div>
-                <div style={{color:"#e0e7ff",fontSize:12,fontWeight:500}}>{currentUser.full_name}</div>
-                <RoleBadge role={currentUser.role}/>
-              </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div><div style={{color:"#e0e7ff",fontSize:12,fontWeight:500}}>{currentUser.full_name}</div><div style={{marginTop:3}}><RoleBadge role={currentUser.role}/></div></div>
               <button onClick={handleLogout} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:16}} title="Đăng xuất">⏏</button>
             </div>
             {saving&&<div style={{color:"#64748b",fontSize:11,textAlign:"center"}}>Đang lưu…</div>}
@@ -309,7 +321,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── MAIN ── */}
+      {/* MAIN */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:isMobile?"10px 12px":"10px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -326,16 +338,15 @@ export default function App() {
 
         <div style={{flex:1,overflowY:"auto",padding:isMobile?12:20}}>
 
-          {/* ════ DASHBOARD ════ */}
+          {/* DASHBOARD */}
           {view==="dashboard"&&(
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              {/* Role info banner */}
               {currentUser.role!=="admin"&&(
-                <div style={{background:"#eef2ff",borderRadius:8,padding:"8px 14px",fontSize:13,color:"#4338ca",display:"flex",alignItems:"center",gap:8}}>
-                  <span>ℹ️</span>
+                <div style={{background:ROLE_COLORS[currentUser.role]?.[1]||"#eef2ff",borderRadius:8,padding:"8px 14px",fontSize:13,color:ROLE_COLORS[currentUser.role]?.[0]||"#4338ca",display:"flex",alignItems:"center",gap:8,border:`1px solid ${ROLE_COLORS[currentUser.role]?.[0]||"#4338ca"}22`}}>
+                  <RoleBadge role={currentUser.role}/>
                   <span>
-                    {currentUser.role==="manager_hcth"&&"Bạn đang xem toàn bộ nhiệm vụ của cơ quan."}
-                    {currentUser.role==="manager"&&`Bạn đang xem nhiệm vụ phòng ${userDept}.`}
+                    {FULL_ACCESS_ROLES.includes(currentUser.role)&&"Bạn đang xem toàn bộ nhiệm vụ của cơ quan."}
+                    {["manager","deputy_manager"].includes(currentUser.role)&&`Bạn đang xem nhiệm vụ phòng ${userDept}.`}
                     {currentUser.role==="staff"&&"Bạn đang xem nhiệm vụ được giao và phối hợp."}
                   </span>
                 </div>
@@ -347,7 +358,7 @@ export default function App() {
               </div>
               <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>
                 <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:14}}>
-                  <div style={{fontWeight:600,fontSize:13,marginBottom:10}}>Nhiệm vụ theo phòng ban</div>
+                  <div style={{fontWeight:600,fontSize:13,marginBottom:10}}>Theo phòng ban</div>
                   <ResponsiveContainer width="100%" height={160}><BarChart data={deptChart} barSize={10}><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}} allowDecimals={false}/><Tooltip/><Bar dataKey="Trong hạn" fill="#16a34a" radius={[3,3,0,0]}/><Bar dataKey="Sắp hết hạn" fill="#ca8a04" radius={[3,3,0,0]}/><Bar dataKey="Quá hạn" fill="#dc2626" radius={[3,3,0,0]}/><Bar dataKey="Hoàn thành" fill="#6366f1" radius={[3,3,0,0]}/></BarChart></ResponsiveContainer>
                 </div>
                 <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:14}}>
@@ -371,7 +382,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ════ TASK LIST ════ */}
+          {/* TASK LIST */}
           {view==="tasks"&&(
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 12px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
@@ -384,25 +395,22 @@ export default function App() {
               {isMobile?(
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
                   {filtered.length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:24}}>Không có nhiệm vụ</div>}
-                  {filtered.map(t=>{
-                    const collabs=parseJSON(t.collab_eids,[]);
-                    return(
-                      <div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);}} style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:12,cursor:"pointer"}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}><div style={{fontWeight:500,fontSize:14,flex:1,marginRight:8}}>{t.title}</div><Chip s={t.status}/></div>
-                        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
-                          <span style={{background:DEPT_COLOR[t.dept]+"22",color:DEPT_COLOR[t.dept],fontSize:11,padding:"2px 7px",borderRadius:8}}>{t.dept}</span>
-                          <span style={{fontSize:12,color:"#6b7280"}}>{getEmp(t.eid)?.name||"–"}</span>
-                          {collabs.length>0&&<span style={{fontSize:11,color:"#6b7280"}}>👥 {collabs.length} phối hợp</span>}
-                          <span style={{fontSize:12,color:t.status==="overdue"?"#b91c1c":"#6b7280"}}>📅 {t.deadline}</span>
-                        </div>
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <div style={{flex:1,height:5,background:"#e5e7eb",borderRadius:5,overflow:"hidden"}}><div style={{height:"100%",width:`${t.progress||0}%`,background:t.progress===100?"#16a34a":t.progress>=50?"#f59e0b":"#6366f1",borderRadius:5}}/></div>
-                          <span style={{fontSize:11,color:"#6b7280"}}>{t.progress||0}%</span>
-                          <button onClick={e=>{e.stopPropagation();toggleDone(t);}} style={{padding:"3px 8px",border:"1px solid #d1d5db",borderRadius:5,background:t.completed?"#f9fafb":"#dcfce7",cursor:"pointer",fontSize:12,color:t.completed?"#6b7280":"#15803d"}}>✓</button>
-                        </div>
+                  {filtered.map(t=>{const collabs=parseJSON(t.collab_eids,[]);return(
+                    <div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);}} style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:12,cursor:"pointer"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}><div style={{fontWeight:500,fontSize:14,flex:1,marginRight:8}}>{t.title}</div><Chip s={t.status}/></div>
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+                        <span style={{background:DEPT_COLOR[t.dept]+"22",color:DEPT_COLOR[t.dept],fontSize:11,padding:"2px 7px",borderRadius:8}}>{t.dept}</span>
+                        <span style={{fontSize:12,color:"#6b7280"}}>{getEmp(t.eid)?.name||"–"}</span>
+                        {collabs.length>0&&<span style={{fontSize:11,color:"#6b7280"}}>👥{collabs.length}</span>}
+                        <span style={{fontSize:12,color:t.status==="overdue"?"#b91c1c":"#6b7280"}}>📅{t.deadline}</span>
                       </div>
-                    );
-                  })}
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{flex:1,height:5,background:"#e5e7eb",borderRadius:5,overflow:"hidden"}}><div style={{height:"100%",width:`${t.progress||0}%`,background:t.progress===100?"#16a34a":t.progress>=50?"#f59e0b":"#6366f1",borderRadius:5}}/></div>
+                        <span style={{fontSize:11,color:"#6b7280"}}>{t.progress||0}%</span>
+                        <button onClick={e=>{e.stopPropagation();toggleDone(t);}} style={{padding:"3px 8px",border:"1px solid #d1d5db",borderRadius:5,background:t.completed?"#f9fafb":"#dcfce7",cursor:"pointer",fontSize:12,color:t.completed?"#6b7280":"#15803d"}}>✓</button>
+                      </div>
+                    </div>
+                  );})}
                 </div>
               ):(
                 <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",overflow:"hidden"}}>
@@ -410,33 +418,23 @@ export default function App() {
                     <thead><tr style={{background:"#f9fafb"}}>{[["Tiêu đề","26%"],["Phòng","8%"],["Nhân viên","12%"],["Phối hợp","12%"],["Tiến độ","12%"],["Hạn chót","10%"],["Trạng thái","12%"],["","8%"]].map(([h,w])=><th key={h} style={{padding:"9px 12px",textAlign:"left",fontSize:11,fontWeight:600,color:"#6b7280",borderBottom:"1px solid #e5e7eb",width:w}}>{h}</th>)}</tr></thead>
                     <tbody>
                       {filtered.length===0&&<tr><td colSpan={8} style={{padding:24,textAlign:"center",color:"#9ca3af"}}>Không có nhiệm vụ</td></tr>}
-                      {filtered.map(t=>{
-                        const collabs=parseJSON(t.collab_eids,[]);
-                        return(
-                          <tr key={t.id} style={{borderBottom:"1px solid #f3f4f6"}}>
-                            <td style={{padding:"9px 12px"}}><div onClick={()=>{setModal(t);loadComments(t.id);}} style={{fontWeight:500,cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} onMouseEnter={e=>e.target.style.color="#4f46e5"} onMouseLeave={e=>e.target.style.color="#111"}>{t.title}</div></td>
-                            <td style={{padding:"9px 12px"}}><span style={{background:DEPT_COLOR[t.dept]+"22",color:DEPT_COLOR[t.dept],fontSize:11,padding:"2px 6px",borderRadius:8}}>{t.dept}</span></td>
-                            <td style={{padding:"9px 12px",color:"#6b7280",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getEmp(t.eid)?.name||"–"}</td>
-                            <td style={{padding:"9px 12px"}}>
-                              {collabs.length>0?(
-                                <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-                                  {collabs.slice(0,2).map(id=><span key={id} style={{fontSize:10,background:"#f0fdf4",color:"#15803d",padding:"1px 5px",borderRadius:8,whiteSpace:"nowrap"}}>{getEmp(id)?.name||"–"}</span>)}
-                                  {collabs.length>2&&<span style={{fontSize:10,color:"#9ca3af"}}>+{collabs.length-2}</span>}
-                                </div>
-                              ):<span style={{color:"#d1d5db",fontSize:12}}>—</span>}
-                            </td>
-                            <td style={{padding:"9px 12px"}}><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{flex:1,height:6,background:"#e5e7eb",borderRadius:6,overflow:"hidden"}}><div style={{height:"100%",width:`${t.progress||0}%`,background:t.progress===100?"#16a34a":t.progress>=50?"#f59e0b":"#6366f1",borderRadius:6}}/></div><span style={{fontSize:11,color:"#6b7280",flexShrink:0}}>{t.progress||0}%</span></div></td>
-                            <td style={{padding:"9px 12px",fontSize:12,color:t.status==="overdue"?"#b91c1c":"#6b7280",fontWeight:t.status==="overdue"?600:400}}>{t.deadline}</td>
-                            <td style={{padding:"9px 12px"}}><Chip s={t.status}/></td>
-                            <td style={{padding:"9px 12px"}}><div style={{display:"flex",gap:3}}>
-                              <button onClick={()=>toggleDone(t)} style={{padding:"3px 6px",border:"1px solid #d1d5db",borderRadius:5,background:t.completed?"#f9fafb":"#dcfce7",cursor:"pointer",fontSize:12,color:t.completed?"#6b7280":"#15803d"}}>✓</button>
-                              {canEditTask(t)&&<button onClick={()=>openEditTask(t)} style={{padding:"3px 6px",border:"1px solid #d1d5db",borderRadius:5,background:"#f9fafb",cursor:"pointer",fontSize:12}}>✏️</button>}
-                              <button onClick={()=>{setModal(t);loadComments(t.id);}} style={{padding:"3px 6px",border:"1px solid #d1d5db",borderRadius:5,background:"#f9fafb",cursor:"pointer",fontSize:12}}>💬</button>
-                              {canEditTask(t)&&<button onClick={()=>deleteTaskFn(t.id)} style={{padding:"3px 6px",border:"1px solid #fca5a5",borderRadius:5,background:"#fff0f0",cursor:"pointer",fontSize:12,color:"#dc2626"}}>🗑️</button>}
-                            </div></td>
-                          </tr>
-                        );
-                      })}
+                      {filtered.map(t=>{const collabs=parseJSON(t.collab_eids,[]);return(
+                        <tr key={t.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                          <td style={{padding:"9px 12px"}}><div onClick={()=>{setModal(t);loadComments(t.id);}} style={{fontWeight:500,cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} onMouseEnter={e=>e.target.style.color="#4f46e5"} onMouseLeave={e=>e.target.style.color="#111"}>{t.title}</div></td>
+                          <td style={{padding:"9px 12px"}}><span style={{background:DEPT_COLOR[t.dept]+"22",color:DEPT_COLOR[t.dept],fontSize:11,padding:"2px 6px",borderRadius:8}}>{t.dept}</span></td>
+                          <td style={{padding:"9px 12px",color:"#6b7280",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getEmp(t.eid)?.name||"–"}</td>
+                          <td style={{padding:"9px 12px"}}>{collabs.length>0?(<div style={{display:"flex",flexWrap:"wrap",gap:3}}>{collabs.slice(0,2).map(id=><span key={id} style={{fontSize:10,background:"#f0fdf4",color:"#15803d",padding:"1px 5px",borderRadius:8,whiteSpace:"nowrap"}}>{getEmp(id)?.name||"–"}</span>)}{collabs.length>2&&<span style={{fontSize:10,color:"#9ca3af"}}>+{collabs.length-2}</span>}</div>):<span style={{color:"#d1d5db",fontSize:12}}>—</span>}</td>
+                          <td style={{padding:"9px 12px"}}><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{flex:1,height:6,background:"#e5e7eb",borderRadius:6,overflow:"hidden"}}><div style={{height:"100%",width:`${t.progress||0}%`,background:t.progress===100?"#16a34a":t.progress>=50?"#f59e0b":"#6366f1",borderRadius:6}}/></div><span style={{fontSize:11,color:"#6b7280",flexShrink:0}}>{t.progress||0}%</span></div></td>
+                          <td style={{padding:"9px 12px",fontSize:12,color:t.status==="overdue"?"#b91c1c":"#6b7280",fontWeight:t.status==="overdue"?600:400}}>{t.deadline}</td>
+                          <td style={{padding:"9px 12px"}}><Chip s={t.status}/></td>
+                          <td style={{padding:"9px 12px"}}><div style={{display:"flex",gap:3}}>
+                            <button onClick={()=>toggleDone(t)} style={{padding:"3px 6px",border:"1px solid #d1d5db",borderRadius:5,background:t.completed?"#f9fafb":"#dcfce7",cursor:"pointer",fontSize:12,color:t.completed?"#6b7280":"#15803d"}}>✓</button>
+                            {canEditTask(t)&&<button onClick={()=>openEditTask(t)} style={{padding:"3px 6px",border:"1px solid #d1d5db",borderRadius:5,background:"#f9fafb",cursor:"pointer",fontSize:12}}>✏️</button>}
+                            <button onClick={()=>{setModal(t);loadComments(t.id);}} style={{padding:"3px 6px",border:"1px solid #d1d5db",borderRadius:5,background:"#f9fafb",cursor:"pointer",fontSize:12}}>💬</button>
+                            {canEditTask(t)&&<button onClick={()=>deleteTaskFn(t.id)} style={{padding:"3px 6px",border:"1px solid #fca5a5",borderRadius:5,background:"#fff0f0",cursor:"pointer",fontSize:12,color:"#dc2626"}}>🗑️</button>}
+                          </div></td>
+                        </tr>
+                      );})}
                     </tbody>
                   </table>
                 </div>
@@ -444,7 +442,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ════ CALENDAR ════ */}
+          {/* CALENDAR */}
           {view==="calendar"&&(
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -474,7 +472,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ════ REPORTS ════ */}
+          {/* REPORTS */}
           {view==="reports"&&(
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
               <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
@@ -484,23 +482,23 @@ export default function App() {
                 <span style={{fontSize:13,color:"#6b7280"}}>{repTasks.length} nhiệm vụ</span>
               </div>
               <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:12}}>
-                {[{label:"Tổng nhiệm vụ",val:repStats.total,bg:"#eef2ff",col:"#4338ca",icon:"📋"},{label:"Hoàn thành",val:repStats.done,bg:"#dcfce7",col:"#15803d",icon:"✅"},{label:"Quá hạn",val:repStats.over,bg:"#fee2e2",col:"#b91c1c",icon:"❌"},{label:"Tỷ lệ HT",val:`${repStats.rate}%`,bg:"#fef9c3",col:"#92400e",icon:"⭐"}].map(c=>(
+                {[{label:"Tổng",val:repStats.total,bg:"#eef2ff",col:"#4338ca",icon:"📋"},{label:"Hoàn thành",val:repStats.done,bg:"#dcfce7",col:"#15803d",icon:"✅"},{label:"Quá hạn",val:repStats.over,bg:"#fee2e2",col:"#b91c1c",icon:"❌"},{label:"Tỷ lệ HT",val:`${repStats.rate}%`,bg:"#fef9c3",col:"#92400e",icon:"⭐"}].map(c=>(
                   <div key={c.label} style={{background:c.bg,borderRadius:10,padding:14}}><div style={{fontSize:20,marginBottom:4}}>{c.icon}</div><div style={{fontSize:24,fontWeight:700,color:c.col}}>{c.val}</div><div style={{fontSize:12,color:c.col,opacity:0.8,marginTop:2}}>{c.label}</div></div>
                 ))}
               </div>
               <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:14}}>
                 <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:16}}>
-                  <div style={{fontWeight:600,fontSize:13,marginBottom:12}}>Hiệu suất theo phòng ban</div>
-                  <ResponsiveContainer width="100%" height={180}><BarChart data={repDeptData} barSize={20}><XAxis dataKey="name" tick={{fontSize:11}}/><YAxis tick={{fontSize:11}}/><Tooltip/><Bar dataKey="total" name="Tổng" fill="#e0e7ff" radius={[4,4,0,0]}/><Bar dataKey="done" name="Hoàn thành" fill="#6366f1" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>
+                  <div style={{fontWeight:600,fontSize:13,marginBottom:12}}>Hiệu suất phòng ban</div>
+                  <ResponsiveContainer width="100%" height={180}><BarChart data={repDeptData} barSize={20}><XAxis dataKey="name" tick={{fontSize:11}}/><YAxis tick={{fontSize:11}}/><Tooltip/><Bar dataKey="total" name="Tổng" fill="#e0e7ff" radius={[4,4,0,0]}/><Bar dataKey="done" name="HT" fill="#6366f1" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>
                 </div>
                 <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:16}}>
                   <div style={{fontWeight:600,fontSize:13,marginBottom:12}}>Xu hướng 6 tháng</div>
-                  <ResponsiveContainer width="100%" height={180}><LineChart data={repMonthTrend}><XAxis dataKey="name" tick={{fontSize:11}}/><YAxis tick={{fontSize:11}} allowDecimals={false}/><Tooltip/><Line type="monotone" dataKey="total" name="Tổng" stroke="#94a3b8" strokeWidth={2} dot={false}/><Line type="monotone" dataKey="done" name="Hoàn thành" stroke="#6366f1" strokeWidth={2} dot={{r:3}}/></LineChart></ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height={180}><LineChart data={repMonthTrend}><XAxis dataKey="name" tick={{fontSize:11}}/><YAxis tick={{fontSize:11}} allowDecimals={false}/><Tooltip/><Line type="monotone" dataKey="total" name="Tổng" stroke="#94a3b8" strokeWidth={2} dot={false}/><Line type="monotone" dataKey="done" name="HT" stroke="#6366f1" strokeWidth={2} dot={{r:3}}/></LineChart></ResponsiveContainer>
                 </div>
               </div>
               <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",overflow:"hidden"}}>
                 <div style={{padding:"10px 16px",borderBottom:"1px solid #e5e7eb",fontWeight:600,fontSize:13}}>Hiệu suất phòng ban</div>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"#f9fafb"}}>{["Phòng ban","Tổng","Hoàn thành","Quá hạn","Tỷ lệ HT"].map(h=><th key={h} style={{padding:"8px 16px",textAlign:"left",fontSize:11,fontWeight:600,color:"#6b7280",borderBottom:"1px solid #e5e7eb"}}>{h}</th>)}</tr></thead>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"#f9fafb"}}>{["Phòng","Tổng","HT","Quá hạn","Tỷ lệ"].map(h=><th key={h} style={{padding:"8px 16px",textAlign:"left",fontSize:11,fontWeight:600,color:"#6b7280",borderBottom:"1px solid #e5e7eb"}}>{h}</th>)}</tr></thead>
                 <tbody>{repDeptData.map(d=><tr key={d.name} style={{borderBottom:"1px solid #f3f4f6"}}><td style={{padding:"10px 16px"}}><span style={{background:DEPT_COLOR[d.name]+"22",color:DEPT_COLOR[d.name],padding:"2px 8px",borderRadius:8,fontSize:12,fontWeight:500}}>{d.name}</span></td><td style={{padding:"10px 16px",fontWeight:500}}>{d.total}</td><td style={{padding:"10px 16px",color:"#15803d"}}>{d.done}</td><td style={{padding:"10px 16px",color:d.over>0?"#b91c1c":"#6b7280"}}>{d.over}</td><td style={{padding:"10px 16px"}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:80,height:6,background:"#e5e7eb",borderRadius:6,overflow:"hidden"}}><div style={{height:"100%",width:`${d.rate}%`,background:d.rate>=80?"#16a34a":d.rate>=50?"#f59e0b":"#dc2626",borderRadius:6}}/></div><span style={{fontSize:12,fontWeight:600,color:d.rate>=80?"#15803d":d.rate>=50?"#92400e":"#b91c1c"}}>{d.rate}%</span></div></td></tr>)}</tbody></table>
               </div>
               {repEmpData.length>0&&(
@@ -512,8 +510,7 @@ export default function App() {
                       <td style={{padding:"9px 12px",fontSize:16}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":""}</td>
                       <td style={{padding:"9px 12px",fontWeight:500}}>{e.name}</td>
                       <td style={{padding:"9px 12px"}}><span style={{background:DEPT_COLOR[e.dept]+"22",color:DEPT_COLOR[e.dept],fontSize:11,padding:"2px 6px",borderRadius:8}}>{e.dept}</span></td>
-                      <td style={{padding:"9px 12px"}}>{e.total}</td>
-                      <td style={{padding:"9px 12px",color:"#15803d",fontWeight:500}}>{e.done}</td>
+                      <td style={{padding:"9px 12px"}}>{e.total}</td><td style={{padding:"9px 12px",color:"#15803d",fontWeight:500}}>{e.done}</td>
                       <td style={{padding:"9px 12px",color:e.over>0?"#b91c1c":"#6b7280",fontWeight:e.over>0?600:400}}>{e.over}</td>
                       <td style={{padding:"9px 12px"}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:60,height:6,background:"#e5e7eb",borderRadius:6,overflow:"hidden"}}><div style={{height:"100%",width:`${e.rate}%`,background:e.rate>=80?"#16a34a":e.rate>=50?"#f59e0b":"#dc2626",borderRadius:6}}/></div><span style={{fontSize:12,fontWeight:700,color:e.rate>=80?"#15803d":e.rate>=50?"#92400e":"#b91c1c"}}>{e.rate}%</span></div></td>
                     </tr>
@@ -523,11 +520,11 @@ export default function App() {
             </div>
           )}
 
-          {/* ════ EMPLOYEES ════ */}
+          {/* EMPLOYEES */}
           {view==="employees"&&(
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {(canSeeAll?DEPTS:[userDept].filter(Boolean)).map(d=><button key={d} onClick={()=>setEmpDeptTab(d)} style={{padding:"7px 16px",border:`2px solid ${empDeptTab===d?DEPT_COLOR[d]:"#d1d5db"}`,borderRadius:8,background:empDeptTab===d?DEPT_COLOR[d]+"18":"#fff",color:empDeptTab===d?DEPT_COLOR[d]:"#6b7280",fontWeight:empDeptTab===d?600:400,cursor:"pointer",fontSize:13}}>Phòng {d} ({deptEmps(d).length})</button>)}
+                {(canSeeAll?DEPTS:userDept?[userDept]:[]).map(d=><button key={d} onClick={()=>setEmpDeptTab(d)} style={{padding:"7px 16px",border:`2px solid ${empDeptTab===d?DEPT_COLOR[d]:"#d1d5db"}`,borderRadius:8,background:empDeptTab===d?DEPT_COLOR[d]+"18":"#fff",color:empDeptTab===d?DEPT_COLOR[d]:"#6b7280",fontWeight:empDeptTab===d?600:400,cursor:"pointer",fontSize:13}}>Phòng {d} ({deptEmps(d).length})</button>)}
               </div>
               <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",overflow:"hidden"}}>
                 <div style={{padding:"10px 16px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f9fafb"}}>
@@ -561,7 +558,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── MOBILE BOTTOM NAV ── */}
+      {/* MOBILE BOTTOM NAV */}
       {isMobile&&(
         <div style={{background:"#1e1b4b",display:"flex",flexShrink:0,borderTop:"1px solid rgba(255,255,255,0.1)"}}>
           {navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:view===n.id?"#c7d2fe":"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>{n.icon}</span><span style={{fontSize:9}}>{n.label}</span></button>)}
@@ -569,7 +566,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── CALENDAR DAY POPUP ── */}
+      {/* CALENDAR DAY POPUP */}
       {calDay&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
           <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:420,maxHeight:"80vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>
@@ -578,19 +575,13 @@ export default function App() {
               <button onClick={()=>setCalDay(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
             </div>
             <div style={{padding:16,display:"flex",flexDirection:"column",gap:8}}>
-              {calDay.tasks.map(t=>(
-                <div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setCalDay(null);}} style={{padding:"10px 14px",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer",borderLeft:`4px solid ${STATUS[t.status].dot}`}}>
-                  <div style={{fontWeight:500,fontSize:13,marginBottom:4}}>{t.title}</div>
-                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Chip s={t.status}/><PChip p={t.prio}/><span style={{fontSize:12,color:"#6b7280"}}>{getEmp(t.eid)?.name||"–"}</span></div>
-                  <div style={{marginTop:8}}><ProgressBar value={t.progress||0}/></div>
-                </div>
-              ))}
+              {calDay.tasks.map(t=>(<div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setCalDay(null);}} style={{padding:"10px 14px",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer",borderLeft:`4px solid ${STATUS[t.status].dot}`}}><div style={{fontWeight:500,fontSize:13,marginBottom:4}}>{t.title}</div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Chip s={t.status}/><PChip p={t.prio}/><span style={{fontSize:12,color:"#6b7280"}}>{getEmp(t.eid)?.name||"–"}</span></div><div style={{marginTop:8}}><ProgressBar value={t.progress||0}/></div></div>))}
             </div>
           </div>
         </div>
       )}
 
-      {/* ── TASK FORM ── */}
+      {/* TASK FORM */}
       {taskForm&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:isMobile?"flex-end":"center",justifyContent:"center",zIndex:50}}>
           <div style={{background:"#fff",borderRadius:isMobile?"12px 12px 0 0":12,width:"100%",maxWidth:520,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>
@@ -599,17 +590,13 @@ export default function App() {
               <button onClick={()=>setTaskForm(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
             </div>
             <div style={{padding:18,display:"flex",flexDirection:"column",gap:14}}>
-              {/* Basic info */}
               <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Tiêu đề *</label><input value={taskForm.data.title} onChange={e=>setTaskForm(f=>({...f,data:{...f.data,title:e.target.value}}))} placeholder="Nhập tiêu đề..." style={inp}/></div>
               <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Mô tả</label><textarea value={taskForm.data.description} onChange={e=>setTaskForm(f=>({...f,data:{...f.data,description:e.target.value}}))} rows={2} style={{...inp,resize:"vertical"}}/></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 <div>
                   <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Phòng ban</label>
-                  {canSeeAll?(
-                    <select value={taskForm.data.dept} onChange={e=>changeTaskDept(e.target.value)} style={inp}>{DEPTS.map(d=><option key={d} value={d}>{d}</option>)}</select>
-                  ):(
-                    <div style={{...inp,background:"#f9fafb",color:"#374151"}}>{taskForm.data.dept}</div>
-                  )}
+                  {canSeeAll?(<select value={taskForm.data.dept} onChange={e=>changeTaskDept(e.target.value)} style={inp}>{DEPTS.map(d=><option key={d} value={d}>{d}</option>)}</select>)
+                  :(<div style={{...inp,background:"#f9fafb",color:"#374151"}}>{taskForm.data.dept}</div>)}
                 </div>
                 <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Giao cho</label>
                   <select value={taskForm.data.eid} onChange={e=>setTaskForm(f=>({...f,data:{...f.data,eid:e.target.value}}))} style={inp}>
@@ -619,34 +606,24 @@ export default function App() {
                 <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Ưu tiên</label><select value={taskForm.data.prio} onChange={e=>setTaskForm(f=>({...f,data:{...f.data,prio:e.target.value}}))} style={inp}><option value="high">Cao</option><option value="medium">Trung bình</option><option value="low">Thấp</option></select></div>
                 <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Hạn chót *</label><input type="date" value={taskForm.data.deadline} onChange={e=>setTaskForm(f=>({...f,data:{...f.data,deadline:e.target.value}}))} style={inp}/></div>
               </div>
-
               <ProgressBar value={taskForm.data.progress||0} editable onChange={v=>setTaskForm(f=>({...f,data:{...f.data,progress:v}}))}/>
-
-              {/* ── COLLAB SECTION ── */}
+              {/* COLLAB */}
               <div style={{border:"1px solid #e5e7eb",borderRadius:10,overflow:"hidden"}}>
                 <div style={{padding:"10px 14px",background:"#f8fafc",borderBottom:"1px solid #e5e7eb",display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontSize:14}}>👥</span>
-                  <span style={{fontWeight:500,fontSize:13,color:"#374151"}}>Nhân viên / Phòng phối hợp</span>
+                  <span style={{fontSize:14}}>👥</span><span style={{fontWeight:500,fontSize:13}}>Nhân viên / Phòng phối hợp</span>
                   {parseJSON(taskForm.data.collab_eids,[]).length>0&&<span style={{background:"#dcfce7",color:"#15803d",fontSize:11,padding:"1px 8px",borderRadius:10}}>{parseJSON(taskForm.data.collab_eids,[]).length} đã chọn</span>}
                 </div>
                 <div style={{padding:12}}>
                   {DEPTS.map(dept=>(
                     <div key={dept} style={{marginBottom:10}}>
-                      <div style={{fontSize:11,fontWeight:600,color:DEPT_COLOR[dept],marginBottom:6,display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{width:8,height:8,borderRadius:"50%",background:DEPT_COLOR[dept],display:"inline-block"}}/>
-                        Phòng {dept}
-                      </div>
+                      <div style={{fontSize:11,fontWeight:600,color:DEPT_COLOR[dept],marginBottom:6,display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:8,borderRadius:"50%",background:DEPT_COLOR[dept],display:"inline-block"}}/>Phòng {dept}</div>
                       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                        {deptEmps(dept).map(emp=>{
-                          const selected=parseJSON(taskForm.data.collab_eids,[]).includes(emp.id);
-                          const isAssignee=taskForm.data.eid===emp.id;
-                          return(
-                            <button key={emp.id} disabled={isAssignee} onClick={()=>toggleCollab(emp.id)}
-                              style={{padding:"4px 10px",border:`1.5px solid ${selected?DEPT_COLOR[dept]:"#e5e7eb"}`,borderRadius:20,background:selected?DEPT_COLOR[dept]+"18":"#fff",color:selected?DEPT_COLOR[dept]:"#6b7280",cursor:isAssignee?"default":"pointer",fontSize:12,fontWeight:selected?600:400,opacity:isAssignee?0.4:1,transition:"all 0.15s"}}>
-                              {selected&&"✓ "}{emp.name}{isAssignee&&" (NV chính)"}
-                            </button>
-                          );
-                        })}
+                        {deptEmps(dept).map(emp=>{const selected=parseJSON(taskForm.data.collab_eids,[]).includes(emp.id);const isAssignee=taskForm.data.eid===emp.id;return(
+                          <button key={emp.id} disabled={isAssignee} onClick={()=>toggleCollab(emp.id)}
+                            style={{padding:"4px 10px",border:`1.5px solid ${selected?DEPT_COLOR[dept]:"#e5e7eb"}`,borderRadius:20,background:selected?DEPT_COLOR[dept]+"18":"#fff",color:selected?DEPT_COLOR[dept]:"#6b7280",cursor:isAssignee?"default":"pointer",fontSize:12,fontWeight:selected?600:400,opacity:isAssignee?0.4:1}}>
+                            {selected&&"✓ "}{emp.name}{isAssignee&&" (chính)"}
+                          </button>
+                        );})}
                       </div>
                     </div>
                   ))}
@@ -658,8 +635,7 @@ export default function App() {
                   )}
                 </div>
               </div>
-
-              {/* File */}
+              {/* FILE */}
               <div>
                 <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:6}}>📎 Đính kèm file</label>
                 <label style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",border:"1.5px dashed #d1d5db",borderRadius:8,cursor:"pointer",background:"#f9fafb",fontSize:13,color:"#6b7280"}}>
@@ -686,7 +662,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── EMPLOYEE FORM ── */}
+      {/* EMPLOYEE FORM */}
       {empForm&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:isMobile?"flex-end":"center",justifyContent:"center",zIndex:50}}>
           <div style={{background:"#fff",borderRadius:isMobile?"12px 12px 0 0":12,width:"100%",maxWidth:380,boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>
@@ -707,7 +683,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── TASK DETAIL ── */}
+      {/* TASK DETAIL */}
       {modal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:isMobile?"flex-end":"center",justifyContent:"center",zIndex:50}}>
           <div style={{background:"#fff",borderRadius:isMobile?"12px 12px 0 0":12,width:"100%",maxWidth:520,maxHeight:isMobile?"95vh":"90vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)",display:"flex",flexDirection:"column"}}>
@@ -721,8 +697,6 @@ export default function App() {
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,fontSize:13,marginBottom:14}}>
                 {[["Phòng ban",<span style={{background:DEPT_COLOR[modal.dept]+"22",color:DEPT_COLOR[modal.dept],padding:"2px 7px",borderRadius:8,fontSize:12}}>{modal.dept}</span>],["Giao cho",getEmp(modal.eid)?.name||"–"],["Ưu tiên",<PChip p={modal.prio}/>],["Hạn chót",<span style={{color:modal.status==="overdue"?"#b91c1c":"#111",fontWeight:modal.status==="overdue"?600:400}}>{modal.deadline}</span>],["Trạng thái",<Chip s={modal.status}/>],["Ngày tạo",modal.created||"–"]].map(([k,v])=>(<div key={k}><div style={{fontSize:11,color:"#9ca3af",marginBottom:3}}>{k}</div><div>{v}</div></div>))}
               </div>
-
-              {/* Collab display */}
               {parseJSON(modal.collab_eids,[]).length>0&&(
                 <div style={{marginBottom:14,padding:"10px 14px",background:"#f0fdf4",borderRadius:10,border:"1px solid #bbf7d0"}}>
                   <div style={{fontSize:12,fontWeight:600,color:"#15803d",marginBottom:8}}>👥 Nhân viên phối hợp</div>
@@ -732,35 +706,19 @@ export default function App() {
                   {modal.collab_note&&<div style={{fontSize:12,color:"#166534",background:"#dcfce7",padding:"6px 10px",borderRadius:6}}>📝 {modal.collab_note}</div>}
                 </div>
               )}
-
               <div style={{marginBottom:14}}><ProgressBar value={modal.progress||0} editable={!!(canCreate||currentUser.employee_id===modal.eid||parseJSON(modal.collab_eids,[]).includes(currentUser.employee_id))} onChange={async v=>{await updateTask(modal.id,{progress:v},`Cập nhật tiến độ: ${v}%`);setModal(t=>({...t,progress:v}));}}/></div>
-
               {parseJSON(modal.attachments,[]).length>0&&(
                 <div style={{marginBottom:14}}>
                   <div style={{fontSize:12,color:"#9ca3af",marginBottom:8}}>📎 File đính kèm</div>
-                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                    {parseJSON(modal.attachments,[]).map((att,i)=>(
-                      <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"#f1f5f9",borderRadius:8,textDecoration:"none",color:"#1e40af",fontSize:13}}>
-                        <span style={{fontSize:18}}>{getFileIcon(att.name)}</span><span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{att.name}</span><span style={{fontSize:11,color:"#6b7280",flexShrink:0}}>⬇</span>
-                      </a>
-                    ))}
-                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>{parseJSON(modal.attachments,[]).map((att,i)=>(<a key={i} href={att.url} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"#f1f5f9",borderRadius:8,textDecoration:"none",color:"#1e40af",fontSize:13}}><span style={{fontSize:18}}>{getFileIcon(att.name)}</span><span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{att.name}</span><span style={{fontSize:11,color:"#6b7280",flexShrink:0}}>⬇</span></a>))}</div>
                 </div>
               )}
-
               {parseJSON(modal.history,[]).length>0&&(
                 <div style={{marginBottom:14}}>
                   <div style={{fontSize:12,color:"#9ca3af",marginBottom:8}}>🔄 Lịch sử</div>
-                  <div style={{maxHeight:100,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
-                    {parseJSON(modal.history,[]).map((h,i)=>(
-                      <div key={i} style={{fontSize:12,padding:"5px 10px",background:"#f8fafc",borderRadius:6,borderLeft:"3px solid #6366f1"}}>
-                        <span style={{color:"#4338ca",fontWeight:500}}>{h.action}</span><span style={{color:"#9ca3af",marginLeft:8}}>— {h.by} · {h.at}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <div style={{maxHeight:100,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>{parseJSON(modal.history,[]).map((h,i)=>(<div key={i} style={{fontSize:12,padding:"5px 10px",background:"#f8fafc",borderRadius:6,borderLeft:"3px solid #6366f1"}}><span style={{color:"#4338ca",fontWeight:500}}>{h.action}</span><span style={{color:"#9ca3af",marginLeft:8}}>— {h.by} · {h.at}</span></div>))}</div>
                 </div>
               )}
-
               <div>
                 <div style={{fontSize:12,color:"#9ca3af",marginBottom:8}}>💬 Bình luận ({(comments[modal.id]||[]).length})</div>
                 <div style={{maxHeight:180,overflowY:"auto",display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
@@ -785,38 +743,52 @@ export default function App() {
         </div>
       )}
 
-      {/* ── USER MODAL ── */}
+      {/* USER MODAL */}
       {userModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:isMobile?"flex-end":"center",justifyContent:"center",zIndex:50}}>
-          <div style={{background:"#fff",borderRadius:isMobile?"12px 12px 0 0":12,width:"100%",maxWidth:560,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>
+          <div style={{background:"#fff",borderRadius:isMobile?"12px 12px 0 0":12,width:"100%",maxWidth:580,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>
             <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff"}}>
               <span style={{fontWeight:600,fontSize:15}}>🔐 Quản lý tài khoản</span>
               <button onClick={()=>setUserModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
             </div>
             <div style={{padding:18}}>
               {/* Role guide */}
-              <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#0369a1"}}>
-                <div style={{fontWeight:600,marginBottom:4}}>📋 Hướng dẫn phân quyền:</div>
-                <div>• <strong>Quản trị viên</strong>: toàn quyền</div>
-                <div>• <strong>TP. HCTH</strong>: xem và giao việc toàn cơ quan</div>
-                <div>• <strong>Trưởng phòng</strong>: xem và giao việc trong phòng mình</div>
-                <div>• <strong>Nhân viên</strong>: chỉ xem việc được giao và phối hợp</div>
+              <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:"12px 14px",marginBottom:14,fontSize:12,color:"#0369a1"}}>
+                <div style={{fontWeight:600,marginBottom:6}}>📋 Phân quyền hệ thống:</div>
+                <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:4}}>
+                  {[
+                    ["director",        "Xem & giao việc toàn cơ quan, toàn quyền"],
+                    ["manager_hcth",    "Xem & giao việc toàn cơ quan"],
+                    ["manager",         "Xem & giao việc trong phòng mình"],
+                    ["deputy_manager",  "Xem & giao việc trong phòng mình"],
+                    ["staff",           "Chỉ xem việc được giao & phối hợp"],
+                  ].map(([role,desc])=>(
+                    <div key={role} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0"}}>
+                      <RoleBadge role={role}/><span style={{color:"#374151"}}>{desc}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
+              {/* User form */}
               <div style={{background:"#f8fafc",borderRadius:10,padding:14,marginBottom:16}}>
-                <div style={{fontWeight:500,fontSize:13,marginBottom:10}}>{userEditId?"Chỉnh sửa":"Thêm tài khoản mới"}</div>
+                <div style={{fontWeight:500,fontSize:13,marginBottom:10}}>{userEditId?"Chỉnh sửa tài khoản":"Thêm tài khoản mới"}</div>
                 <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
                   <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Họ tên *</label><input value={userForm.full_name} onChange={e=>setUserForm(f=>({...f,full_name:e.target.value}))} placeholder="Nguyễn Văn A" style={inp}/></div>
                   <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Tên đăng nhập *</label><input value={userForm.username} onChange={e=>setUserForm(f=>({...f,username:e.target.value}))} placeholder="nguyenvana" style={inp}/></div>
                   <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Mật khẩu *</label><input value={userForm.password} onChange={e=>setUserForm(f=>({...f,password:e.target.value}))} placeholder="••••••" style={inp}/></div>
-                  <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Vai trò</label>
+                  <div>
+                    <label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Vai trò</label>
                     <select value={userForm.role} onChange={e=>setUserForm(f=>({...f,role:e.target.value}))} style={inp}>
-                      <option value="admin">Quản trị viên</option>
+                      <option value="admin">Quản trị viên (hệ thống)</option>
+                      <option value="director">Ban Giám đốc</option>
                       <option value="manager_hcth">TP. HCTH (Toàn bộ)</option>
                       <option value="manager">Trưởng phòng</option>
+                      <option value="deputy_manager">Phó trưởng phòng</option>
                       <option value="staff">Nhân viên</option>
                     </select>
                   </div>
-                  <div style={{gridColumn:"span 2"}}><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Liên kết nhân viên (bắt buộc với Trưởng phòng và Nhân viên)</label>
+                  <div style={{gridColumn:"span 2"}}>
+                    <label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Liên kết nhân viên <span style={{color:"#dc2626"}}>(bắt buộc với TP, PTP, NV)</span></label>
                     <select value={userForm.employee_id} onChange={e=>setUserForm(f=>({...f,employee_id:e.target.value}))} style={inp}>
                       <option value="">-- Không liên kết --</option>
                       {(employees||[]).map(e=><option key={e.id} value={e.id}>{e.name} ({e.dept} - {e.role})</option>)}
@@ -824,10 +796,11 @@ export default function App() {
                   </div>
                 </div>
                 <div style={{display:"flex",gap:8,marginTop:10,justifyContent:"flex-end"}}>
-                  {userEditId&&<button onClick={()=>{setUserEditId(null);setUserForm({username:"",password:"",full_name:"",role:"staff",employee_id:""}); }} style={{padding:"6px 14px",border:"1px solid #d1d5db",borderRadius:7,background:"none",cursor:"pointer",fontSize:12}}>Hủy</button>}
+                  {userEditId&&<button onClick={()=>{setUserEditId(null);setUserForm({username:"",password:"",full_name:"",role:"staff",employee_id:""});}} style={{padding:"6px 14px",border:"1px solid #d1d5db",borderRadius:7,background:"none",cursor:"pointer",fontSize:12}}>Hủy</button>}
                   <button onClick={submitUser} disabled={saving} style={{padding:"6px 14px",background:"#4f46e5",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:12}}>{userEditId?"Cập nhật":"Thêm tài khoản"}</button>
                 </div>
               </div>
+              {/* User list */}
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
                 {users.map(u=>(
                   <div key={u.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",border:"1px solid #e5e7eb",borderRadius:8}}>
@@ -847,7 +820,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── EXPORT ── */}
+      {/* EXPORT */}
       {exModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:isMobile?"flex-end":"center",justifyContent:"center",zIndex:50}}>
           <div style={{background:"#fff",borderRadius:isMobile?"12px 12px 0 0":12,width:"100%",maxWidth:380,boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>
