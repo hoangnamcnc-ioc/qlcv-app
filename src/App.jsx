@@ -369,7 +369,7 @@ export default function App() {
                 <input type="password" value={changePwdForm.current} onChange={e=>setChangePwdForm(f=>({...f,current:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleChangePwd()} placeholder="Nhập mật khẩu hiện tại..." style={inp} autoFocus/>
               </div>
               <div>
-                <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:5,fontWeight:500}}>Mật khẩu mới <span style={{color:"#9ca3af",fontWeight:400"}}>(ít nhất 6 ký tự)</span></label>
+                <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:5,fontWeight:500}}>Mật khẩu mới <span style={{color:"#9ca3af",fontWeight:400}}>(ít nhất 6 ký tự)</span></label>
                 <input type="password" value={changePwdForm.next} onChange={e=>setChangePwdForm(f=>({...f,next:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleChangePwd()} placeholder="Nhập mật khẩu mới..." style={inp}/>
               </div>
               <div>
