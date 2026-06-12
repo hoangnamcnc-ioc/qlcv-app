@@ -30,6 +30,7 @@ const getNextDate=(from,freq)=>{const d=new Date(from);if(freq==="monthly")d.set
 const getStatus=t=>{if(t.completed||t.progress===100)return"completed";const dl=new Date(t.deadline);dl.setHours(0,0,0,0);const d=Math.ceil((dl-today)/86400000);if(d<0)return"overdue";if(d<=3)return"nearly_due";return"on_time";};
 const STATUS={on_time:{label:"Trong hạn",bg:"#dcfce7",col:"#15803d",dot:"#16a34a"},nearly_due:{label:"Sắp hết hạn",bg:"#fef9c3",col:"#a16207",dot:"#ca8a04"},overdue:{label:"Quá hạn",bg:"#fee2e2",col:"#b91c1c",dot:"#dc2626"},completed:{label:"Hoàn thành",bg:"#e0e7ff",col:"#4338ca",dot:"#6366f1"}};
 const PRIO={high:{label:"Cao",bg:"#fee2e2",col:"#b91c1c"},medium:{label:"Trung bình",bg:"#fef9c3",col:"#92400e"},low:{label:"Thấp",bg:"#f1f5f9",col:"#475569"}};
+const STATUS_ORDER={overdue:0,nearly_due:1,on_time:2,completed:3};
 const parseJSON=(v,d=[])=>{try{return JSON.parse(v||JSON.stringify(d));}catch{return d;}};
 const getFileIcon=n=>{const e=n.split(".").pop().toLowerCase();if(["jpg","jpeg","png","gif"].includes(e))return"🖼️";if(e==="pdf")return"📄";if(["doc","docx"].includes(e))return"📝";if(["xls","xlsx"].includes(e))return"📊";return"📎";};
 
@@ -57,7 +58,7 @@ export default function App() {
   const [modal,setModal]=useState(null); const [taskForm,setTaskForm]=useState(null);
   const [empForm,setEmpForm]=useState(null); const [empDeptTab,setEmpDeptTab]=useState("HCTH");
   const [fStatus,setFStatus]=useState("all"); const [fDept,setFDept]=useState("all");
-  const [fEid,setFEid]=useState("all"); const [search,setSearch]=useState("");
+  const [fEid,setFEid]=useState("all"); const [search,setSearch]=useState(""); const [fSort,setFSort]=useState("urgency");
   const [exModal,setExModal]=useState(false); const [exStatus,setExStatus]=useState("all"); const [exDept,setExDept]=useState("all");
   const [toast,setToast]=useState(null); const [uploadingFiles,setUploadingFiles]=useState(false);
   const [comments,setComments]=useState({}); const [commentText,setCommentText]=useState(""); const [commentLoading,setCommentLoading]=useState(false);
@@ -163,7 +164,7 @@ export default function App() {
   const computed=useMemo(()=>visibleTasks.map(t=>({...t,status:getStatus(t)})),[visibleTasks]);
   const stats=useMemo(()=>computed.reduce((a,t)=>({...a,total:a.total+1,[t.status]:a[t.status]+1}),{total:0,on_time:0,nearly_due:0,overdue:0,completed:0}),[computed]);
   const deptChart=useMemo(()=>DEPTS.map(d=>{const dt=computed.filter(t=>t.dept===d);return{name:d,"Trong hạn":dt.filter(t=>t.status==="on_time").length,"Sắp hết hạn":dt.filter(t=>t.status==="nearly_due").length,"Quá hạn":dt.filter(t=>t.status==="overdue").length,"Hoàn thành":dt.filter(t=>t.status==="completed").length};}), [computed]);
-  const filtered=useMemo(()=>computed.filter(t=>{if(fStatus!=="all"&&t.status!==fStatus)return false;if(fDept!=="all"&&t.dept!==fDept)return false;if(fEid!=="all"&&t.eid!==fEid)return false;if(search&&!t.title.toLowerCase().includes(search.toLowerCase()))return false;return true;}),[computed,fStatus,fDept,fEid,search]);
+  const filtered=useMemo(()=>{const f=computed.filter(t=>{if(fStatus!=="all"&&t.status!==fStatus)return false;if(fDept!=="all"&&t.dept!==fDept)return false;if(fEid!=="all"&&t.eid!==fEid)return false;if(search&&!t.title.toLowerCase().includes(search.toLowerCase()))return false;return true;});if(fSort==="urgency")return[...f].sort((a,b)=>(STATUS_ORDER[a.status]??9)-(STATUS_ORDER[b.status]??9));if(fSort==="deadline_asc")return[...f].sort((a,b)=>a.deadline.localeCompare(b.deadline));if(fSort==="deadline_desc")return[...f].sort((a,b)=>b.deadline.localeCompare(a.deadline));if(fSort==="newest")return[...f].sort((a,b)=>(b.created||"").localeCompare(a.created||""));return f;},[computed,fStatus,fDept,fEid,search,fSort]);
   const calTasks=useMemo(()=>computed.filter(t=>{const d=new Date(t.deadline);return d.getFullYear()===calYear&&d.getMonth()===calMonth;}),[computed,calYear,calMonth]);
   const calTasksByDay=useMemo(()=>{const m={};calTasks.forEach(t=>{const day=new Date(t.deadline).getDate();if(!m[day])m[day]=[];m[day].push(t);});return m;},[calTasks]);
   const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
@@ -286,6 +287,7 @@ export default function App() {
                 <select value={fStatus} onChange={e=>setFStatus(e.target.value)} style={{...inp,width:"auto",padding:"6px 8px",fontSize:12}}><option value="all">Tất cả TT</option><option value="on_time">Trong hạn</option><option value="nearly_due">Sắp HH</option><option value="overdue">Quá hạn</option><option value="completed">Hoàn thành</option></select>
                 {canSeeAll&&!isMobile&&<select value={fDept} onChange={e=>setFDept(e.target.value)} style={{...inp,width:"auto",padding:"6b 8px",fontSize:12}}><option value="all">Tất cả phòng</option>{DEPTS.map(d=><option key={d} value={d}>{d}</option>)}</select>}
                 {canCreate&&!isMobile&&<select value={fEid} onChange={e=>setFEid(e.target.value)} style={{...inp,width:"auto",padding:"6px 8px",fontSize:12}}><option value="all">Tất cả NV</option>{(employees||[]).filter(e=>canSeeAll||e.dept===userDept).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select>}
+                <select value={fSort} onChange={e=>setFSort(e.target.value)} style={{...inp,width:"auto",padding:"6px 8px",fontSize:12,borderColor:"#6366f1",color:"#4f46e5",fontWeight:500}}><option value="urgency">⚡ Ưu tiên</option><option value="deadline_asc">📅 Hạn gần nhất</option><option value="deadline_desc">📅 Hạn xa nhất</option><option value="newest">🆕 Mới nhất</option></select>
                 <span style={{fontSize:12,color:"#9ca3af"}}>{filtered.length}</span>
               </div>
               {isMobile?(
