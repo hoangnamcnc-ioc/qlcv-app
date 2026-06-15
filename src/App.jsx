@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { supabase } from "./supabase";
 import LOGO from "./logo.jpg";
 import Investment from "./Investment";
+import DutySchedule from "./DutySchedule";
 
 
 const DEPTS = ["HCTH","QL-KTDL","HT-NTS"];
@@ -246,7 +247,7 @@ export default function App() {
   const inp={padding:"7px 10px",border:"1px solid #d1d5db",borderRadius:7,fontSize:13,background:"#fff",color:"#111",width:"100%",boxSizing:"border-box"};
   const Chip=({s})=>(<span style={{background:STATUS[s].bg,color:STATUS[s].col,fontSize:12,padding:"2px 8px",borderRadius:12,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:6,height:6,borderRadius:"50%",background:STATUS[s].dot,flexShrink:0}}/>{STATUS[s].label}</span>);
   const PChip=({p})=>(<span style={{background:PRIO[p].bg,color:PRIO[p].col,fontSize:12,padding:"2px 8px",borderRadius:12}}>{PRIO[p].label}</span>);
-  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"calendar",icon:"📅",label:"Lịch"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[])];
+  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"duty",icon:"🗓️",label:"Lịch trực"},{id:"calendar",icon:"📅",label:"Lịch"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[])];
 
   if(!currentUser)return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f0f4ff",fontFamily:"system-ui,sans-serif",padding:16}}>
@@ -442,6 +443,9 @@ export default function App() {
           )}
           {view==="investment"&&(
             <Investment currentUser={currentUser} employees={employees} users={users} getEmp={getEmp} isMobile={isMobile} inp={inp} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} showToast={showToast}/>
+          )}
+          {view==="duty"&&(
+            <DutySchedule currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role)}/>
           )}
       </div>
 
