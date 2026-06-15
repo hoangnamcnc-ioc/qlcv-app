@@ -48,7 +48,7 @@ function parsePasted(text){
 export default function DutySchedule({ currentUser, isMobile, inp, showToast, canManage }){
   const [schedule,setSchedule]=useState({}); // {date: {leader,dc:[],ioc:[],note}}
   const [holidays,setHolidays]=useState([]);
-  const [viewMode,setViewMode]=useState("month");
+  const [viewMode,setViewMode]=useState("day");
   const [cur,setCur]=useState(new Date());
   const [loading,setLoading]=useState(true);
   const [showImport,setShowImport]=useState(false);
