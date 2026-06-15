@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { supabase } from "./supabase";
 import LOGO from "./logo.jpg";
+import Investment from "./Investment";
 
 
 const DEPTS = ["HCTH","QL-KTDL","HT-NTS"];
@@ -17,6 +18,7 @@ const RATING = {xuat_sac:{label:"Xuất sắc",bg:"#fef9c3",col:"#854d0e",icon:"
 const LATE_REASONS = [{value:"overload",label:"Khối lượng quá lớn"},{value:"missing_info",label:"Thiếu thông tin/tài liệu"},{value:"dependency",label:"Phụ thuộc bên khác"},{value:"unexpected",label:"Phát sinh đột xuất"},{value:"other",label:"Lý do khác"}];
 const OVERLOAD_DEFAULT = 5;
 const FREQUENCIES = [{value:"daily",label:"Hàng ngày",days:1},{value:"weekly",label:"Hàng tuần",days:7},{value:"biweekly",label:"2 tuần/lần",days:14},{value:"monthly",label:"Hàng tháng",days:30},{value:"quarterly",label:"Hàng quý",days:90}];
+
 
 const DEFAULT_EMPLOYEES = [
   {id:"e1",name:"Nguyễn Thị Hoa",dept:"HCTH",role:"Trưởng phòng"},{id:"e2",name:"Trần Văn An",dept:"HCTH",role:"Chuyên viên"},{id:"e3",name:"Lê Thị Mai",dept:"HCTH",role:"Chuyên viên"},{id:"e4",name:"Phạm Văn Bình",dept:"HCTH",role:"Chuyên viên"},{id:"e5",name:"Hoàng Thị Lan",dept:"HCTH",role:"Chuyên viên"},{id:"e6",name:"Đỗ Văn Cường",dept:"HCTH",role:"Nhân viên"},{id:"e7",name:"Vũ Thị Thu",dept:"HCTH",role:"Nhân viên"},{id:"e8",name:"Ngô Văn Đức",dept:"HCTH",role:"Nhân viên"},{id:"e9",name:"Bùi Thị Hạnh",dept:"HCTH",role:"Nhân viên"},{id:"e10",name:"Đinh Văn Hùng",dept:"HCTH",role:"Nhân viên"},{id:"e11",name:"Lý Thị Hương",dept:"HCTH",role:"Nhân viên"},{id:"e12",name:"Trịnh Văn Khoa",dept:"HCTH",role:"Nhân viên"},{id:"e13",name:"Phan Thị Linh",dept:"HCTH",role:"Nhân viên"},
@@ -244,7 +246,7 @@ export default function App() {
   const inp={padding:"7px 10px",border:"1px solid #d1d5db",borderRadius:7,fontSize:13,background:"#fff",color:"#111",width:"100%",boxSizing:"border-box"};
   const Chip=({s})=>(<span style={{background:STATUS[s].bg,color:STATUS[s].col,fontSize:12,padding:"2px 8px",borderRadius:12,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:6,height:6,borderRadius:"50%",background:STATUS[s].dot,flexShrink:0}}/>{STATUS[s].label}</span>);
   const PChip=({p})=>(<span style={{background:PRIO[p].bg,color:PRIO[p].col,fontSize:12,padding:"2px 8px",borderRadius:12}}>{PRIO[p].label}</span>);
-  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"calendar",icon:"📅",label:"Lịch"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[])];
+  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"calendar",icon:"📅",label:"Lịch"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[])];
 
   if(!currentUser)return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f0f4ff",fontFamily:"system-ui,sans-serif",padding:16}}>
@@ -256,7 +258,6 @@ export default function App() {
           {loginError&&<div style={{fontSize:12,color:"#b91c1c",background:"#fee2e2",padding:"8px 12px",borderRadius:7}}>{loginError}</div>}
           <button onClick={handleLogin} disabled={loginLoading} style={{padding:10,background:"#4f46e5",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:14,fontWeight:600,marginTop:4}}>{loginLoading?"Đang đăng nhập…":"Đăng nhập"}</button>
         </div>
-        <div style={{marginTop:16,fontSize:12,color:"#9ca3af",textAlign:"center"}}>Mặc định: <strong>admin</strong> / <strong>admin123</strong></div>
       </div>
     </div>
   );
@@ -358,7 +359,7 @@ export default function App() {
               <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 12px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                 <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Tìm kiếm..." style={{...inp,flex:1,minWidth:120}}/>
                 <select value={fStatus} onChange={e=>setFStatus(e.target.value)} style={{...inp,width:"auto",padding:"6px 8px",fontSize:12}}><option value="all">Tất cả TT</option><option value="on_time">Trong hạn</option><option value="nearly_due">Sắp HH</option><option value="overdue">Quá hạn</option><option value="completed">Hoàn thành</option></select>
-                {canSeeAll&&!isMobile&&<select value={fDept} onChange={e=>setFDept(e.target.value)} style={{...inp,width:"auto",padding:"6px 8px",fontSize:12}}><option value="all">Tất cả phòng</option>{DEPTS.map(d=><option key={d} value={d}>{d}</option>)}</select>}
+                {canSeeAll&&!isMobile&&<select value={fDept} onChange={e=>setFDept(e.target.value)} style={{...inp,width:"auto",padding:"6b 8px",fontSize:12}}><option value="all">Tất cả phòng</option>{DEPTS.map(d=><option key={d} value={d}>{d}</option>)}</select>}
                 {canCreate&&!isMobile&&<select value={fEid} onChange={e=>setFEid(e.target.value)} style={{...inp,width:"auto",padding:"6px 8px",fontSize:12}}><option value="all">Tất cả NV</option>{(employees||[]).filter(e=>canSeeAll||e.dept===userDept).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select>}
                 <select value={fSort} onChange={e=>setFSort(e.target.value)} style={{...inp,width:"auto",padding:"6px 8px",fontSize:12,borderColor:"#6366f1",color:"#4f46e5",fontWeight:500}}><option value="urgency">⚡ Ưu tiên</option><option value="deadline_asc">📅 Hạn gần nhất</option><option value="deadline_desc">📅 Hạn xa nhất</option><option value="newest">🆕 Mới nhất</option></select>
                 <span style={{fontSize:12,color:"#9ca3af"}}>{filtered.length}</span>
@@ -438,6 +439,9 @@ export default function App() {
                 {activityLog.length===0?<div style={{padding:24,textAlign:"center",color:"#9ca3af",fontSize:13}}>Chưa có hoạt động</div>:activityLog.map(l=>(<div key={l.id} style={{padding:"10px 16px",borderBottom:"1px solid #f3f4f6",display:"flex",gap:12,alignItems:"flex-start"}}><div style={{width:32,height:32,borderRadius:"50%",background:"#eef2ff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:14}}>{l.by==="Hệ thống"?"⚙️":"👤"}</div><div style={{flex:1,minWidth:0}}><div style={{fontSize:13}}><span style={{fontWeight:600,color:"#4338ca"}}>{l.by}</span> <span style={{color:"#374151"}}>{l.action}</span></div><div style={{fontSize:11,color:"#9ca3af",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📋 {l.task} · {l.at}</div></div></div>))}
               </div>
             </div>
+          )}
+          {view==="investment"&&(
+            <Investment currentUser={currentUser} employees={employees} users={users} getEmp={getEmp} isMobile={isMobile} inp={inp} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} showToast={showToast}/>
           )}
       </div>
 
