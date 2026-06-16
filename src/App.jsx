@@ -233,7 +233,8 @@ export default function App() {
   useEffect(()=>{setPage(1);},[fStatus,fDept,fEid,search,fSort]);
 
   const getEmp=id=>(employees||[]).find(e=>e.id===id);
-  const deptEmps=dept=>(employees||[]).filter(e=>e.dept===dept);
+  const ROLE_RANK={"Trưởng phòng":0,"TP. HCTH":0,"Phó trưởng phòng":1,"Phó phòng":1,"Chuyên viên":2,"Nhân viên":3};
+  const deptEmps=dept=>(employees||[]).filter(e=>e.dept===dept).sort((a,b)=>{const ra=ROLE_RANK[a.role]??2,rb=ROLE_RANK[b.role]??2;if(ra!==rb)return ra-rb;const fa=(a.name||"").trim().split(" ").pop();const fb=(b.name||"").trim().split(" ").pop();const c=fa.localeCompare(fb,"vi");return c!==0?c:(a.name||"").localeCompare(b.name||"","vi");});
   const emptyTaskData=()=>{const dept=availableDepts[0];const first=(employees||[]).find(e=>e.dept===dept);return{title:"",description:"",dept,eid:first?.id||"",prio:"medium",deadline:addDays(today,7),attachments:"[]",progress:0,collab_eids:"[]",collab_note:""};};
   const [rateReminderModal,setRateReminderModal]=useState(false);
   const openCreateTask=()=>{if(unratedTasks.length>0){setRateReminderModal(true);return;}setTaskForm({data:emptyTaskData(),editId:null});};
