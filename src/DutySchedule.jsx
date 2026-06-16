@@ -45,7 +45,7 @@ function parsePasted(text){
   return Object.values(days);
 }
 
-export default function DutySchedule({ currentUser, isMobile, inp, showToast, canManage }){
+export default function DutySchedule({ currentUser, employees, userDept, isMobile, inp, showToast, canManage }){
   const [schedule,setSchedule]=useState({}); // {date: {leader,dc:[],ioc:[],note}}
   const [holidays,setHolidays]=useState([]);
   const [viewMode,setViewMode]=useState("day");
@@ -65,6 +65,10 @@ export default function DutySchedule({ currentUser, isMobile, inp, showToast, ca
   const submitSwap=async()=>{if(!swapForm.substitute.trim()||!swapForm.reason.trim()){showToast&&showToast("Nhập người trực thay và lý do","error");return;}const dateStr=swapModal;const ex=schedule[dateStr];const swaps=[...(ex?.swaps||[]),{id:`sw${Date.now()}`,block:swapForm.block,absent:swapForm.absent.trim(),substitute:swapForm.substitute.trim(),shift:swapForm.shift.trim(),reason:swapForm.reason.trim(),by:currentUser.full_name,at:new Date().toLocaleString("vi-VN"),status:"pending"}];const ok=await persistSwaps(dateStr,swaps);if(ok){showToast&&showToast("Đã gửi đăng ký trực thay");setSwapModal(null);setSwapForm({block:"dc",absent:"",substitute:"",shift:"",reason:""});}};
   const reviewSwap=async(dateStr,swapId,status)=>{const ex=schedule[dateStr];const swaps=(ex?.swaps||[]).map(s=>s.id===swapId?{...s,status,reviewedBy:currentUser.full_name}:s);await persistSwaps(dateStr,swaps);showToast&&showToast(status==="approved"?"Đã duyệt":"Đã từ chối");};
   const deleteSwap=async(dateStr,swapId)=>{const ex=schedule[dateStr];const swaps=(ex?.swaps||[]).filter(s=>s.id!==swapId);await persistSwaps(dateStr,swaps);};
+  // Tìm phòng của 1 người theo tên (trong danh sách nhân viên)
+  const findDept=(name)=>{if(!name)return null;const emp=(employees||[]).find(e=>e.name&&e.name.trim().toLowerCase()===name.trim().toLowerCase());return emp?emp.dept:null;};
+  // Quyền duyệt 1 swap: Admin/BGĐ toàn quyền; TP/PP chỉ duyệt swap của nhân viên phòng mình
+  const canApproveSwap=(sw)=>{if(["admin","director"].includes(currentUser?.role))return true;if(["manager_hcth","manager","deputy_manager"].includes(currentUser?.role)){const d1=findDept(sw.substitute),d2=findDept(sw.absent);return (d1&&d1===userDept)||(d2&&d2===userDept);}return false;};
 
   const doImport=async()=>{const parsed=parsePasted(pasteText);if(parsed.length===0){showToast&&showToast("Không đọc được dữ liệu. Kiểm tra định dạng dán.","error");return;}const rows=parsed.map(d=>({date:d.date,leader:d.leader,dc:JSON.stringify(d.dc),ioc:JSON.stringify(d.ioc),note:d.note}));const{error}=await supabase.from("duty_schedule").upsert(rows,{onConflict:"date"});if(!error){const map={...schedule};parsed.forEach(d=>map[d.date]=d);setSchedule(map);showToast&&showToast(`Đã nhập ${parsed.length} ngày trực`);setShowImport(false);setPasteText("");}else showToast&&showToast("Lỗi: "+(error.message||""),"error");};
 
@@ -99,7 +103,7 @@ export default function DutySchedule({ currentUser, isMobile, inp, showToast, ca
             <div style={{fontSize:13,marginBottom:2}}>{sw.absent&&<><b>{sw.absent}</b> → </>}<b style={{color:"#6d28d9"}}>{sw.substitute}</b> trực thay</div>
             <div style={{fontSize:12,color:"#6b7280"}}>Lý do: {sw.reason}</div>
             <div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>Đăng ký bởi {sw.by} · {sw.at}{sw.reviewedBy?` · duyệt: ${sw.reviewedBy}`:""}</div>
-            {canManage&&<div style={{display:"flex",gap:6,marginTop:8}}>{sw.status!=="approved"&&<button onClick={()=>reviewSwap(dateStr,sw.id,"approved")} style={{padding:"3px 10px",border:"1px solid #86efac",borderRadius:6,background:"#f0fdf4",cursor:"pointer",fontSize:11,color:"#15803d"}}>✓ Duyệt</button>}{sw.status!=="rejected"&&<button onClick={()=>reviewSwap(dateStr,sw.id,"rejected")} style={{padding:"3px 10px",border:"1px solid #fca5a5",borderRadius:6,background:"#fef2f2",cursor:"pointer",fontSize:11,color:"#dc2626"}}>✕ Từ chối</button>}<button onClick={()=>deleteSwap(dateStr,sw.id)} style={{padding:"3px 10px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11,color:"#6b7280",marginLeft:"auto"}}>🗑️</button></div>}
+            {canApproveSwap(sw)&&<div style={{display:"flex",gap:6,marginTop:8}}>{sw.status!=="approved"&&<button onClick={()=>reviewSwap(dateStr,sw.id,"approved")} style={{padding:"3px 10px",border:"1px solid #86efac",borderRadius:6,background:"#f0fdf4",cursor:"pointer",fontSize:11,color:"#15803d"}}>✓ Duyệt</button>}{sw.status!=="rejected"&&<button onClick={()=>reviewSwap(dateStr,sw.id,"rejected")} style={{padding:"3px 10px",border:"1px solid #fca5a5",borderRadius:6,background:"#fef2f2",cursor:"pointer",fontSize:11,color:"#dc2626"}}>✕ Từ chối</button>}<button onClick={()=>deleteSwap(dateStr,sw.id)} style={{padding:"3px 10px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11,color:"#6b7280",marginLeft:"auto"}}>🗑️</button></div>}
           </div>);})}</div>}
       </div>
       {canManage&&<button onClick={()=>openEditDay(dateStr)} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,alignSelf:"flex-start"}}>✏️ Sửa ngày này</button>}

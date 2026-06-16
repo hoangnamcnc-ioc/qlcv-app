@@ -449,7 +449,7 @@ export default function App() {
             <Investment currentUser={currentUser} employees={employees} users={users} getEmp={getEmp} isMobile={isMobile} inp={inp} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} showToast={showToast}/>
           )}
           {view==="duty"&&(
-            <DutySchedule currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role)}/>
+            <DutySchedule currentUser={currentUser} employees={employees} userDept={userDept} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role)}/>
           )}
           {view==="feedback"&&(
             <Feedback currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director"].includes(currentUser?.role)}/>
