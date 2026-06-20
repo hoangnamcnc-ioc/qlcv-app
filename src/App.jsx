@@ -5,6 +5,7 @@ import LOGO from "./logo.jpg";
 import Investment from "./Investment";
 import DutySchedule from "./DutySchedule";
 import Feedback from "./Feedback";
+import Documents from "./Documents";
 
 
 const DEPTS = ["HCTH","QL-KTDL","HT-NTS"];
@@ -91,6 +92,12 @@ export default function App() {
   const [quickRate,setQuickRate]=useState(null);
   const [quickProgress,setQuickProgress]=useState(null);
   const [zoom,setZoom]=useState(()=>parseFloat(localStorage.getItem("qlcv_zoom")||"1"));
+  const [darkMode,setDarkMode]=useState(()=>localStorage.getItem("qlcv_dark")==="1");
+  const [calSubTab,setCalSubTab]=useState("duty"); // "tasks" | "duty" — gộp Lịch + Lịch trực, mặc định mở Trực
+  const toggleDark=()=>{const v=!darkMode;setDarkMode(v);localStorage.setItem("qlcv_dark",v?"1":"0");};
+  const [loginHistory,setLoginHistory]=useState([]);
+  const [loginHistoryLoaded,setLoginHistoryLoaded]=useState(false);
+  const loadLoginHistory=async()=>{if(loginHistoryLoaded)return;const{data}=await supabase.from("login_history").select("*").order("at",{ascending:false}).limit(300);setLoginHistory(data||[]);setLoginHistoryLoaded(true);};
   const changeZoom=v=>{const z=Math.min(1.4,Math.max(0.8,v));setZoom(z);localStorage.setItem("qlcv_zoom",z);};
   const [statFilter,setStatFilter]=useState(null);
   const [overloadPopup,setOverloadPopup]=useState(null);
@@ -121,7 +128,8 @@ export default function App() {
   const canForward=(t)=>{if(!currentUser)return false;if(t.completed||t.status==="completed")return false;return ["manager","deputy_manager"].includes(currentUser.role)&&t.dept===userDept;};
   const canSetLateReason=(t)=>t.status==="overdue"&&(currentUser?.employee_id===t.eid||parseJSON(t.collab_eids,[]).includes(currentUser?.employee_id)||canCreate);
 
-  const handleLogin=async()=>{if(!loginForm.username||!loginForm.password){setLoginError("Vui lòng nhập đầy đủ");return;}setLoginLoading(true);setLoginError("");const{data,error}=await supabase.from("users").select("*").eq("username",loginForm.username).single();if(error||!data){setLoginError("Sai tên đăng nhập hoặc mật khẩu");setLoginLoading(false);return;}const hashedInput=await hashPwd(loginForm.password);let ok=false;if(isHashed(data.password)){ok=data.password===hashedInput;}else{ok=data.password===loginForm.password;if(ok){await supabase.from("users").update({password:hashedInput}).eq("id",data.id);data.password=hashedInput;}}if(!ok){setLoginError("Sai tên đăng nhập hoặc mật khẩu");setLoginLoading(false);return;}setCurrentUser(data);const{password:_pw,...safe}=data;sessionStorage.setItem("qlcv_user",JSON.stringify(safe));setLoginLoading(false);};
+  const logLogin=async(username,success,fullName)=>{try{await supabase.from("login_history").insert({id:`lg${Date.now()}${Math.random().toString(36).slice(2,6)}`,username,full_name:fullName||"",success,at:nowStr()});}catch{}};
+  const handleLogin=async()=>{if(!loginForm.username||!loginForm.password){setLoginError("Vui lòng nhập đầy đủ");return;}setLoginLoading(true);setLoginError("");const{data,error}=await supabase.from("users").select("*").eq("username",loginForm.username).single();if(error||!data){setLoginError("Sai tên đăng nhập hoặc mật khẩu");setLoginLoading(false);logLogin(loginForm.username,false,"");return;}const hashedInput=await hashPwd(loginForm.password);let ok=false;if(isHashed(data.password)){ok=data.password===hashedInput;}else{ok=data.password===loginForm.password;if(ok){await supabase.from("users").update({password:hashedInput}).eq("id",data.id);data.password=hashedInput;}}if(!ok){setLoginError("Sai tên đăng nhập hoặc mật khẩu");setLoginLoading(false);logLogin(loginForm.username,false,data.full_name);return;}setCurrentUser(data);const{password:_pw,...safe}=data;sessionStorage.setItem("qlcv_user",JSON.stringify(safe));setLoginLoading(false);logLogin(data.username,true,data.full_name);};
   const handleLogout=()=>{setCurrentUser(null);sessionStorage.removeItem("qlcv_user");setLoginNotifShown(false);};
   useEffect(()=>{const s=sessionStorage.getItem("qlcv_user");if(s)try{setCurrentUser(JSON.parse(s));}catch{};},[]);
 
@@ -209,7 +217,19 @@ export default function App() {
   const computed=useMemo(()=>visibleTasks.map(t=>({...t,status:getStatus(t)})),[visibleTasks]);
   const stats=useMemo(()=>computed.reduce((a,t)=>({...a,total:a.total+1,[t.status]:a[t.status]+1}),{total:0,on_time:0,nearly_due:0,overdue:0,completed:0}),[computed]);
   const deptChart=useMemo(()=>DEPTS.map(d=>{const dt=computed.filter(t=>t.dept===d);return{name:d,"Trong hạn":dt.filter(t=>t.status==="on_time").length,"Sắp hết hạn":dt.filter(t=>t.status==="nearly_due").length,"Quá hạn":dt.filter(t=>t.status==="overdue").length,"Hoàn thành":dt.filter(t=>t.status==="completed").length};}), [computed]);
-  const filtered=useMemo(()=>{const f=computed.filter(t=>{if(fStatus!=="all"&&t.status!==fStatus)return false;if(fDept!=="all"&&t.dept!==fDept)return false;if(fEid!=="all"&&t.eid!==fEid)return false;if(search&&!t.title.toLowerCase().includes(search.toLowerCase()))return false;return true;});if(fSort==="urgency")return[...f].sort((a,b)=>(STATUS_ORDER[a.status]??9)-(STATUS_ORDER[b.status]??9));if(fSort==="deadline_asc")return[...f].sort((a,b)=>a.deadline.localeCompare(b.deadline));if(fSort==="deadline_desc")return[...f].sort((a,b)=>b.deadline.localeCompare(a.deadline));if(fSort==="newest")return[...f].sort((a,b)=>(b.created||"").localeCompare(a.created||""));return f;},[computed,fStatus,fDept,fEid,search,fSort]);
+  // ── Tổng hợp điều hành theo phòng ban (cho BGĐ) ──
+  const execDeptSummary=useMemo(()=>DEPTS.map(d=>{
+    const dt=computed.filter(t=>t.dept===d);
+    const over=dt.filter(t=>t.status==="overdue").length;
+    const nd=dt.filter(t=>t.status==="nearly_due").length;
+    const done=dt.filter(t=>t.status==="completed").length;
+    const rate=dt.length?Math.round(done/dt.length*100):0;
+    const deptEmpsList=(employees||[]).filter(e=>e.dept===d);
+    const overloaded=deptEmpsList.filter(e=>computed.filter(t=>t.eid===e.id&&t.status!=="completed").length>=overloadThreshold).length;
+    const lead=deptEmpsList.find(e=>["Trưởng phòng","TP. HCTH"].includes(e.role));
+    return{dept:d,total:dt.length,over,nd,done,rate,empCount:deptEmpsList.length,overloaded,lead:lead?.name||"—"};
+  }),[computed,employees,overloadThreshold]);
+  const filtered=useMemo(()=>{const f=computed.filter(t=>{if(fStatus!=="all"&&t.status!==fStatus)return false;if(fDept!=="all"&&t.dept!==fDept)return false;if(fEid!=="all"&&t.eid!==fEid)return false;if(search){const q=search.toLowerCase();const empName=(getEmp(t.eid)?.name||"").toLowerCase();const hit=t.title.toLowerCase().includes(q)||(t.description||"").toLowerCase().includes(q)||empName.includes(q);if(!hit)return false;}return true;});if(fSort==="urgency")return[...f].sort((a,b)=>(STATUS_ORDER[a.status]??9)-(STATUS_ORDER[b.status]??9));if(fSort==="deadline_asc")return[...f].sort((a,b)=>a.deadline.localeCompare(b.deadline));if(fSort==="deadline_desc")return[...f].sort((a,b)=>b.deadline.localeCompare(a.deadline));if(fSort==="newest")return[...f].sort((a,b)=>(b.created||"").localeCompare(a.created||""));return f;},[computed,fStatus,fDept,fEid,search,fSort]);
   const totalPages=useMemo(()=>Math.max(1,Math.ceil(filtered.length/PAGE_SIZE)),[filtered]);
   const paged=useMemo(()=>filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE),[filtered,page]);
   const calTasks=useMemo(()=>computed.filter(t=>{const d=new Date(t.deadline);return d.getFullYear()===calYear&&d.getMonth()===calMonth;}),[computed,calYear,calMonth]);
@@ -304,7 +324,7 @@ export default function App() {
   const inp={padding:"7px 10px",border:"1px solid #d1d5db",borderRadius:7,fontSize:13,background:"#fff",color:"#111",width:"100%",boxSizing:"border-box"};
   const Chip=({s})=>(<span style={{background:STATUS[s].bg,color:STATUS[s].col,fontSize:12,padding:"2px 8px",borderRadius:12,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:6,height:6,borderRadius:"50%",background:STATUS[s].dot,flexShrink:0}}/>{STATUS[s].label}</span>);
   const PChip=({p})=>(<span style={{background:PRIO[p].bg,color:PRIO[p].col,fontSize:12,padding:"2px 8px",borderRadius:12}}>{PRIO[p].label}</span>);
-  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"duty",icon:"🗓️",label:"Lịch trực"},{id:"calendar",icon:"📅",label:"Lịch"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[])];
+  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"calendar",icon:"🗓️",label:"Lịch trực"},{id:"documents",icon:"📁",label:"Văn bản"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
 
   if(!currentUser)return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f0f4ff",fontFamily:"system-ui,sans-serif",padding:16}}>
@@ -323,7 +343,11 @@ export default function App() {
   if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:"#6b7280"}}>Đang tải dữ liệu…</div>;
 
   return(
-    <div style={{display:"flex",flexDirection:isMobile?"column":"row",height:"100vh",fontFamily:"system-ui,sans-serif",background:"#f8fafc",overflow:"hidden",zoom:zoom}}>
+    <div className={darkMode?"qlcv-dark":""} style={{display:"flex",flexDirection:isMobile?"column":"row",height:"100vh",fontFamily:"system-ui,sans-serif",background:darkMode?"#0f172a":"#f8fafc",overflow:"hidden",zoom:zoom}}>
+      <style>{`
+        .qlcv-dark { filter: invert(1) hue-rotate(180deg); }
+        .qlcv-dark img, .qlcv-dark svg { filter: invert(1) hue-rotate(180deg); }
+      `}</style>
       {toast&&<div style={{position:"fixed",top:16,right:16,zIndex:200,background:toast.type==="error"?"#fee2e2":"#dcfce7",color:toast.type==="error"?"#b91c1c":"#15803d",padding:"10px 18px",borderRadius:8,fontSize:13,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",maxWidth:320}}>{toast.msg}</div>}
 
       {/* SIDEBAR */}
@@ -331,7 +355,7 @@ export default function App() {
         <div style={{width:220,background:"#1e1b4b",display:"flex",flexDirection:"column",flexShrink:0}}>
           <div style={{padding:"14px",borderBottom:"1px solid rgba(255,255,255,0.1)",display:"flex",alignItems:"center",gap:10}}><img src={LOGO} alt="logo" style={{width:40,height:40,objectFit:"contain",borderRadius:"50%",flexShrink:0}}/><div><div style={{color:"#fff",fontWeight:700,fontSize:13,lineHeight:1.3}}>QUẢN LÝ GIAO VIỆC</div><div style={{color:"#a5b4fc",fontSize:11,marginTop:1}}>DAK LAK IOC</div></div></div>
           <nav style={{flex:1,padding:"8px 0"}}>
-            {navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:view===n.id?"rgba(165,180,252,0.15)":"transparent",border:"none",cursor:"pointer",color:view===n.id?"#c7d2fe":"#94a3b8",textAlign:"left",fontSize:13}}><span>{n.icon}</span>{n.label}</button>)}
+            {navItems.map(n=><button key={n.id} onClick={()=>{setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:view===n.id?"rgba(165,180,252,0.15)":"transparent",border:"none",cursor:"pointer",color:view===n.id?"#c7d2fe":"#94a3b8",textAlign:"left",fontSize:13}}><span>{n.icon}</span>{n.label}</button>)}
             {canCreate&&<button onClick={()=>setShowRecurring(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",color:"#94a3b8",textAlign:"left",fontSize:13}}>🔄 Nhiệm vụ định kỳ{recurringTemplates.filter(t=>t.active).length>0&&<span style={{background:"#6366f1",color:"#fff",fontSize:10,padding:"1px 6px",borderRadius:10,marginLeft:"auto"}}>{recurringTemplates.filter(t=>t.active).length}</span>}</button>}
             {isAdmin&&<button onClick={()=>setUserModal(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",color:"#94a3b8",textAlign:"left",fontSize:13}}>🔐 Tài khoản</button>}
           </nav>
@@ -361,6 +385,7 @@ export default function App() {
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
             {isMobile&&<RoleBadge role={currentUser.role}/>}
             {/* Font size controls */}
+            <button onClick={toggleDark} title={darkMode?"Chuyển sang nền sáng":"Chuyển sang nền tối"} style={{padding:"6px 10px",background:darkMode?"#374151":"#f1f5f9",border:"1px solid "+(darkMode?"#4b5563":"#e5e7eb"),borderRadius:8,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center"}}>{darkMode?"☀️":"🌙"}</button>
             <div style={{display:"flex",alignItems:"center",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden"}}>
               <button onClick={()=>changeZoom(zoom-0.1)} disabled={zoom<=0.8} style={{padding:"5px 8px",background:"none",border:"none",cursor:zoom<=0.8?"not-allowed":"pointer",fontSize:13,color:zoom<=0.8?"#d1d5db":"#374151",fontWeight:600}}>A−</button>
               <span style={{padding:"0 4px",fontSize:11,color:"#9ca3af",borderLeft:"1px solid #e5e7eb",borderRight:"1px solid #e5e7eb"}}>{Math.round(zoom*100)}%</span>
@@ -394,6 +419,26 @@ export default function App() {
           {/* DASHBOARD */}
           {view==="dashboard"&&(
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {["admin","director"].includes(currentUser.role)&&(
+                <div style={{background:"#fff",borderRadius:12,border:"1px solid #e5e7eb",overflow:"hidden"}}>
+                  <div style={{padding:"10px 16px",borderBottom:"1px solid #e5e7eb",background:"#f8fafc",display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📊</span><span style={{fontWeight:700,fontSize:14}}>Tổng hợp điều hành theo phòng ban</span></div>
+                  <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:isMobile?640:0}}>
+                    <thead><tr style={{background:"#f9fafb"}}>{["Phòng ban","Trưởng phòng","Nhân sự","Tổng việc","Hoàn thành","Quá hạn","Sắp hết hạn","Tỷ lệ HT","Quá tải"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:600,color:"#6b7280",borderBottom:"1px solid #e5e7eb",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+                    <tbody>{execDeptSummary.map(d=>(<tr key={d.dept} onClick={()=>{setView("tasks");setFDept(d.dept);}} style={{borderBottom:"1px solid #f3f4f6",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#f9fafb"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <td style={{padding:"10px 12px"}}><span style={{background:DEPT_COLOR[d.dept]+"22",color:DEPT_COLOR[d.dept],fontWeight:600,padding:"3px 10px",borderRadius:8}}>{d.dept}</span></td>
+                      <td style={{padding:"10px 12px",color:"#374151"}}>{d.lead}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{d.empCount}</td>
+                      <td style={{padding:"10px 12px",fontWeight:600}}>{d.total}</td>
+                      <td style={{padding:"10px 12px",color:"#15803d",fontWeight:500}}>{d.done}</td>
+                      <td style={{padding:"10px 12px",color:d.over>0?"#b91c1c":"#9ca3af",fontWeight:d.over>0?700:400}}>{d.over}</td>
+                      <td style={{padding:"10px 12px",color:d.nd>0?"#a16207":"#9ca3af",fontWeight:d.nd>0?600:400}}>{d.nd}</td>
+                      <td style={{padding:"10px 12px"}}><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:50,height:6,background:"#e5e7eb",borderRadius:6,overflow:"hidden"}}><div style={{height:"100%",width:d.rate+"%",background:d.rate>=80?"#16a34a":d.rate>=50?"#f59e0b":"#dc2626"}}/></div><span style={{fontSize:12,fontWeight:600}}>{d.rate}%</span></div></td>
+                      <td style={{padding:"10px 12px"}}>{d.overloaded>0?<span style={{background:"#fee2e2",color:"#b91c1c",fontSize:11,padding:"2px 8px",borderRadius:8,fontWeight:600}}>⚠️ {d.overloaded} người</span>:<span style={{color:"#9ca3af",fontSize:12}}>—</span>}</td>
+                    </tr>))}</tbody>
+                  </table></div>
+                  <div style={{padding:"8px 16px",fontSize:11,color:"#9ca3af",borderTop:"1px solid #f3f4f6"}}>💡 Bấm vào một phòng để xem chi tiết danh sách nhiệm vụ</div>
+                </div>
+              )}
               {currentUser.role!=="admin"&&<div style={{background:ROLE_COLORS[currentUser.role]?.[1]||"#eef2ff",borderRadius:8,padding:"8px 14px",fontSize:13,color:ROLE_COLORS[currentUser.role]?.[0]||"#4338ca",display:"flex",alignItems:"center",gap:8,border:"1px solid "+(ROLE_COLORS[currentUser.role]?.[0]||"#4338ca")+"22"}}><RoleBadge role={currentUser.role}/><span>{FULL_ACCESS.includes(currentUser.role)?"Bạn đang xem toàn bộ nhiệm vụ.":["manager","deputy_manager"].includes(currentUser.role)?`Bạn đang xem nhiệm vụ phòng ${userDept}.`:"Bạn đang xem nhiệm vụ được giao và phối hợp."}</span></div>}
               {/* Dashboard cá nhân */}
               {myTasks&&!FULL_ACCESS.includes(currentUser.role)&&<div style={{background:"linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)",borderRadius:12,padding:16,color:"#fff"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><div><div style={{fontWeight:700,fontSize:15}}>👤 {currentUser.full_name}</div><div style={{fontSize:12,opacity:0.7,marginTop:2}}>{ROLE_LABELS[currentUser.role]||currentUser.role}{userDept?` · Phòng ${userDept}`:""}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:28,fontWeight:800,color:"#a5b4fc"}}>{myTasks.rate}%</div><div style={{fontSize:11,opacity:0.7}}>Tỷ lệ HT</div></div></div><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:myTasks.pending.length?12:0}}>{[{v:myTasks.total,l:"Tổng",c:"#c7d2fe"},{v:myTasks.done,l:"Hoàn thành",c:"#86efac"},{v:myTasks.over,l:"Quá hạn",c:"#fca5a5"},{v:myTasks.nd,l:"Sắp HH",c:"#fde68a"}].map(s=><div key={s.l} style={{background:"rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:700,color:s.c}}>{s.v}</div><div style={{fontSize:10,opacity:0.7,marginTop:1}}>{s.l}</div></div>)}</div>{myTasks.pending.length>0&&<div><div style={{fontSize:11,opacity:0.6,marginBottom:6}}>Việc cần làm:</div><div style={{display:"flex",flexDirection:"column",gap:4}}>{myTasks.pending.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);}} style={{background:"rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 10px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.18)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.1)"}><span style={{fontSize:12,flex:1,whiteSpace:"normal",wordBreak:"break-word"}}>{t.title}</span><span style={{fontSize:10,marginLeft:8,background:t.status==="overdue"?"#dc2626":"#ca8a04",padding:"1px 6px",borderRadius:8,flexShrink:0}}>{STATUS[t.status]?.label}</span></div>)}</div></div>}</div>}
@@ -416,7 +461,7 @@ export default function App() {
           {view==="tasks"&&(
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 12px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Tìm kiếm..." style={{...inp,flex:1,minWidth:120}}/>
+                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Tìm theo tên việc, mô tả, người thực hiện, số văn bản..." style={{...inp,flex:1,minWidth:160}}/>
                 <select value={fStatus} onChange={e=>setFStatus(e.target.value)} style={{...inp,width:"auto",padding:"6px 8px",fontSize:12}}><option value="all">Tất cả TT</option><option value="on_time">Trong hạn</option><option value="nearly_due">Sắp HH</option><option value="overdue">Quá hạn</option><option value="completed">Hoàn thành</option></select>
                 {canSeeAll&&!isMobile&&<select value={fDept} onChange={e=>setFDept(e.target.value)} style={{...inp,width:"auto",padding:"6b 8px",fontSize:12}}><option value="all">Tất cả phòng</option>{DEPTS.map(d=><option key={d} value={d}>{d}</option>)}</select>}
                 {canCreate&&!isMobile&&<select value={fEid} onChange={e=>setFEid(e.target.value)} style={{...inp,width:"auto",padding:"6px 8px",fontSize:12}}><option value="all">Tất cả NV</option>{(employees||[]).filter(e=>canSeeAll||e.dept===userDept).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select>}
@@ -451,8 +496,17 @@ export default function App() {
           {/* CALENDAR */}
           {view==="calendar"&&(
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div style={{display:"flex",gap:6,background:"#f1f5f9",borderRadius:8,padding:3,width:isMobile?"100%":"fit-content"}}>
+                <button onClick={()=>setCalSubTab("tasks")} style={{flex:isMobile?1:"none",padding:"7px 18px",border:"none",borderRadius:6,background:calSubTab==="tasks"?"#fff":"transparent",color:calSubTab==="tasks"?"#4f46e5":"#6b7280",cursor:"pointer",fontSize:13,fontWeight:calSubTab==="tasks"?600:400,boxShadow:calSubTab==="tasks"?"0 1px 3px rgba(0,0,0,0.1)":"none"}}>📅 Nhiệm vụ</button>
+                <button onClick={()=>setCalSubTab("duty")} style={{flex:isMobile?1:"none",padding:"7px 18px",border:"none",borderRadius:6,background:calSubTab==="duty"?"#fff":"transparent",color:calSubTab==="duty"?"#7c3aed":"#6b7280",cursor:"pointer",fontSize:13,fontWeight:calSubTab==="duty"?600:400,boxShadow:calSubTab==="duty"?"0 1px 3px rgba(0,0,0,0.1)":"none"}}>🗓️ Trực</button>
+              </div>
+              {calSubTab==="tasks"&&(<>
               <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}><button onClick={()=>{let m=calMonth-1,y=calYear;if(m<0){m=11;y--;}setCalMonth(m);setCalYear(y);}} style={{padding:"6px 12px",border:"1px solid #d1d5db",borderRadius:7,background:"#f9fafb",cursor:"pointer",fontSize:14}}>‹</button><div style={{fontWeight:600,fontSize:16}}>{VI_MONTHS[calMonth]} {calYear}</div><button onClick={()=>{let m=calMonth+1,y=calYear;if(m>11){m=0;y++;}setCalMonth(m);setCalYear(y);}} style={{padding:"6px 12px",border:"1px solid #d1d5db",borderRadius:7,background:"#f9fafb",cursor:"pointer",fontSize:14}}>›</button></div>
               <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",overflow:"hidden"}}><div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid #e5e7eb"}}>{VI_DAYS.map(d=><div key={d} style={{padding:"8px 4px",textAlign:"center",fontSize:12,fontWeight:600,color:d==="CN"?"#dc2626":"#6b7280",background:"#f9fafb"}}>{d}</div>)}</div><div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>{Array.from({length:firstDay}).map((_,i)=><div key={`e${i}`} style={{minHeight:isMobile?60:80,border:"0.5px solid #f3f4f6",background:"#fafafa"}}/>)}{Array.from({length:daysInMonth}).map((_,i)=>{const day=i+1;const dayTasks=calTasksByDay[day]||[];const isToday=day===today.getDate()&&calMonth===today.getMonth()&&calYear===today.getFullYear();return(<div key={day} style={{minHeight:isMobile?60:80,border:"0.5px solid #f3f4f6",padding:4,background:isToday?"#f0f4ff":"#fff",cursor:dayTasks.length?"pointer":"default"}} onClick={()=>dayTasks.length&&setCalDay({day,tasks:dayTasks})}><div style={{fontSize:12,fontWeight:isToday?700:400,width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isToday?"#4f46e5":"transparent",color:isToday?"#fff":"#374151",marginBottom:2}}>{day}</div>{dayTasks.slice(0,isMobile?1:2).map(t=><div key={t.id} style={{fontSize:10,padding:"2px 4px",borderRadius:4,marginBottom:2,background:STATUS[t.status].bg,color:STATUS[t.status].col,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.template_id&&"🔄"}{t.title}</div>)}{dayTasks.length>(isMobile?1:2)&&<div style={{fontSize:10,color:"#6b7280"}}>+{dayTasks.length-(isMobile?1:2)}</div>}</div>);})}</div></div>
+              </>)}
+              {calSubTab==="duty"&&(
+                <DutySchedule currentUser={currentUser} employees={employees} userDept={userDept} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role)}/>
+              )}
             </div>
           )}
 
@@ -511,18 +565,42 @@ export default function App() {
           {view==="investment"&&(
             <Investment currentUser={currentUser} employees={employees} users={users} getEmp={getEmp} isMobile={isMobile} inp={inp} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} showToast={showToast}/>
           )}
-          {view==="duty"&&(
-            <DutySchedule currentUser={currentUser} employees={employees} userDept={userDept} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role)}/>
-          )}
           {view==="feedback"&&(
             <Feedback currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director"].includes(currentUser?.role)}/>
+          )}
+          {view==="documents"&&(
+            <Documents currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role)} tasks={tasks} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} onOpenTask={(t)=>{setView("tasks");setModal(t);loadComments(t.id);}}/>
+          )}
+          {view==="security"&&currentUser?.role==="admin"&&(
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:10}}>
+                <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:14}}><div style={{fontSize:11,color:"#6b7280"}}>Tổng lượt đăng nhập</div><div style={{fontSize:22,fontWeight:700,color:"#4f46e5"}}>{loginHistory.length}</div></div>
+                <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:14}}><div style={{fontSize:11,color:"#6b7280"}}>Thành công</div><div style={{fontSize:22,fontWeight:700,color:"#15803d"}}>{loginHistory.filter(l=>l.success).length}</div></div>
+                <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:14}}><div style={{fontSize:11,color:"#6b7280"}}>Thất bại (sai mật khẩu)</div><div style={{fontSize:22,fontWeight:700,color:"#dc2626"}}>{loginHistory.filter(l=>!l.success).length}</div></div>
+              </div>
+              <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",overflow:"hidden"}}>
+                <div style={{padding:"10px 16px",borderBottom:"1px solid #e5e7eb",fontWeight:600,fontSize:13,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span>🔐 Lịch sử đăng nhập (300 lượt gần nhất)</span><button onClick={()=>{setLoginHistoryLoaded(false);loadLoginHistory();}} style={{fontSize:12,color:"#4f46e5",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>↻ Tải lại</button></div>
+                <div style={{maxHeight:480,overflowY:"auto"}}>
+                  {loginHistory.length===0?<div style={{padding:24,textAlign:"center",color:"#9ca3af",fontSize:13}}>Chưa có dữ liệu</div>:loginHistory.map(l=>(
+                    <div key={l.id} style={{padding:"9px 16px",borderBottom:"1px solid #f3f4f6",display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:16,flexShrink:0}}>{l.success?"✅":"❌"}</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:500}}>{l.full_name||l.username}<span style={{color:"#9ca3af",fontWeight:400}}> ({l.username})</span></div>
+                        <div style={{fontSize:11,color:l.success?"#15803d":"#dc2626"}}>{l.success?"Đăng nhập thành công":"Đăng nhập thất bại — sai mật khẩu"}</div>
+                      </div>
+                      <span style={{fontSize:11,color:"#9ca3af",flexShrink:0}}>{l.at}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
       </div>
 
       {/* MOBILE BOTTOM NAV */}
       {isMobile&&(
         <div style={{background:"#1e1b4b",display:"flex",flexShrink:0,borderTop:"1px solid rgba(255,255,255,0.1)"}}>
-          {navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:view===n.id?"#c7d2fe":"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>{n.icon}</span><span style={{fontSize:9}}>{n.label}</span></button>)}
+          {navItems.map(n=><button key={n.id} onClick={()=>{setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:view===n.id?"#c7d2fe":"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>{n.icon}</span><span style={{fontSize:9}}>{n.label}</span></button>)}
           {canCreate&&<button onClick={()=>setShowRecurring(true)} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>🔄</span><span style={{fontSize:9}}>Định kỳ</span></button>}
           {isAdmin&&<button onClick={()=>setUserModal(true)} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>🔐</span><span style={{fontSize:9}}>TK</span></button>}
         </div>
