@@ -8,6 +8,8 @@ const WD=["Chủ Nhật","Thứ Hai","Thứ Ba","Thứ Tư","Thứ Năm","Thứ 
 const pad=n=>String(n).padStart(2,"0");
 const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const isWeekendOrHoliday=(dateStr,holidays)=>{const d=new Date(dateStr);const dow=d.getDay();return dow===0||dow===6||(holidays||[]).includes(dateStr);};
+// Chuẩn hóa người trực: hỗ trợ dữ liệu cũ (chuỗi tên) -> {name, shiftIdx theo vị trí}; dữ liệu mới đã là {name, shiftIdx} thì giữ nguyên
+const normPeople=(arr)=>(arr||[]).map((p,i)=>typeof p==="string"?{name:p,shiftIdx:i}:{name:p.name||"",shiftIdx:p.shiftIdx??i});
 
 // Ca trực theo quy định
 const SHIFTS={
@@ -67,7 +69,7 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
   const [editDay,setEditDay]=useState(null);
   const [dayDraft,setDayDraft]=useState(null);
 
-  useEffect(()=>{(async()=>{setLoading(true);try{const{data}=await supabase.from("duty_schedule").select("*");const map={};(data||[]).forEach(r=>{map[r.date]={date:r.date,leader:r.leader||"",dc:parseJSON(r.dc,[]),ioc:parseJSON(r.ioc,[]),note:r.note||"",swaps:parseJSON(r.swaps,[])};});setSchedule(map);const{data:hd}=await supabase.from("app_config").select("*").eq("key","holidays");if(hd&&hd[0])setHolidays(parseJSON(hd[0].value,[]));}catch{}setLoading(false);})();},[]);
+  useEffect(()=>{(async()=>{setLoading(true);try{const{data}=await supabase.from("duty_schedule").select("*");const map={};(data||[]).forEach(r=>{map[r.date]={date:r.date,leader:r.leader||"",dc:normPeople(parseJSON(r.dc,[])),ioc:normPeople(parseJSON(r.ioc,[])),note:r.note||"",swaps:parseJSON(r.swaps,[])};});setSchedule(map);const{data:hd}=await supabase.from("app_config").select("*").eq("key","holidays");if(hd&&hd[0])setHolidays(parseJSON(hd[0].value,[]));}catch{}setLoading(false);})();},[]);
 
   const saveDay=async(d)=>{const row={date:d.date,leader:d.leader,dc:JSON.stringify(d.dc),ioc:JSON.stringify(d.ioc),note:d.note,swaps:JSON.stringify(d.swaps||[])};const{error}=await supabase.from("duty_schedule").upsert(row,{onConflict:"date"});if(!error){setSchedule(p=>({...p,[d.date]:d}));showToast&&showToast("Đã lưu lịch trực");}else showToast&&showToast("Lỗi: "+(error.message||""),"error");};
   const [swapModal,setSwapModal]=useState(null);
@@ -86,7 +88,7 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
   const monthDays=useMemo(()=>{const y=cur.getFullYear(),m=cur.getMonth();const first=new Date(y,m,1);const startDow=first.getDay();const daysInMonth=new Date(y,m+1,0).getDate();const cells=[];for(let i=0;i<startDow;i++)cells.push(null);for(let d=1;d<=daysInMonth;d++)cells.push(new Date(y,m,d));return cells;},[cur]);
   const weekDays=useMemo(()=>{const d=new Date(cur);const dow=d.getDay();const monday=new Date(d);monday.setDate(d.getDate()-dow);const arr=[];for(let i=0;i<7;i++){const x=new Date(monday);x.setDate(monday.getDate()+i);arr.push(x);}return arr;},[cur]);
 
-  const openEditDay=(dateStr)=>{const ex=schedule[dateStr]||{date:dateStr,leader:"",dc:[],ioc:[],note:""};setDayDraft({...ex,dc:[...ex.dc],ioc:[...ex.ioc]});setEditDay(dateStr);};
+  const openEditDay=(dateStr)=>{const ex=schedule[dateStr]||{date:dateStr,leader:"",dc:[],ioc:[],note:""};setDayDraft({...ex,dc:ex.dc.map(p=>({...p})),ioc:ex.ioc.map(p=>({...p}))});setEditDay(dateStr);};
 
   const COLORS={leader:{bg:"#fef3c7",col:"#92400e",label:"⭐ Trực lãnh đạo"},dc:{bg:"#dbeafe",col:"#1e40af",label:"🖥️ Trực DC"},ioc:{bg:"#dcfce7",col:"#15803d",label:"🏢 Trực IOC"}};
 
@@ -95,8 +97,8 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
       <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:700,fontSize:16}}>{WD[d.getDay()]}, {d.getDate()}/{d.getMonth()+1}/{d.getFullYear()}</span>{wknd&&<span style={{fontSize:11,background:"#fee2e2",color:"#b91c1c",padding:"2px 8px",borderRadius:8}}>Cuối tuần / Lễ</span>}</div>
       {!s?<div style={{padding:24,textAlign:"center",color:"#9ca3af",background:"#f9fafb",borderRadius:10}}>Chưa có lịch trực ngày này</div>:<>
         <div style={{background:COLORS.leader.bg,borderRadius:10,padding:12}}><div style={{fontSize:12,fontWeight:600,color:COLORS.leader.col,marginBottom:4}}>{COLORS.leader.label}</div><div style={{fontSize:14}}>{s.leader||"—"}</div></div>
-        <div style={{background:COLORS.dc.bg,borderRadius:10,padding:12}}><div style={{fontSize:12,fontWeight:600,color:COLORS.dc.col,marginBottom:6}}>{COLORS.dc.label}</div>{s.dc.map((name,i)=><div key={i} style={{fontSize:13,marginBottom:4,display:"flex",justifyContent:"space-between"}}><span>{name}</span>{shifts.DC[i]&&<span style={{fontSize:11,color:"#6b7280"}}>{shifts.DC[i].label} ({shifts.DC[i].time})</span>}</div>)}</div>
-        <div style={{background:COLORS.ioc.bg,borderRadius:10,padding:12}}><div style={{fontSize:12,fontWeight:600,color:COLORS.ioc.col,marginBottom:6}}>{COLORS.ioc.label}</div>{s.ioc.map((name,i)=><div key={i} style={{fontSize:13,marginBottom:4,display:"flex",justifyContent:"space-between"}}><span>{name}</span>{shifts.IOC[i]&&<span style={{fontSize:11,color:"#6b7280"}}>{shifts.IOC[i].label?shifts.IOC[i].label+" ":""}({shifts.IOC[i].time})</span>}</div>)}</div>
+        <div style={{background:COLORS.dc.bg,borderRadius:10,padding:12}}><div style={{fontSize:12,fontWeight:600,color:COLORS.dc.col,marginBottom:6}}>{COLORS.dc.label}</div>{s.dc.map((p,i)=><div key={i} style={{fontSize:13,marginBottom:4,display:"flex",justifyContent:"space-between"}}><span>{p.name}</span>{shifts.DC[p.shiftIdx]&&<span style={{fontSize:11,color:"#6b7280"}}>{shifts.DC[p.shiftIdx].label} ({shifts.DC[p.shiftIdx].time})</span>}</div>)}</div>
+        <div style={{background:COLORS.ioc.bg,borderRadius:10,padding:12}}><div style={{fontSize:12,fontWeight:600,color:COLORS.ioc.col,marginBottom:6}}>{COLORS.ioc.label}</div>{s.ioc.map((p,i)=><div key={i} style={{fontSize:13,marginBottom:4,display:"flex",justifyContent:"space-between"}}><span>{p.name}</span>{shifts.IOC[p.shiftIdx]&&<span style={{fontSize:11,color:"#6b7280"}}>{shifts.IOC[p.shiftIdx].label?shifts.IOC[p.shiftIdx].label+" ":""}({shifts.IOC[p.shiftIdx].time})</span>}</div>)}</div>
         {s.note&&<div style={{fontSize:12,color:"#6b7280",fontStyle:"italic"}}>📝 {s.note}</div>}
       </>}
       <div style={{borderTop:"1px solid #f3f4f6",paddingTop:12,marginTop:4}}>
@@ -142,7 +144,7 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
         {["CN","T2","T3","T4","T5","T6","T7"].map(d=><div key={d} style={{textAlign:"center",fontWeight:600,fontSize:12,color:"#6b7280",padding:"4px 0"}}>{d}</div>)}
         {monthDays.map((d,i)=>{if(!d)return<div key={i}/>;const ds=ymd(d);const s=schedule[ds];const isToday=ds===todayStr;const wknd=isWeekendOrHoliday(ds,holidays);return(<div key={i} onClick={()=>{setCur(d);setViewMode("day");}} style={{minHeight:isMobile?60:84,border:"1px solid "+(isToday?"#3b82f6":"#f3f4f6"),borderRadius:8,padding:5,cursor:"pointer",background:wknd?"#fef9f9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f0f9ff"} onMouseLeave={e=>e.currentTarget.style.background=wknd?"#fef9f9":"#fff"}>
           <div style={{fontSize:12,fontWeight:isToday?700:500,color:isToday?"#1d4ed8":wknd?"#dc2626":"#374151",marginBottom:3}}>{d.getDate()}</div>
-          {s&&<div style={{display:"flex",flexDirection:"column",gap:2}}>{s.leader&&<div style={{fontSize:9,background:"#fef3c7",color:"#92400e",padding:"1px 4px",borderRadius:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⭐{s.leader}</div>}{s.dc.length>0&&<div style={{fontSize:9,background:"#dbeafe",color:"#1e40af",padding:"1px 4px",borderRadius:4}}>🖥️ DC: {s.dc.length}</div>}{s.ioc.length>0&&<div style={{fontSize:9,background:"#dcfce7",color:"#15803d",padding:"1px 4px",borderRadius:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>🏢{s.ioc.join(", ")}</div>}</div>}
+          {s&&<div style={{display:"flex",flexDirection:"column",gap:2}}>{s.leader&&<div style={{fontSize:9,background:"#fef3c7",color:"#92400e",padding:"1px 4px",borderRadius:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⭐{s.leader}</div>}{s.dc.length>0&&<div style={{fontSize:9,background:"#dbeafe",color:"#1e40af",padding:"1px 4px",borderRadius:4}}>🖥️ DC: {s.dc.length}</div>}{s.ioc.length>0&&<div style={{fontSize:9,background:"#dcfce7",color:"#15803d",padding:"1px 4px",borderRadius:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>🏢{s.ioc.map(p=>p.name).join(", ")}</div>}</div>}
         </div>);})}
       </div>
     </div>}
@@ -150,7 +152,7 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
     {viewMode==="week"&&<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(7,1fr)",gap:8}}>
       {weekDays.map((d,i)=>{const ds=ymd(d);const s=schedule[ds];const isToday=ds===todayStr;const wknd=isWeekendOrHoliday(ds,holidays);return(<div key={i} onClick={()=>{setCur(d);setViewMode("day");}} style={{background:"#fff",borderRadius:10,border:"1px solid "+(isToday?"#3b82f6":"#e5e7eb"),padding:10,cursor:"pointer"}}>
         <div style={{fontSize:12,fontWeight:600,color:wknd?"#dc2626":"#374151",marginBottom:6,paddingBottom:6,borderBottom:"1px solid #f3f4f6"}}>{WD[d.getDay()]} {d.getDate()}/{d.getMonth()+1}</div>
-        {s?<div style={{display:"flex",flexDirection:"column",gap:4}}>{s.leader&&<div style={{fontSize:11}}><span style={{color:"#92400e"}}>⭐ LĐ:</span> {s.leader}</div>}{s.dc.length>0&&<div style={{fontSize:11}}><span style={{color:"#1e40af"}}>🖥️ DC:</span> {s.dc.join(", ")}</div>}{s.ioc.length>0&&<div style={{fontSize:11}}><span style={{color:"#15803d"}}>🏢 IOC:</span> {s.ioc.join(", ")}</div>}</div>:<div style={{fontSize:11,color:"#9ca3af",textAlign:"center",padding:8}}>—</div>}
+        {s?<div style={{display:"flex",flexDirection:"column",gap:4}}>{s.leader&&<div style={{fontSize:11}}><span style={{color:"#92400e"}}>⭐ LĐ:</span> {s.leader}</div>}{s.dc.length>0&&<div style={{fontSize:11}}><span style={{color:"#1e40af"}}>🖥️ DC:</span> {s.dc.map(p=>p.name).join(", ")}</div>}{s.ioc.length>0&&<div style={{fontSize:11}}><span style={{color:"#15803d"}}>🏢 IOC:</span> {s.ioc.map(p=>p.name).join(", ")}</div>}</div>:<div style={{fontSize:11,color:"#9ca3af",textAlign:"center",padding:8}}>—</div>}
       </div>);})}
     </div>}
 
@@ -183,11 +185,31 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
       <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:14}}>Sửa lịch trực {editDay.split("-").reverse().join("/")}</span><button onClick={()=>setEditDay(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#9ca3af"}}>✕</button></div>
       <div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={{fontSize:12,color:"#92400e",display:"block",marginBottom:4,fontWeight:600}}>⭐ Trực lãnh đạo</label><input value={dayDraft.leader} onChange={e=>setDayDraft(d=>({...d,leader:e.target.value}))} style={inp}/></div>
-        <div><label style={{fontSize:12,color:"#1e40af",display:"block",marginBottom:4,fontWeight:600}}>🖥️ Trực DC (mỗi người 1 dòng)</label><textarea value={dayDraft.dcText??dayDraft.dc.join("\n")} onChange={e=>setDayDraft(d=>({...d,dcText:e.target.value}))} rows={4} style={{...inp,resize:"vertical",minHeight:90}}/></div>
-        <div><label style={{fontSize:12,color:"#15803d",display:"block",marginBottom:4,fontWeight:600}}>🏢 Trực IOC (mỗi người 1 dòng)</label><textarea value={dayDraft.iocText??dayDraft.ioc.join("\n")} onChange={e=>setDayDraft(d=>({...d,iocText:e.target.value}))} rows={4} style={{...inp,resize:"vertical",minHeight:90}}/></div>
+        {(()=>{const wknd=isWeekendOrHoliday(editDay,holidays);const shifts=wknd?SHIFTS.weekend:SHIFTS.weekday;return(<>
+        <div><label style={{fontSize:12,color:"#1e40af",display:"block",marginBottom:6,fontWeight:600}}>🖥️ Trực DC</label>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {dayDraft.dc.map((p,i)=>(<div key={i} style={{display:"flex",gap:6,alignItems:"center"}}>
+              <input value={p.name} onChange={e=>setDayDraft(d=>({...d,dc:d.dc.map((x,xi)=>xi===i?{...x,name:e.target.value}:x)}))} placeholder="Tên người trực" style={{...inp,flex:1}}/>
+              <select value={p.shiftIdx} onChange={e=>setDayDraft(d=>({...d,dc:d.dc.map((x,xi)=>xi===i?{...x,shiftIdx:Number(e.target.value)}:x)}))} style={{...inp,width:isMobile?110:160,flexShrink:0,fontSize:12}}>{shifts.DC.map((sh,si)=><option key={si} value={si}>{sh.label} ({sh.time})</option>)}</select>
+              <button onClick={()=>setDayDraft(d=>({...d,dc:d.dc.filter((_,xi)=>xi!==i)}))} style={{background:"none",border:"none",cursor:"pointer",color:"#dc2626",fontSize:16,flexShrink:0,padding:"0 4px"}}>✕</button>
+            </div>))}
+          </div>
+          <button onClick={()=>setDayDraft(d=>({...d,dc:[...d.dc,{name:"",shiftIdx:d.dc.length%shifts.DC.length}]}))} style={{marginTop:6,padding:"4px 10px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontSize:12}}>+ Thêm người DC</button>
+        </div>
+        <div><label style={{fontSize:12,color:"#15803d",display:"block",marginBottom:6,fontWeight:600}}>🏢 Trực IOC</label>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {dayDraft.ioc.map((p,i)=>(<div key={i} style={{display:"flex",gap:6,alignItems:"center"}}>
+              <input value={p.name} onChange={e=>setDayDraft(d=>({...d,ioc:d.ioc.map((x,xi)=>xi===i?{...x,name:e.target.value}:x)}))} placeholder="Tên người trực" style={{...inp,flex:1}}/>
+              <select value={p.shiftIdx} onChange={e=>setDayDraft(d=>({...d,ioc:d.ioc.map((x,xi)=>xi===i?{...x,shiftIdx:Number(e.target.value)}:x)}))} style={{...inp,width:isMobile?110:160,flexShrink:0,fontSize:12}}>{shifts.IOC.map((sh,si)=><option key={si} value={si}>{sh.label?sh.label+" ":""}({sh.time})</option>)}</select>
+              <button onClick={()=>setDayDraft(d=>({...d,ioc:d.ioc.filter((_,xi)=>xi!==i)}))} style={{background:"none",border:"none",cursor:"pointer",color:"#dc2626",fontSize:16,flexShrink:0,padding:"0 4px"}}>✕</button>
+            </div>))}
+          </div>
+          <button onClick={()=>setDayDraft(d=>({...d,ioc:[...d.ioc,{name:"",shiftIdx:d.ioc.length%shifts.IOC.length}]}))} style={{marginTop:6,padding:"4px 10px",border:"1px solid #86efac",borderRadius:6,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:12}}>+ Thêm người IOC</button>
+        </div>
+        </>);})()}
         <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Ghi chú</label><input value={dayDraft.note} onChange={e=>setDayDraft(d=>({...d,note:e.target.value}))} style={inp}/></div>
       </div>
-      <div style={{padding:"0 18px 18px",display:"flex",gap:10,justifyContent:"flex-end"}}><button onClick={()=>setEditDay(null)} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={async()=>{const final={...dayDraft,dc:(dayDraft.dcText??dayDraft.dc.join("\n")).split("\n").map(x=>x.trim()).filter(Boolean),ioc:(dayDraft.iocText??dayDraft.ioc.join("\n")).split("\n").map(x=>x.trim()).filter(Boolean)};delete final.dcText;delete final.iocText;await saveDay(final);setEditDay(null);}} style={{padding:"8px 16px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Lưu</button></div>
+      <div style={{padding:"0 18px 18px",display:"flex",gap:10,justifyContent:"flex-end"}}><button onClick={()=>setEditDay(null)} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={async()=>{const final={...dayDraft,dc:dayDraft.dc.filter(p=>p.name.trim()).map(p=>({name:p.name.trim(),shiftIdx:p.shiftIdx})),ioc:dayDraft.ioc.filter(p=>p.name.trim()).map(p=>({name:p.name.trim(),shiftIdx:p.shiftIdx}))};await saveDay(final);setEditDay(null);}} style={{padding:"8px 16px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Lưu</button></div>
     </div></div>)}
   </div>);
 }
