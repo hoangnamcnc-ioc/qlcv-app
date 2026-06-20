@@ -23,23 +23,34 @@ const SHIFTS={
 
 // Phân tích văn bản dán từ Word: mỗi dòng dạng "ngày | thứ | LĐ | DC | IOC | ghi chú"
 function parsePasted(text){
-  const lines=text.split("\n").map(l=>l.trim()).filter(Boolean);
+  const lines=text.split("\n");
   const days={}; let curDate=null;
-  for(const line of lines){
-    const cells=line.split(/\t|\|/).map(c=>c.trim()).filter(c=>c!=="");
-    if(cells.length===0) continue;
-    // dòng có ngày dạng d/m/yyyy
-    const dm=cells[0].match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  for(const rawLine of lines){
+    const line=rawLine.replace(/\r/g,"");
+    if(!line.trim()) continue;
+    // Giữ nguyên cấu trúc cột bằng tab; nếu dòng dùng | thì split theo |
+    const rawCells=line.includes("\t")?line.split("\t"):line.split("|");
+    const cells=rawCells.map(c=>c.trim());
+    if(cells.every(c=>c==="")) continue;
+    const firstNonEmpty=cells.findIndex(c=>c!=="");
+    const dm=(cells[0]||"").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if(dm){
       const dd=pad(dm[1]),mm=pad(dm[2]),yy=dm[3];
       curDate=`${yy}-${mm}-${dd}`;
-      days[curDate]={date:curDate,leader:cells[2]||"",dc:[],ioc:[],note:cells[5]||""};
-      if(cells[3]) days[curDate].dc.push(cells[3]);
-      if(cells[4]) days[curDate].ioc.push(...cells[4].split(/\s{2,}|,/).map(x=>x.trim()).filter(Boolean));
-    } else if(curDate&&cells.length>0){
-      // dòng phụ: thêm người DC (thường ở cột DC)
-      const name=cells.find(c=>c&&!/^(thứ|chủ)/i.test(c));
-      if(name) days[curDate].dc.push(name);
+      const c=cells.map(x=>x.trim());
+      days[curDate]={date:curDate,leader:c[2]||"",dc:[],ioc:[],note:c[5]||""};
+      if(c[3]) days[curDate].dc.push(c[3]);
+      if(c[4]) days[curDate].ioc.push(...c[4].split(/\s{2,}|,/).map(x=>x.trim()).filter(Boolean));
+    } else if(curDate){
+      // Dòng phụ (không có ngày): xác định cột theo VỊ TRÍ ô có giá trị, không gộp về DC mặc định
+      // Cấu trúc cột chuẩn: [0]Ngày [1]Thứ [2]LĐ [3]DC [4]IOC [5]Ghi chú
+      if(cells[3]&&cells[3].trim()) days[curDate].dc.push(cells[3].trim());
+      if(cells[4]&&cells[4].trim()) days[curDate].ioc.push(...cells[4].split(/\s{2,}|,/).map(x=>x.trim()).filter(Boolean));
+      // Trường hợp dòng phụ chỉ có 1 cột duy nhất có dữ liệu (mất canh cột khi dán) → fallback theo cột gần nhất từng có dữ liệu ở dòng ngày
+      if(!cells[3]&&!cells[4]&&firstNonEmpty>=0){
+        const val=cells[firstNonEmpty].trim();
+        if(val) days[curDate].dc.push(val); // fallback an toàn: vẫn đẩy DC như cũ nếu không xác định được cột
+      }
     }
   }
   return Object.values(days);
@@ -172,11 +183,11 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
       <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:14}}>Sửa lịch trực {editDay.split("-").reverse().join("/")}</span><button onClick={()=>setEditDay(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#9ca3af"}}>✕</button></div>
       <div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={{fontSize:12,color:"#92400e",display:"block",marginBottom:4,fontWeight:600}}>⭐ Trực lãnh đạo</label><input value={dayDraft.leader} onChange={e=>setDayDraft(d=>({...d,leader:e.target.value}))} style={inp}/></div>
-        <div><label style={{fontSize:12,color:"#1e40af",display:"block",marginBottom:4,fontWeight:600}}>🖥️ Trực DC (mỗi người 1 dòng)</label><textarea value={dayDraft.dc.join("\n")} onChange={e=>setDayDraft(d=>({...d,dc:e.target.value.split("\n").map(x=>x.trim()).filter(Boolean)}))} rows={3} style={{...inp,resize:"vertical"}}/></div>
-        <div><label style={{fontSize:12,color:"#15803d",display:"block",marginBottom:4,fontWeight:600}}>🏢 Trực IOC (mỗi người 1 dòng)</label><textarea value={dayDraft.ioc.join("\n")} onChange={e=>setDayDraft(d=>({...d,ioc:e.target.value.split("\n").map(x=>x.trim()).filter(Boolean)}))} rows={2} style={{...inp,resize:"vertical"}}/></div>
+        <div><label style={{fontSize:12,color:"#1e40af",display:"block",marginBottom:4,fontWeight:600}}>🖥️ Trực DC (mỗi người 1 dòng)</label><textarea value={dayDraft.dcText??dayDraft.dc.join("\n")} onChange={e=>setDayDraft(d=>({...d,dcText:e.target.value}))} rows={4} style={{...inp,resize:"vertical",minHeight:90}}/></div>
+        <div><label style={{fontSize:12,color:"#15803d",display:"block",marginBottom:4,fontWeight:600}}>🏢 Trực IOC (mỗi người 1 dòng)</label><textarea value={dayDraft.iocText??dayDraft.ioc.join("\n")} onChange={e=>setDayDraft(d=>({...d,iocText:e.target.value}))} rows={4} style={{...inp,resize:"vertical",minHeight:90}}/></div>
         <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Ghi chú</label><input value={dayDraft.note} onChange={e=>setDayDraft(d=>({...d,note:e.target.value}))} style={inp}/></div>
       </div>
-      <div style={{padding:"0 18px 18px",display:"flex",gap:10,justifyContent:"flex-end"}}><button onClick={()=>setEditDay(null)} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={async()=>{await saveDay(dayDraft);setEditDay(null);}} style={{padding:"8px 16px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Lưu</button></div>
+      <div style={{padding:"0 18px 18px",display:"flex",gap:10,justifyContent:"flex-end"}}><button onClick={()=>setEditDay(null)} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={async()=>{const final={...dayDraft,dc:(dayDraft.dcText??dayDraft.dc.join("\n")).split("\n").map(x=>x.trim()).filter(Boolean),ioc:(dayDraft.iocText??dayDraft.ioc.join("\n")).split("\n").map(x=>x.trim()).filter(Boolean)};delete final.dcText;delete final.iocText;await saveDay(final);setEditDay(null);}} style={{padding:"8px 16px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Lưu</button></div>
     </div></div>)}
   </div>);
 }
