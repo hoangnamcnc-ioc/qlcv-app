@@ -4,8 +4,9 @@ import { supabase } from "./supabase";
 const nowStr=()=>new Date().toLocaleString("vi-VN");
 const todayStr=new Date().toISOString().split("T")[0];
 const TYPES={den:{label:"Văn bản đến",icon:"📥",bg:"#dbeafe",col:"#1d4ed8"},di:{label:"Văn bản đi",icon:"📤",bg:"#dcfce7",col:"#15803d"}};
+const isIncoming=d=>d.type==="den"||d.type==="incoming";
 
-export default function Documents({ currentUser, isMobile, inp, showToast, canManage, tasks, getTaskTitle, onOpenTask, uploadFiles, uploadingFiles }){
+export default function Documents({ currentUser, isMobile, inp, showToast, canManage, tasks, getTaskTitle, onOpenTask, onCreateTask, uploadFiles, uploadingFiles }){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
@@ -27,8 +28,8 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
 
   const remove=async id=>{if(!window.confirm("Xóa văn bản này?"))return;await supabase.from("documents").delete().eq("id",id);setItems(p=>p.filter(x=>x.id!==id));};
 
-  const filtered=useMemo(()=>items.filter(d=>{if(filterType!=="all"&&d.type!==filterType)return false;if(search){const q=search.toLowerCase();if(!d.doc_number.toLowerCase().includes(q)&&!d.title.toLowerCase().includes(q)&&!(d.sender||"").toLowerCase().includes(q))return false;}return true;}),[items,filterType,search]);
-  const counts=useMemo(()=>({den:items.filter(d=>d.type==="den").length,di:items.filter(d=>d.type==="di").length}),[items]);
+  const filtered=useMemo(()=>items.filter(d=>{if(filterType==="den"&&!isIncoming(d))return false;if(filterType==="di"&&isIncoming(d))return false;if(search){const q=search.toLowerCase();if(!d.doc_number.toLowerCase().includes(q)&&!d.title.toLowerCase().includes(q)&&!(d.sender||"").toLowerCase().includes(q))return false;}return true;}),[items,filterType,search]);
+  const counts=useMemo(()=>({den:items.filter(isIncoming).length,di:items.filter(d=>!isIncoming(d)).length}),[items]);
 
   return(<div style={{display:"flex",flexDirection:"column",gap:14}}>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:10}}>
@@ -42,7 +43,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
     </div>
     {loading?<div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>Đang tải…</div>:filtered.length===0?<div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:40,textAlign:"center",color:"#9ca3af"}}><div style={{fontSize:40,marginBottom:8}}>📁</div><div style={{fontSize:14}}>Chưa có văn bản nào</div></div>:
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {filtered.map(d=>{const T=TYPES[d.type]||TYPES.den;const linkedTask=d.task_id?(tasks||[]).find(t=>t.id===d.task_id):null;const atts=d.attachments?(typeof d.attachments==="string"?JSON.parse(d.attachments||"[]"):d.attachments):[];return(
+      {filtered.map(d=>{const T=isIncoming(d)?TYPES.den:TYPES.di;const linkedTask=d.task_id?(tasks||[]).find(t=>t.id===d.task_id):null;const atts=d.attachments?(typeof d.attachments==="string"?JSON.parse(d.attachments||"[]"):d.attachments):[];return(
         <div key={d.id} style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",borderLeft:"4px solid "+T.col,padding:14}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6,flexWrap:"wrap"}}>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
@@ -50,10 +51,10 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
               <span style={{fontWeight:700,fontSize:13}}>{d.doc_number}</span>
               <span style={{fontSize:11,color:"#9ca3af"}}>{d.doc_date}</span>
             </div>
-            {canManage&&<div style={{display:"flex",gap:6}}><button onClick={()=>openEdit(d)} style={{padding:"3px 9px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11}}>✏️ Sửa</button><button onClick={()=>remove(d.id)} style={{padding:"3px 9px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:11,color:"#dc2626"}}>🗑️</button></div>}
+            {canManage&&<div style={{display:"flex",gap:6}}>{isIncoming(d)&&!d.task_id&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}<button onClick={()=>openEdit(d)} style={{padding:"3px 9px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11}}>✏️ Sửa</button><button onClick={()=>remove(d.id)} style={{padding:"3px 9px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:11,color:"#dc2626"}}>🗑️</button></div>}
           </div>
           <div style={{fontSize:14,fontWeight:500,marginBottom:4}}>{d.title}</div>
-          {d.sender&&<div style={{fontSize:12,color:"#6b7280",marginBottom:4}}>{d.type==="den"?"Nơi gửi":"Nơi nhận"}: {d.sender}</div>}
+          {d.sender&&<div style={{fontSize:12,color:"#6b7280",marginBottom:4}}>{isIncoming(d)?"Nơi gửi":"Nơi nhận"}: {d.sender}</div>}
           {d.note&&<div style={{fontSize:12,color:"#475569",fontStyle:"italic",marginBottom:4}}>📝 {d.note}</div>}
           {atts.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{atts.map((f,fi)=><a key={fi} href={f.url} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
           {linkedTask&&<div onClick={()=>onOpenTask&&onOpenTask(linkedTask)} style={{marginTop:8,padding:"6px 10px",background:"#f8fafc",borderRadius:8,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:6,color:"#4338ca"}}>🔗 Liên kết nhiệm vụ: <b>{linkedTask.title}</b></div>}
