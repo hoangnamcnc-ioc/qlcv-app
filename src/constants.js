@@ -1,0 +1,17 @@
+export const DEPTS = ["HCTH","QL-KTDL","HT-NTS"];
+export const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
+export const ROLES_EMP = ["Trưởng phòng","Phó trưởng phòng","Chuyên viên","Nhân viên"];
+export const VI_MONTHS = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
+export const VI_DAYS = ["CN","T2","T3","T4","T5","T6","T7"];
+export const ROLE_LABELS = {admin:"Quản trị viên",director:"Ban Giám đốc",manager_hcth:"TP. HCTH",manager:"Trưởng phòng",deputy_manager:"Phó trưởng phòng",staff:"Nhân viên"};
+export const ROLE_COLORS = {admin:["#4338ca","#e0e7ff"],director:["#7c3aed","#f3e8ff"],manager_hcth:["#0369a1","#e0f2fe"],manager:["#15803d","#dcfce7"],deputy_manager:["#0f766e","#ccfbf1"],staff:["#92400e","#fef9c3"]};
+export const FULL_ACCESS = ["admin","director","manager_hcth"];
+export const CAN_CREATE  = ["admin","director","manager_hcth","manager","deputy_manager"];
+export const RATING = {xuat_sac:{label:"Xuất sắc",bg:"#fef9c3",col:"#854d0e",icon:"🏆",score:4},tot:{label:"Tốt",bg:"#dcfce7",col:"#15803d",icon:"🌟",score:3},tb:{label:"Trung bình",bg:"#e0e7ff",col:"#4338ca",icon:"⚡",score:2},kem:{label:"Kém",bg:"#fee2e2",col:"#b91c1c",icon:"❌",score:0}};
+export const LATE_REASONS = [{value:"overload",label:"Khối lượng quá lớn"},{value:"missing_info",label:"Thiếu thông tin/tài liệu"},{value:"dependency",label:"Phụ thuộc bên khác"},{value:"unexpected",label:"Phát sinh đột xuất"},{value:"other",label:"Lý do khác"}];
+export const OVERLOAD_DEFAULT = 5;
+export const FREQUENCIES = [{value:"daily",label:"Hàng ngày",days:1},{value:"weekly",label:"Hàng tuần",days:7},{value:"biweekly",label:"2 tuần/lần",days:14},{value:"monthly",label:"Hàng tháng",days:30},{value:"quarterly",label:"Hàng quý",days:90}];
+export const STATUS = {on_time:{label:"Trong hạn",bg:"#dcfce7",col:"#15803d",dot:"#16a34a"},nearly_due:{label:"Sắp hết hạn",bg:"#fef9c3",col:"#a16207",dot:"#ca8a04"},overdue:{label:"Quá hạn",bg:"#fee2e2",col:"#b91c1c",dot:"#dc2626"},completed_late:{label:"Hoàn thành quá hạn",bg:"#fee2e2",col:"#991b1b",dot:"#991b1b"},completed:{label:"Hoàn thành",bg:"#e0e7ff",col:"#4338ca",dot:"#6366f1"}};
+export const PRIO = {high:{label:"Cao",bg:"#fee2e2",col:"#b91c1c"},medium:{label:"Trung bình",bg:"#fef9c3",col:"#92400e"},low:{label:"Thấp",bg:"#f1f5f9",col:"#475569"}};
+export const STATUS_ORDER = {overdue:0,nearly_due:1,on_time:2,completed_late:3,completed:4};
+export const LATE_COMPLETION_PENALTY = 2;

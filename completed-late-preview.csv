@@ -1,0 +1,12 @@
+﻿id,title,dept,eid,deadline,completed_at,late_days,has_late_reason,late_reason,late_note,created,created_by_name
+"t1781168716024","Tập huấn AI","HCTH","e1","2026-06-20","15:05:35 23/6/2026","3","false","","","2026-06-10",""
+"t1781228319543","Tham mưu thành lập Tổ giúp việc triển khai xây dựng chỉ số đánh giá hiệu quả công việc (KPI) tại Trung tâm","HCTH","e1","2026-06-21","10:51:53 23/6/2026","2","false","","","2026-06-11",""
+"t1781169139622","Báo cáo về sở","HCTH","e1","2026-06-17","15:06:12 23/6/2026","6","false","","","2026-06-10",""
+"t1781229023749","Tham mưu lãnh đạo ký hợp đồng lao động nhân sự mới cho Trung tâm trong tháng 6.","HCTH","e1781150147763","2026-06-15","08:25:04 17/6/2026","2","false","","","2026-06-11",""
+"t1781341352114","[8545/UBND-NV - 12/06/2026] V/v xử lý Tờ trình số 550/TTr-SNV ngày 26/5/2026 của Sở Nội vụ (KS)","HCTH","e1","2026-06-19","15:36:52 23/6/2026","4","false","","","2026-06-12",""
+"t1781168509316","Đảng ủy chỉ đạo","HCTH","e1","2026-06-12","15:43:52 23/6/2026","11","false","","","2026-06-10",""
+"t1781236330057","Kết nối bốc số trực tuyến xã Ô Loan vào Đắk Lắk số","QL-KTDL","e1781150160775","2026-06-15","16:17:23 17/6/2026","2","false","","","2026-06-11",""
+"t1781745036259_qqfn","🔄 Báo cáo định kỳ kết nối LGSP","QL-KTDL","e1781150223356","2026-06-18","09:04:22 19/6/2026","1","false","","","2026-06-17",""
+"t1781341905441","[2611/SKHCN-CĐS - 12/06/2026] V/v cấp quyền khai thác liên thông hộ tịch để tỉnh Đắk Lắk thực hiện kết nối, khai thác sử dụng dữ liệu hộ tịch thay thế giấy tờ trong giải quyết TTHC","QL-KTDL","e1781150223356","2026-06-19","10:01:09 20/6/2026","1","false","","","2026-06-12",""
+"t1781398102636_098t","🔄 Báo cáo định kỳ kết nối LGSP","QL-KTDL","e1781150223356","2026-06-18","09:04:08 19/6/2026","1","false","","","2026-06-13",""
+"t1781416941323_2dty","🔄 Báo cáo tháng định kỳ","HCTH","e1","2026-06-22","15:23:36 23/6/2026","1","false","","","2026-06-13",""
