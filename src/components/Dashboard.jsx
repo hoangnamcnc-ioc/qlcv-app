@@ -91,11 +91,11 @@ export default function Dashboard({
             <div><div style={{ fontWeight: 700, fontSize: 15 }}>👤 {currentUser.full_name}</div><div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{userDept ? `Phòng ${userDept}` : ""}</div></div>
             <div style={{ textAlign: "right" }}><div style={{ fontSize: 28, fontWeight: 800, color: "#a5b4fc" }}>{myTasks.rate}%</div><div style={{ fontSize: 11, opacity: 0.7 }}>Tỷ lệ HT</div></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, marginBottom: myTasks.pending.length ? 12 : 0 }}>
-            {[{v:myTasks.total,l:"Tổng",c:"#c7d2fe"},{v:myTasks.done,l:"Hoàn thành",c:"#86efac"},{v:myTasks.over,l:"Quá hạn",c:"#fca5a5"},{v:myTasks.completedLate,l:"HT quá hạn",c:"#fda4af"},{v:myTasks.nd,l:"Sắp HH",c:"#fde68a"}].map(s => (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: myTasks.pending.length ? 12 : 0 }}>
+            {[{v:myTasks.total,l:"Tổng việc",c:"#c7d2fe"},{v:myTasks.done,l:"Hoàn thành",c:"#86efac"},{v:myTasks.over,l:"Quá hạn",c:"#fca5a5"},{v:myTasks.completedLate,l:"HT quá hạn",c:"#fda4af"},{v:myTasks.nd,l:"Sắp hết hạn",c:"#fde68a"},{v:myTasks.rate+"%",l:"Tỷ lệ HT",c:"#a5f3fc"}].map(s => (
               <div key={s.l} style={{ background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 6px", textAlign: "center" }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: s.c }}>{s.v}</div>
-                <div style={{ fontSize: 10, opacity: 0.7, marginTop: 1 }}>{s.l}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: s.c }}>{s.v}</div>
+                <div style={{ fontSize: 10, opacity: 0.8, marginTop: 2, lineHeight: 1.3 }}>{s.l}</div>
               </div>
             ))}
           </div>

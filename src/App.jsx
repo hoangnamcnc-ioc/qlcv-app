@@ -6,7 +6,7 @@ import DutySchedule from "./DutySchedule";
 import Feedback from "./Feedback";
 import Documents from "./Documents";
 import { DEPTS, DEPT_COLOR, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
-import { addDays, today, todayStr, nowStr, getNextDate, isCompletedLateByDate, getStatus, isCompletedStatus, isLateStatus, parseJSON, hashPwd, isHashed, getFileIcon } from "./helpers";
+import { addDays, today, todayStr, nowStr, getNextDate, isCompletedLateByDate, getStatus, isCompletedStatus, isLateStatus, parseJSON, hashPwd, getFileIcon } from "./helpers";
 import { ProgressBar, RoleBadge, RatingBadge } from "./components/ui";
 import Dashboard from "./components/Dashboard";
 import TaskList from "./components/TaskList";
@@ -95,7 +95,12 @@ export default function App() {
   const canSetLateReason=(t)=>isLateStatus(t.status)&&(currentUser?.employee_id===t.eid||parseJSON(t.collab_eids,[]).includes(currentUser?.employee_id)||canCreate);
 
   const logLogin=async(username,success,fullName)=>{try{await supabase.from("login_history").insert({id:`lg${Date.now()}${Math.random().toString(36).slice(2,6)}`,username,full_name:fullName||"",success,at:nowStr()});}catch{}};
-  const handleLogin=async()=>{if(!loginForm.username||!loginForm.password){setLoginError("Vui lòng nhập đầy đủ");return;}setLoginLoading(true);setLoginError("");const{data,error}=await supabase.from("users").select("*").eq("username",loginForm.username).single();if(error||!data){setLoginError("Sai tên đăng nhập hoặc mật khẩu");setLoginLoading(false);logLogin(loginForm.username,false,"");return;}const hashedInput=await hashPwd(loginForm.password);let ok=false;if(isHashed(data.password)){ok=data.password===hashedInput;}else{ok=data.password===loginForm.password;if(ok){await supabase.from("users").update({password:hashedInput}).eq("id",data.id);data.password=hashedInput;}}if(!ok){setLoginError("Sai tên đăng nhập hoặc mật khẩu");setLoginLoading(false);logLogin(loginForm.username,false,data.full_name);return;}setCurrentUser(data);const{password:_pw,...safe}=data;sessionStorage.setItem("qlcv_user",JSON.stringify(safe));setLoginLoading(false);logLogin(data.username,true,data.full_name);};
+  const handleLogin=async()=>{if(!loginForm.username||!loginForm.password){setLoginError("Vui lòng nhập đầy đủ");return;}setLoginLoading(true);setLoginError("");
+    // Đăng nhập qua RPC server-side: hash được so sánh trong Postgres, password không bao giờ rời server
+    const{data,error}=await supabase.rpc("login",{p_username:loginForm.username,p_password:loginForm.password});
+    const user=Array.isArray(data)?data[0]:data;
+    if(error||!user){setLoginError("Sai tên đăng nhập hoặc mật khẩu");setLoginLoading(false);logLogin(loginForm.username,false,"");return;}
+    setCurrentUser(user);sessionStorage.setItem("qlcv_user",JSON.stringify(user));setLoginLoading(false);logLogin(user.username,true,user.full_name);};
   const handleLogout=()=>{setCurrentUser(null);sessionStorage.removeItem("qlcv_user");setLoginNotifShown(false);};
   useEffect(()=>{const s=sessionStorage.getItem("qlcv_user");if(s)try{setCurrentUser(JSON.parse(s));}catch{};},[]);
 
@@ -105,21 +110,14 @@ export default function App() {
     if(!current||!next||!confirm){setChangePwdError("Vui lòng điền đầy đủ cả 3 ô");return;}
     if(next.length<6){setChangePwdError("Mật khẩu mới phải có ít nhất 6 ký tự");return;}
     if(next!==confirm){setChangePwdError("Mật khẩu xác nhận không khớp");return;}
-    const{data:dbUser}=await supabase.from("users").select("password").eq("id",currentUser.id).single();
-    const stored=dbUser?.password||currentUser.password;
-    const curHash=await hashPwd(current);const curOk=isHashed(stored)?stored===curHash:stored===current;
-    if(!curOk){setChangePwdError("Mật khẩu hiện tại không đúng");return;}
-    const nextHash=await hashPwd(next);
-    const{error}=await supabase.from("users").update({password:nextHash}).eq("id",currentUser.id);
-    if(!error){
-      const updated={...currentUser,password:nextHash};
-      setCurrentUser(updated);
-      sessionStorage.setItem("qlcv_user",JSON.stringify((({password,...r})=>r)(updated)));
-      showToast("Đổi mật khẩu thành công ✓");
-      setShowChangePwd(false);
-      setChangePwdForm({current:"",next:"",confirm:""});
-      setChangePwdError("");
-    }else showToast("Lỗi khi đổi mật khẩu","error");
+    // Đổi mật khẩu qua RPC: server tự kiểm tra mật khẩu hiện tại, trả về true/false
+    const{data:ok,error}=await supabase.rpc("change_password",{p_username:currentUser.username,p_current:current,p_new:next});
+    if(error){showToast("Lỗi khi đổi mật khẩu","error");return;}
+    if(!ok){setChangePwdError("Mật khẩu hiện tại không đúng");return;}
+    showToast("Đổi mật khẩu thành công ✓");
+    setShowChangePwd(false);
+    setChangePwdForm({current:"",next:"",confirm:""});
+    setChangePwdError("");
   };
 
   useEffect(()=>{
@@ -127,7 +125,7 @@ export default function App() {
     (async()=>{
       setLoading(true);
       try{
-        const[{data:ed},{data:td},{data:ud},{data:rtd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("*"),supabase.from("recurring_templates").select("*").order("title")]);
+        const[{data:ed},{data:td},{data:ud},{data:rtd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title")]);
         if(!ed||ed.length===0){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}else setEmployees(ed);
         setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);
       }catch{showToast("Lỗi kết nối database","error");setEmployees(DEFAULT_EMPLOYEES);setTasks([]);}
