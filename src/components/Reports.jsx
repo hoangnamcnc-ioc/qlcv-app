@@ -48,11 +48,11 @@ export default function Reports({
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
             <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
               <span style={{ fontWeight: 600, fontSize: 13 }}>Hiệu suất nhân viên</span>
-              <span style={{ fontSize: 11, color: "#9ca3af" }}>Điểm = (HT đúng hạn×1 + HT trễ×0.5) / Tổng × 100 · Chỉ tính cho người được giao ≥5 việc/tháng</span>
+              <span style={{ fontSize: 11, color: "#9ca3af" }}>Điểm = Thời hạn(60%) + Chất lượng(40%) − Phạt + Thưởng KL · Phạt 2đ/việc trễ & quá hạn · Thưởng khối lượng: +1đ/việc vượt 5, tối đa +10đ · Tính trên việc đã đến hạn ≥5</span>
             </div>
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 480 }}>
-                <thead><tr style={{ background: "#f9fafb" }}>{["","Nhân viên","Phòng","Tổng","HT","HT quá hạn","QH","Điểm hiệu suất"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{h}</th>)}</tr></thead>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 560 }}>
+                <thead><tr style={{ background: "#f9fafb" }}>{["","Nhân viên","Phòng","Tổng","HT","HT quá hạn","QH","Phối hợp","Điểm hiệu suất"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{h}</th>)}</tr></thead>
                 <tbody>{repEmpData.map(e => {
                   const eligibleRank = e.eligible ? repEmpData.filter(x => x.eligible).findIndex(x => x.id === e.id) : -1;
                   const medal = eligibleRank === 0 ? "🥇" : eligibleRank === 1 ? "🥈" : eligibleRank === 2 ? "🥉" : "";
@@ -65,8 +65,9 @@ export default function Reports({
                       <td style={{ padding: "9px 12px", color: "#15803d", fontWeight: 500 }}>{e.done - (e.completedLate || 0)}</td>
                       <td style={{ padding: "9px 12px", color: e.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: e.completedLate > 0 ? 700 : 400 }}>{e.completedLate || 0}</td>
                       <td style={{ padding: "9px 12px", color: e.over > 0 ? "#b91c1c" : "#6b7280", fontWeight: e.over > 0 ? 600 : 400 }}>{e.over}</td>
+                      <td style={{ padding: "9px 12px" }}>{e.collabTotal > 0 ? <span title={`${e.collabDone}/${e.collabTotal} hoàn thành`} style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span> : <span style={{ color: "#9ca3af" }}>–</span>}</td>
                       <td style={{ padding: "9px 12px" }}>
-                        {!e.eligible ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa đủ ĐK <span style={{ fontSize: 10 }}>(cần ≥5 việc, hiện {e.total})</span></span> : (
+                        {!e.eligible ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa đủ ĐK <span style={{ fontSize: 10 }}>(cần ≥5 việc được giao, hiện {e.total})</span></span> : (
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <div style={{ width: 60, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: e.perfScore + "%", background: e.perfScore >= 80 ? "#16a34a" : e.perfScore >= 50 ? "#f59e0b" : "#dc2626", borderRadius: 6 }} /></div>
                             <span style={{ fontSize: 12, fontWeight: 700, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ</span>
@@ -88,12 +89,12 @@ export default function Reports({
           <select value={rankYear} onChange={e => setRankYear(Number(e.target.value))} style={{ ...inp, width: 100, padding: "6px 10px" }}>{[2023,2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
         </div>
         <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
-          <div style={{ padding: "8px 16px", borderBottom: "1px solid #e5e7eb", fontSize: 11, color: "#9ca3af" }}>Điểm TB năm = trung bình điểm các tháng đủ điều kiện (≥5 việc/tháng) · Công thức: (HT đúng hạn×1 + HT trễ×0.5) / Tổng × 100</div>
+          <div style={{ padding: "8px 16px", borderBottom: "1px solid #e5e7eb", fontSize: 11, color: "#9ca3af" }}>Điểm TB năm = trung bình điểm các tháng đủ điều kiện (≥5 việc đã đến hạn) · Mỗi tháng: Thời hạn(60%) + Chất lượng(40%) − Phạt(2đ/việc trễ & quá hạn)</div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 560 }}>
-              <thead><tr style={{ background: "#f9fafb" }}>{["Hạng","Nhân viên","Phòng","Tổng","HT","HT quá hạn","QH","Số tháng có việc","Điểm TB năm","Tỷ lệ HT"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+              <thead><tr style={{ background: "#f9fafb" }}>{["Hạng","Nhân viên","Phòng","Tổng","HT","HT quá hạn","QH","Phối hợp","Số tháng có việc","Điểm TB năm","Tỷ lệ HT"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
               <tbody>
-                {leaderboard.length === 0 && <tr><td colSpan={9} style={{ padding: 24, textAlign: "center", color: "#9ca3af" }}>Chưa có dữ liệu</td></tr>}
+                {leaderboard.length === 0 && <tr><td colSpan={11} style={{ padding: 24, textAlign: "center", color: "#9ca3af" }}>Chưa có dữ liệu</td></tr>}
                 {leaderboard.map((e, i) => {
                   const ranked = e.score !== null;
                   const medal = ranked && i === 0 ? "🥇" : ranked && i === 1 ? "🥈" : ranked && i === 2 ? "🥉" : `${i + 1}`;
@@ -106,6 +107,7 @@ export default function Reports({
                       <td style={{ padding: "10px 12px", color: "#15803d", fontWeight: 500 }}>{e.done - (e.completedLate || 0)}</td>
                       <td style={{ padding: "10px 12px", color: e.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: e.completedLate > 0 ? 700 : 400 }}>{e.completedLate || 0}</td>
                       <td style={{ padding: "10px 12px", color: e.over > 0 ? "#b91c1c" : "#6b7280", fontWeight: e.over > 0 ? 600 : 400 }}>{e.over}</td>
+                      <td style={{ padding: "10px 12px" }}>{e.collabTotal > 0 ? <span title={`${e.collabDone}/${e.collabTotal} hoàn thành`} style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span> : <span style={{ color: "#9ca3af" }}>–</span>}</td>
                       <td style={{ padding: "10px 12px", textAlign: "center" }}>{e.eligibleMonths}/12</td>
                       <td style={{ padding: "10px 12px" }}>{e.score === null ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa có dữ liệu</span> : <span style={{ fontSize: 15, fontWeight: 700, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ</span>}</td>
                       <td style={{ padding: "10px 12px" }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 60, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: e.rate + "%", background: e.rate >= 80 ? "#16a34a" : e.rate >= 50 ? "#f59e0b" : "#dc2626", borderRadius: 6 }} /></div><span style={{ fontSize: 12, fontWeight: 700, color: e.rate >= 80 ? "#15803d" : e.rate >= 50 ? "#92400e" : "#b91c1c" }}>{e.rate}%</span></div></td>

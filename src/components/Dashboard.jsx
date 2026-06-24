@@ -28,25 +28,52 @@ export default function Dashboard({
           <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 16 }}>📊</span><span style={{ fontWeight: 700, fontSize: 14 }}>Tổng hợp điều hành theo phòng ban</span>
           </div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: isMobile ? 640 : 0 }}>
-              <thead><tr style={{ background: "#f9fafb" }}>{["Phòng ban","Trưởng phòng","Nhân sự","Tổng việc","Hoàn thành","Quá hạn","HT quá hạn","Sắp hết hạn","Tỷ lệ HT","Quá tải"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
-              <tbody>{execDeptSummary.map(d => (
-                <tr key={d.dept} onClick={() => { setView("tasks"); setFDept(d.dept); }} style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <td style={{ padding: "10px 12px" }}><span style={{ background: DEPT_COLOR[d.dept] + "22", color: DEPT_COLOR[d.dept], fontWeight: 600, padding: "3px 10px", borderRadius: 8 }}>{d.dept}</span></td>
-                  <td style={{ padding: "10px 12px", color: "#374151" }}>{d.lead}</td>
-                  <td style={{ padding: "10px 12px", textAlign: "center" }}>{d.empCount}</td>
-                  <td style={{ padding: "10px 12px", fontWeight: 600 }}>{d.total}</td>
-                  <td style={{ padding: "10px 12px", color: "#15803d", fontWeight: 500 }}>{d.done}</td>
-                  <td style={{ padding: "10px 12px", color: d.overdue > 0 ? "#b91c1c" : "#9ca3af", fontWeight: d.overdue > 0 ? 700 : 400 }}>{d.overdue}</td>
-                  <td style={{ padding: "10px 12px", color: d.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: d.completedLate > 0 ? 700 : 400 }}>{d.completedLate}</td>
-                  <td style={{ padding: "10px 12px", color: d.nd > 0 ? "#a16207" : "#9ca3af", fontWeight: d.nd > 0 ? 600 : 400 }}>{d.nd}</td>
-                  <td style={{ padding: "10px 12px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 50, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: d.rate + "%", background: d.rate >= 80 ? "#16a34a" : d.rate >= 50 ? "#f59e0b" : "#dc2626" }} /></div><span style={{ fontSize: 12, fontWeight: 600 }}>{d.rate}%</span></div></td>
-                  <td style={{ padding: "10px 12px" }}>{d.overloaded > 0 ? <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 600 }}>⚠️ {d.overloaded} người</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>—</span>}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
+          {isMobile ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+              {execDeptSummary.map(d => (
+                <div key={d.dept} onClick={() => { setView("tasks"); setFDept(d.dept); }} style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", cursor: "pointer" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div>
+                      <span style={{ background: DEPT_COLOR[d.dept] + "22", color: DEPT_COLOR[d.dept], fontWeight: 700, padding: "3px 10px", borderRadius: 8, fontSize: 13 }}>{d.dept}</span>
+                      <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 8 }}>{d.lead} · {d.empCount} NV</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <div style={{ width: 40, height: 5, background: "#e5e7eb", borderRadius: 5, overflow: "hidden" }}><div style={{ height: "100%", width: d.rate + "%", background: d.rate >= 80 ? "#16a34a" : d.rate >= 50 ? "#f59e0b" : "#dc2626" }} /></div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: d.rate >= 80 ? "#15803d" : d.rate >= 50 ? "#92400e" : "#b91c1c" }}>{d.rate}%</span>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ background: "#e0e7ff", color: "#4338ca", fontSize: 11, padding: "2px 8px", borderRadius: 8 }}>Tổng: {d.total}</span>
+                    <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, padding: "2px 8px", borderRadius: 8 }}>HT: {d.done}</span>
+                    {d.overdue > 0 && <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 700 }}>QH: {d.overdue}</span>}
+                    {d.completedLate > 0 && <span style={{ background: "#fff1f2", color: "#991b1b", fontSize: 11, padding: "2px 8px", borderRadius: 8 }}>⏰ {d.completedLate}</span>}
+                    {d.nd > 0 && <span style={{ background: "#fef9c3", color: "#92400e", fontSize: 11, padding: "2px 8px", borderRadius: 8 }}>⚠ {d.nd}</span>}
+                    {d.overloaded > 0 && <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 600 }}>🔥 {d.overloaded} quá tải</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead><tr style={{ background: "#f9fafb" }}>{["Phòng ban","Trưởng phòng","Nhân sự","Tổng việc","Hoàn thành","Quá hạn","HT quá hạn","Sắp hết hạn","Tỷ lệ HT","Quá tải"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+                <tbody>{execDeptSummary.map(d => (
+                  <tr key={d.dept} onClick={() => { setView("tasks"); setFDept(d.dept); }} style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <td style={{ padding: "10px 12px" }}><span style={{ background: DEPT_COLOR[d.dept] + "22", color: DEPT_COLOR[d.dept], fontWeight: 600, padding: "3px 10px", borderRadius: 8 }}>{d.dept}</span></td>
+                    <td style={{ padding: "10px 12px", color: "#374151" }}>{d.lead}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "center" }}>{d.empCount}</td>
+                    <td style={{ padding: "10px 12px", fontWeight: 600 }}>{d.total}</td>
+                    <td style={{ padding: "10px 12px", color: "#15803d", fontWeight: 500 }}>{d.done}</td>
+                    <td style={{ padding: "10px 12px", color: d.overdue > 0 ? "#b91c1c" : "#9ca3af", fontWeight: d.overdue > 0 ? 700 : 400 }}>{d.overdue}</td>
+                    <td style={{ padding: "10px 12px", color: d.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: d.completedLate > 0 ? 700 : 400 }}>{d.completedLate}</td>
+                    <td style={{ padding: "10px 12px", color: d.nd > 0 ? "#a16207" : "#9ca3af", fontWeight: d.nd > 0 ? 600 : 400 }}>{d.nd}</td>
+                    <td style={{ padding: "10px 12px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 50, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: d.rate + "%", background: d.rate >= 80 ? "#16a34a" : d.rate >= 50 ? "#f59e0b" : "#dc2626" }} /></div><span style={{ fontSize: 12, fontWeight: 600 }}>{d.rate}%</span></div></td>
+                    <td style={{ padding: "10px 12px" }}>{d.overloaded > 0 ? <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 600 }}>⚠️ {d.overloaded} người</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>—</span>}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
           <div style={{ padding: "8px 16px", fontSize: 11, color: "#9ca3af", borderTop: "1px solid #f3f4f6" }}>💡 Bấm vào một phòng để xem chi tiết danh sách nhiệm vụ</div>
         </div>
       )}

@@ -74,6 +74,9 @@ export default function App() {
   const [showChangePwd,setShowChangePwd]=useState(false);
   const [changePwdForm,setChangePwdForm]=useState({current:"",next:"",confirm:""});
   const [changePwdError,setChangePwdError]=useState("");
+  // ── Ghi chú hoàn thành ──
+  const [completionNoteModal,setCompletionNoteModal]=useState(null);
+  const [completionNote,setCompletionNote]=useState("");
 
   const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),3000);};
 
@@ -162,7 +165,28 @@ export default function App() {
   const deleteTaskFn=async id=>{setSaving(true);const task=tasks.find(t=>t.id===id);const h=task?parseJSON(task.history,[]):[];h.push({action:"Xóa nhiệm vụ",by:currentUser.full_name,at:nowStr()});await supabase.from("tasks").update({deleted:true,history:JSON.stringify(h)}).eq("id",id);setTasks(p=>p.map(t=>t.id===id?{...t,deleted:true}:t));setModal(null);setSaving(false);showToast("Đã chuyển vào thùng rác");};
   const restoreTaskFn=async id=>{setSaving(true);await supabase.from("tasks").update({deleted:false}).eq("id",id);setTasks(p=>p.map(t=>t.id===id?{...t,deleted:false}:t));setSaving(false);showToast("Đã khôi phục");};
   const purgeTaskFn=async id=>{setSaving(true);await supabase.from("tasks").delete().eq("id",id);setTasks(p=>p.filter(t=>t.id!==id));setSaving(false);showToast("Đã xóa vĩnh viễn");};
-  const toggleDone=t=>{const st=t.status||getStatus(t);if(!t.completed&&st==="overdue"&&!t.late_reason){showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi hoàn thành.","error");setModal({...t,status:"overdue"});return;}updateTask(t.id,{completed:!t.completed,progress:!t.completed?100:(t.progress>=100?90:t.progress),completed_at:!t.completed?(t.completed_at||new Date().toISOString()):null,...(t.completed?{rating:"",rating_note:"",rated_by:"",rated_at:""}:{})},!t.completed?"Đánh dấu hoàn thành":"Bỏ hoàn thành");};
+  const isSuspiciousCompletion=t=>{
+    if((t.progress||0)>=80)return false;
+    const dl=new Date(t.deadline);dl.setHours(23,59,59,999);
+    const hoursLeft=(dl-new Date())/3600000;
+    return hoursLeft>=0&&hoursLeft<=24;
+  };
+  const toggleDone=t=>{
+    const st=t.status||getStatus(t);
+    if(!t.completed){
+      if(st==="overdue"&&!t.late_reason){showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi hoàn thành.","error");setModal({...t,status:"overdue"});return;}
+      setCompletionNoteModal(t);setCompletionNote("");
+    }else{
+      updateTask(t.id,{completed:false,progress:t.progress>=100?90:t.progress,completed_at:null,rating:"",rating_note:"",rated_by:"",rated_at:"",completion_note:"",suspicious_completion:false},"Bỏ hoàn thành");
+    }
+  };
+  const confirmCompletion=async(task)=>{
+    if(!completionNote||completionNote.trim().length<20){showToast("Vui lòng mô tả kết quả (ít nhất 20 ký tự)","error");return;}
+    const suspicious=isSuspiciousCompletion(task);
+    await updateTask(task.id,{completed:true,progress:100,completed_at:task.completed_at||new Date().toISOString(),completion_note:completionNote.trim(),suspicious_completion:suspicious},`Hoàn thành: "${completionNote.trim().slice(0,50)}"`);
+    if(suspicious)showToast("⚠️ Hoàn thành đột ngột — trưởng phòng sẽ thấy cảnh báo","error");
+    setCompletionNoteModal(null);setCompletionNote("");
+  };
   const rateTask=async(id,rating)=>{const up={rating,rating_note:ratingNote,rated_by:currentUser.full_name,rated_at:nowStr()};await updateTask(id,up,`Đánh giá: ${RATING[rating]?.label}`);setModal(m=>m?{...m,...up}:m);setRatingNote("");};
   const setLateReasonFn=async(id,reason)=>{const up={late_reason:reason,late_note:lateNote};await updateTask(id,up,`Nguyên nhân trễ: ${LATE_REASONS.find(r=>r.value===reason)?.label||reason}`);setModal(m=>m?{...m,...up}:m);setLateNote("");};
   const addEmployee=async d=>{setSaving(true);const e={...d,id:`e${Date.now()}`};await supabase.from("employees").insert(e);setEmployees(p=>[...p,e]);showToast("Đã thêm");setSaving(false);};
@@ -207,17 +231,35 @@ export default function App() {
   // ── Công thức tính điểm hiệu suất 1 THÁNG (dùng chung cho bảng "Hiệu suất tháng" và "Xếp hạng năm") ──
   const calcMonthPerf=(empId,year,month)=>{
     const et=computed.filter(t=>t.eid===empId&&{}.hasOwnProperty.call(t,"deadline")&&t.deadline&&(()=>{const d=new Date(t.deadline);return d.getFullYear()===year&&d.getMonth()===month;})());
-    const done=et.filter(t=>isCompletedStatus(t.status)).length;
-    const completedLate=et.filter(t=>t.status==="completed_late").length;
-    const over=et.filter(t=>t.status==="overdue").length;
+    // Phân loại theo trạng thái
+    const onTimeTasks=et.filter(t=>t.status==="completed");   // HT đúng hạn (Đ)
+    const onTime=onTimeTasks.length;
+    const completedLate=et.filter(t=>t.status==="completed_late").length; // HT trễ (T)
+    const over=et.filter(t=>t.status==="overdue").length;                 // Quá hạn chưa xong (Q)
+    const done=onTime+completedLate;
+    const resolved=onTime+completedLate+over; // Mẫu số N = việc đã đến hạn
     const completionRate=et.length?Math.round(done/et.length*100):0;
     const eligible=et.length>=5;
+    // Task phối hợp trong tháng
+    const collabTasks=computed.filter(t=>parseJSON(t.collab_eids,[]).includes(empId)&&t.deadline&&(()=>{const d=new Date(t.deadline);return d.getFullYear()===year&&d.getMonth()===month;})());
+    const collabDone=collabTasks.filter(t=>isCompletedStatus(t.status)).length;
+    const collabTotal=collabTasks.length;
     let perfScore=0;
     if(eligible){
-      const onTimeDone=done-completedLate;
-      perfScore=Math.round((onTimeDone+completedLate*0.5)/et.length*100);
+      // ① Điểm thời hạn (tối đa 60)
+      const timeliness=(onTime*60+completedLate*30)/resolved;
+      // ② Điểm chất lượng (tối đa 40)
+      const qualitySum=onTimeTasks.reduce((s,t)=>s+(RATING[t.rating]?RATING[t.rating].score:2),0);
+      const quality=qualitySum/(resolved*4)*40;
+      // ③ Phạt trễ/quá hạn
+      const penalty=(over+completedLate)*LATE_COMPLETION_PENALTY;
+      // ④ Thưởng khối lượng
+      const workloadBonus=Math.min((resolved-5)*1,10);
+      // ⑤ Điểm phối hợp (×0.5 so với chủ trì)
+      const collabBonus=collabTotal>0?Math.round((collabDone/collabTotal)*100*0.5*0.1):0; // tối đa ~5đ
+      perfScore=Math.max(0,Math.min(100,Math.round(timeliness+quality-penalty+workloadBonus+collabBonus)));
     }
-    return{total:et.length,done,completedLate,over,completionRate,perfScore,eligible};
+    return{total:et.length,done,onTime,completedLate,over,resolved,completionRate,collabTotal,collabDone,perfScore,eligible};
   };
   const repEmpData=useMemo(()=>(employees||[]).map(emp=>{
     const m=calcMonthPerf(emp.id,repYear,repMonth);
@@ -236,7 +278,9 @@ export default function App() {
     const over=monthly.reduce((s,m)=>s+(m.over||0),0);
     const completedLate=monthly.reduce((s,m)=>s+(m.completedLate||0),0);
     const avgScore=eligibleMonths.length?Math.round(eligibleMonths.reduce((s,m)=>s+m.perfScore,0)/eligibleMonths.length):null;
-    return{...emp,total,done,completedLate,over,eligibleMonths:eligibleMonths.length,score:avgScore,rate:total?Math.round(done/total*100):0};
+    const collabTotal=monthly.reduce((s,m)=>s+(m.collabTotal||0),0);
+    const collabDone=monthly.reduce((s,m)=>s+(m.collabDone||0),0);
+    return{...emp,total,done,completedLate,over,collabTotal,collabDone,eligibleMonths:eligibleMonths.length,score:avgScore,rate:total?Math.round(done/total*100):0};
   }).filter(e=>e.total>0).sort((a,b)=>{
     const aHas=a.score!==null,bHas=b.score!==null;
     if(aHas!==bHas)return aHas?-1:1;
@@ -247,6 +291,7 @@ export default function App() {
   const overloadedEmps=useMemo(()=>(employees||[]).map(emp=>{const active=computed.filter(t=>t.eid===emp.id&&!isCompletedStatus(t.status));return{...emp,activeCount:active.length};}).filter(e=>e.activeCount>=overloadThreshold),[employees,computed,overloadThreshold]);
   const notifications=useMemo(()=>computed.filter(t=>t.status==="overdue"||t.status==="nearly_due").sort((a,b)=>(STATUS_ORDER[a.status]??9)-(STATUS_ORDER[b.status]??9)),[computed]);
   const unratedTasks=useMemo(()=>computed.filter(t=>t.status==="completed"&&!t.rating&&t.created_by_id===currentUser?.id),[computed,currentUser]);
+  const suspiciousTasks=useMemo(()=>canCreate?computed.filter(t=>t.suspicious_completion&&!t.rating):[],[computed,canCreate]);
   // ── Việc mới giao / việc trễ hạn của TÔI (người được giao) — dùng cho popup khi đăng nhập ──
   const seenKey=currentUser?`qlcv_seen_${currentUser.username}`:null;
   const getSeenIds=()=>{if(!seenKey)return[];try{return JSON.parse(localStorage.getItem(seenKey)||"[]");}catch{return[];}};
@@ -263,7 +308,7 @@ export default function App() {
     if(myNewTasks.length>0||myOverdueTasks.length>0)setShowLoginPopup(true);
     setLoginNotifShown(true);
   },[currentUser,loading,loginNotifShown,myNewTasks.length,myOverdueTasks.length]);
-  const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length;
+  const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length+suspiciousTasks.length;
   const activityLog=useMemo(()=>{if(!canSeeAll)return[];const logs=[];(tasks||[]).forEach(t=>{parseJSON(t.history,[]).forEach((h,i)=>{logs.push({id:t.id+"_"+i,task:t.title,action:h.action,by:h.by,at:h.at});});});return logs.sort((a,b)=>{const pa=a.at.split(" ");const pb=b.at.split(" ");const da=pa[1]?pa[1].split("/").reverse().join("")+pa[0]:"";const db=pb[1]?pb[1].split("/").reverse().join("")+pb[0]:"";return db.localeCompare(da);}).slice(0,200);},[tasks,canSeeAll]);
   const myTrend=useMemo(()=>{if(!currentUser?.employee_id)return[];const months=[];for(let i=5;i>=0;i--){const d=new Date(today.getFullYear(),today.getMonth()-i,1);const m=d.getMonth(),y=d.getFullYear();const mt=computed.filter(t=>{const td=new Date(t.deadline);return td.getFullYear()===y&&td.getMonth()===m&&(t.eid===currentUser.employee_id||parseJSON(t.collab_eids,[]).includes(currentUser.employee_id));});months.push({name:`T${m+1}`,"Hoàn thành":mt.filter(t=>isCompletedStatus(t.status)).length,"Tổng":mt.length});}return months;},[computed,currentUser]);
   const myTasks=useMemo(()=>{if(!currentUser?.employee_id)return null;const my=computed.filter(t=>t.eid===currentUser.employee_id||parseJSON(t.collab_eids,[]).includes(currentUser.employee_id));const done=my.filter(t=>isCompletedStatus(t.status)).length,over=my.filter(t=>t.status==="overdue").length,completedLate=my.filter(t=>t.status==="completed_late").length,nd=my.filter(t=>t.status==="nearly_due").length,active=my.filter(t=>!isCompletedStatus(t.status));return{total:my.length,done,over,completedLate,nd,rate:my.length?Math.round(done/my.length*100):0,pending:active.sort((a,b)=>(STATUS_ORDER[a.status]??9)-(STATUS_ORDER[b.status]??9)).slice(0,3)};},[computed,currentUser]);
@@ -366,6 +411,7 @@ export default function App() {
                 <div style={{padding:"10px 14px",borderBottom:"1px solid #e5e7eb",fontWeight:600,fontSize:13,display:"flex",justifyContent:"space-between"}}><span>🔔 Thông báo ({totalNotif})</span><button onClick={()=>setShowNotif(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#9ca3af"}}>✕</button></div>
                 {myNewTasks.length>0&&<div><div style={{padding:"8px 14px",background:"#eff6ff",fontSize:11,fontWeight:600,color:"#1d4ed8",borderBottom:"1px solid #bfdbfe"}}>📥 VIỆC MỚI GIAO ({myNewTasks.length})</div>{myNewTasks.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#f8fafc"}} onMouseEnter={e=>e.currentTarget.style.background="#eff6ff"} onMouseLeave={e=>e.currentTarget.style.background="#f8fafc"}><span style={{fontSize:18,flexShrink:0}}>📥</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#1d4ed8"}}>{t.dept} · Hạn: {t.deadline}</div></div></div>)}</div>}
                 {unratedTasks.length>0&&<div><div style={{padding:"8px 14px",background:"#fffbeb",fontSize:11,fontWeight:600,color:"#92400e",borderBottom:"1px solid #fde68a"}}>⭐ CẦN ĐÁNH GIÁ ({unratedTasks.length})</div>{unratedTasks.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#fffef0"}} onMouseEnter={e=>e.currentTarget.style.background="#fef9c3"} onMouseLeave={e=>e.currentTarget.style.background="#fffef0"}><span style={{fontSize:18,flexShrink:0}}>⭐</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#92400e"}}>Hoàn thành — chờ đánh giá · {t.dept}</div></div></div>)}</div>}
+                {suspiciousTasks.length>0&&<div><div style={{padding:"8px 14px",background:"#fff7ed",fontSize:11,fontWeight:600,color:"#c2410c",borderBottom:"1px solid #fed7aa"}}>🚨 HOÀN THÀNH ĐỘT NGỘT — CẦN KIỂM TRA ({suspiciousTasks.length})</div>{suspiciousTasks.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#fff7ed"}} onMouseEnter={e=>e.currentTarget.style.background="#ffedd5"} onMouseLeave={e=>e.currentTarget.style.background="#fff7ed"}><span style={{fontSize:18,flexShrink:0}}>🚨</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#c2410c"}}>{getEmp(t.eid)?.name||"–"} · {t.dept} · Tiến độ thấp → hoàn thành sát deadline</div></div></div>)}</div>}
                 {notifications.length>0&&<div><div style={{padding:"8px 14px",background:"#f9fafb",fontSize:11,fontWeight:600,color:"#6b7280",borderBottom:"1px solid #e5e7eb"}}>⚠️ DEADLINE ({notifications.length})</div>{notifications.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start"}} onMouseEnter={e=>e.currentTarget.style.background="#f9fafb"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span style={{fontSize:18,flexShrink:0}}>{t.status==="overdue"?"🔴":"🟡"}</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#6b7280"}}>{getEmp(t.eid)?.name||"–"} · {t.dept} · Hạn: {t.deadline}</div></div></div>)}</div>}
                 {totalNotif===0&&<div style={{padding:20,textAlign:"center",color:"#9ca3af",fontSize:13}}>Không có thông báo</div>}
               </div>}
@@ -420,6 +466,7 @@ export default function App() {
               quickProgress={quickProgress} setQuickProgress={setQuickProgress}
               updateTask={updateTask}
               myNewTaskIds={myNewTaskIds}
+              onCompleteRequest={t=>{setCompletionNoteModal(t);setCompletionNote("");}}
             />
           )}
 
@@ -536,6 +583,34 @@ export default function App() {
         <div style={{padding:"12px 20px 18px"}}><button onClick={()=>setShowLoginPopup(false)} style={{width:"100%",padding:"10px",border:"none",borderRadius:8,background:"#4f46e5",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:600}}>Đã xem, đóng lại</button></div>
       </div></div>)}
 
+      {/* ── MODAL GHI CHÚ HOÀN THÀNH ── */}
+      {completionNoteModal&&(
+        <div onClick={()=>setCompletionNoteModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:460,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+            <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div><div style={{fontWeight:700,fontSize:15}}>✅ Xác nhận hoàn thành</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{completionNoteModal.title}</div></div>
+              <button onClick={()=>setCompletionNoteModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
+            </div>
+            {isSuspiciousCompletion(completionNoteModal)&&(
+              <div style={{margin:"12px 20px 0",padding:"10px 14px",background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,fontSize:13,color:"#c2410c",display:"flex",gap:8,alignItems:"flex-start"}}>
+                <span style={{fontSize:18,flexShrink:0}}>🚨</span>
+                <div><div style={{fontWeight:600,marginBottom:2}}>Cảnh báo hoàn thành đột ngột</div><div style={{fontSize:12}}>Tiến độ hiện tại {completionNoteModal.progress||0}% nhưng deadline hôm nay. Trưởng phòng sẽ được thông báo để kiểm tra.</div></div>
+              </div>
+            )}
+            <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:12}}>
+              <div>
+                <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Mô tả kết quả công việc <span style={{color:"#dc2626"}}>*</span></label>
+                <textarea value={completionNote} onChange={e=>setCompletionNote(e.target.value)} placeholder="Mô tả những gì đã hoàn thành, kết quả đạt được... (ít nhất 20 ký tự)" rows={4} style={{width:"100%",padding:"8px 10px",border:"1px solid #d1d5db",borderRadius:8,fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit"}}/>
+                <div style={{fontSize:11,color:completionNote.length<20?"#dc2626":"#15803d",marginTop:4}}>{completionNote.length}/20 ký tự tối thiểu</div>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>setCompletionNoteModal(null)} style={{flex:1,padding:10,border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>Hủy</button>
+                <button onClick={()=>confirmCompletion(completionNoteModal)} disabled={completionNote.trim().length<20} style={{flex:2,padding:10,border:"none",borderRadius:8,background:completionNote.trim().length>=20?"#16a34a":"#d1d5db",color:"#fff",cursor:completionNote.trim().length>=20?"pointer":"not-allowed",fontSize:13,fontWeight:600}}>Xác nhận hoàn thành</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ── ĐỔI MẬT KHẨU MODAL ── */}
       {showChangePwd&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}}>

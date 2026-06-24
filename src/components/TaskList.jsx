@@ -21,6 +21,7 @@ export default function TaskList({
   quickProgress, setQuickProgress,
   updateTask,
   myNewTaskIds,
+  onCompleteRequest,
 }) {
   const Chip = ({ s }) => (
     <span style={{ background: STATUS[s].bg, color: STATUS[s].col, fontSize: 12, padding: "2px 8px", borderRadius: 12, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -36,8 +37,8 @@ export default function TaskList({
         <select value={fStatus} onChange={e => setFStatus(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}>
           <option value="all">Tất cả TT</option><option value="on_time">Trong hạn</option><option value="nearly_due">Sắp HH</option><option value="overdue">Quá hạn</option><option value="completed_late">HT quá hạn</option><option value="completed">Hoàn thành</option>
         </select>
-        {canSeeAll && !isMobile && <select value={fDept} onChange={e => setFDept(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}><option value="all">Tất cả phòng</option>{DEPTS.map(d => <option key={d} value={d}>{d}</option>)}</select>}
-        {canCreate && !isMobile && <select value={fEid} onChange={e => setFEid(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}><option value="all">Tất cả NV</option>{(employees || []).filter(e => canSeeAll || e.dept === userDept).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select>}
+        {canSeeAll && <select value={fDept} onChange={e => setFDept(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}><option value="all">Tất cả phòng</option>{DEPTS.map(d => <option key={d} value={d}>{d}</option>)}</select>}
+        {canCreate && <select value={fEid} onChange={e => setFEid(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}><option value="all">Tất cả NV</option>{(employees || []).filter(e => canSeeAll || e.dept === userDept).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select>}
         <select value={fSort} onChange={e => setFSort(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12, borderColor: "#6366f1", color: "#4f46e5", fontWeight: 500 }}>
           <option value="urgency">⚡ Ưu tiên</option><option value="deadline_asc">📅 Hạn gần nhất</option><option value="deadline_desc">📅 Hạn xa nhất</option><option value="newest">🆕 Mới nhất</option>
         </select>
@@ -47,20 +48,62 @@ export default function TaskList({
       {isMobile ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {paged.map(t => (
-            <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 12, cursor: "pointer" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                <div style={{ fontWeight: 500, fontSize: 14, flex: 1, marginRight: 8 }}>{t.template_id && "🔄 "}{myNewTaskIds.has(t.id) && <span style={{ background: "#dc2626", color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 8, marginRight: 5, verticalAlign: "middle" }}>MỚI</span>}{t.title}</div>
-                <Chip s={t.status} />
+            <div key={t.id} style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+              {/* Header — click để mở modal */}
+              <div onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "10px 12px", cursor: "pointer" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
+                  <div style={{ fontWeight: 500, fontSize: 13, flex: 1, lineHeight: 1.4 }}>
+                    {t.template_id && "🔄 "}
+                    {myNewTaskIds.has(t.id) && <span style={{ background: "#dc2626", color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 8, marginRight: 5, verticalAlign: "middle" }}>MỚI</span>}
+                    {t.suspicious_completion && <span style={{ background: "#fff7ed", color: "#c2410c", fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 8, marginRight: 5, verticalAlign: "middle", border: "1px solid #fed7aa" }}>🚨 ĐỘT NGỘT</span>}
+                    {t.title}
+                  </div>
+                  <Chip s={t.status} />
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 7, alignItems: "center" }}>
+                  <span style={{ background: DEPT_COLOR[t.dept] + "22", color: DEPT_COLOR[t.dept], fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>{t.dept}</span>
+                  <PChip p={t.prio} />
+                  <span style={{ fontSize: 11, color: "#6b7280" }}>{getEmp(t.eid)?.name || "–"}</span>
+                  <span style={{ fontSize: 11, color: t.status === "overdue" ? "#b91c1c" : "#6b7280", fontWeight: t.status === "overdue" ? 600 : 400 }}>📅 {t.deadline}</span>
+                  {t.rating && <RatingBadge r={t.rating} />}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ flex: 1, height: 5, background: "#e5e7eb", borderRadius: 5, overflow: "hidden" }}><div style={{ height: "100%", width: (t.progress || 0) + "%", background: t.progress === 100 ? "#16a34a" : t.progress >= 50 ? "#f59e0b" : "#6366f1", borderRadius: 5 }} /></div>
+                  <span style={{ fontSize: 11, color: "#6b7280", flexShrink: 0 }}>{t.progress || 0}%</span>
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-                <span style={{ background: DEPT_COLOR[t.dept] + "22", color: DEPT_COLOR[t.dept], fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>{t.dept}</span>
-                <span style={{ fontSize: 12, color: "#6b7280" }}>{getEmp(t.eid)?.name || "–"}</span>
-                {t.rating && <RatingBadge r={t.rating} />}
+              {/* Action bar */}
+              <div style={{ borderTop: "1px solid #f3f4f6", padding: "6px 10px", display: "flex", gap: 6, background: "#fafafa" }}>
+                <button onClick={() => toggleDone(t)} style={{ flex: 1, padding: "5px 0", border: "1px solid " + (t.completed ? "#d1d5db" : "#86efac"), borderRadius: 6, background: t.completed ? "#f9fafb" : "#dcfce7", cursor: "pointer", fontSize: 12, color: t.completed ? "#6b7280" : "#15803d", fontWeight: 600 }}>✓ HT</button>
+                {canUpdateProgress(t) && !t.completed && (
+                  <button onClick={() => setQuickProgress(t.id)} style={{ flex: 1, padding: "5px 0", border: "1px solid #e0e7ff", borderRadius: 6, background: "#eef2ff", cursor: "pointer", fontSize: 12, color: "#4f46e5", fontWeight: 600 }}>% TĐ</button>
+                )}
+                {canRate(t) && t.status === "completed" && (
+                  <button onClick={() => setQuickRate(t.id)} style={{ flex: 1, padding: "5px 0", border: "1px solid #fde68a", borderRadius: 6, background: "#fef9c3", cursor: "pointer", fontSize: 12, color: "#92400e", fontWeight: 600 }}>⭐ ĐG</button>
+                )}
+                {canEditTask(t) && <button onClick={() => openEditTask(t)} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#f9fafb", cursor: "pointer", fontSize: 13 }}>✏️</button>}
+                <button onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#f9fafb", cursor: "pointer", fontSize: 13 }}>💬</button>
+                {canDeleteTask(t) && <button onClick={() => setDeleteConfirm(t.id)} style={{ padding: "5px 10px", border: "1px solid #fca5a5", borderRadius: 6, background: "#fff0f0", cursor: "pointer", fontSize: 13, color: "#dc2626" }}>🗑️</button>}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ flex: 1, height: 5, background: "#e5e7eb", borderRadius: 5, overflow: "hidden" }}><div style={{ height: "100%", width: (t.progress || 0) + "%", background: t.progress === 100 ? "#16a34a" : t.progress >= 50 ? "#f59e0b" : "#6366f1", borderRadius: 5 }} /></div>
-                <span style={{ fontSize: 11, color: "#6b7280" }}>{t.progress || 0}%</span>
-              </div>
+              {/* Quick progress popup */}
+              {quickProgress === t.id && (
+                <div style={{ padding: 10, borderTop: "1px solid #e5e7eb", background: "#fff", display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {[0,10,20,30,40,50,60,70,80,90,100].map(v => {
+                    const a = (t.progress || 0) === v;
+                    return <button key={v} onClick={async () => { if(v===100){setQuickProgress(null);onCompleteRequest(t);return;} await updateTask(t.id,{progress:v},"Cập nhật tiến độ: "+v+"%");setQuickProgress(null); }} style={{ padding: "5px 10px", border: "1.5px solid "+(a?"#4f46e5":"#e5e7eb"), borderRadius: 6, background: a?"#eef2ff":"#fff", cursor: "pointer", fontSize: 12, fontWeight: a?700:400, color: a?"#4f46e5":"#374151" }}>{v}%</button>;
+                  })}
+                  <button onClick={() => setQuickProgress(null)} style={{ padding: "5px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#9ca3af" }}>Hủy</button>
+                </div>
+              )}
+              {/* Quick rate popup */}
+              {quickRate === t.id && (
+                <div style={{ padding: 10, borderTop: "1px solid #e5e7eb", background: "#fff", display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {Object.entries(RATING).map(([key,r]) => (
+                    <button key={key} onClick={() => { rateTask(t.id,key); setQuickRate(null); }} style={{ padding: "6px 12px", border: "2px solid "+(t.rating===key?r.col:"#e5e7eb"), borderRadius: 7, background: t.rating===key?r.bg:"#fff", cursor: "pointer", fontSize: 12, fontWeight: t.rating===key?700:400, color: t.rating===key?r.col:"#374151" }}>{r.icon} {r.label}</button>
+                  ))}
+                  <button onClick={() => setQuickRate(null)} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#9ca3af" }}>✕</button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -84,7 +127,7 @@ export default function TaskList({
                       <div style={{ position: "absolute", top: 4, left: 0, zIndex: 20, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", display: "flex", flexWrap: "wrap", gap: 4, width: 200 }}>
                         {[0,10,20,30,40,50,60,70,80,90,100].map(v => {
                           const a = (t.progress || 0) === v;
-                          return <button key={v} onClick={async () => { await updateTask(t.id, { progress: v }, "Cập nhật tiến độ: " + v + "%"); setQuickProgress(null); }} style={{ padding: "4px 8px", border: "1.5px solid " + (a ? "#4f46e5" : "#e5e7eb"), borderRadius: 6, background: a ? "#eef2ff" : "#fff", cursor: "pointer", fontSize: 12, fontWeight: a ? 700 : 400, color: a ? "#4f46e5" : "#374151" }}>{v}%</button>;
+                          return <button key={v} onClick={async () => { if(v===100){setQuickProgress(null);onCompleteRequest(t);return;} await updateTask(t.id, { progress: v }, "Cập nhật tiến độ: " + v + "%"); setQuickProgress(null); }} style={{ padding: "4px 8px", border: "1.5px solid " + (a ? "#4f46e5" : "#e5e7eb"), borderRadius: 6, background: a ? "#eef2ff" : "#fff", cursor: "pointer", fontSize: 12, fontWeight: a ? 700 : 400, color: a ? "#4f46e5" : "#374151" }}>{v}%</button>;
                         })}
                         <button onClick={() => setQuickProgress(null)} style={{ padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#9ca3af", width: "100%", marginTop: 2 }}>Hủy</button>
                       </div>
