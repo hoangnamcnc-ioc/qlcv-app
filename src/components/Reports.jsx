@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { DEPTS, DEPT_COLOR, VI_MONTHS, RATING } from "../constants";
 
@@ -11,6 +11,7 @@ export default function Reports({
   leaderboard,
   lateReasonStats,
 }) {
+  const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", gap: 8, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 8 }}>
@@ -68,7 +69,7 @@ export default function Reports({
                         <div style={{ textAlign: "right" }}>
                           {!e.eligible
                             ? <span style={{ fontSize: 11, color: "#9ca3af" }}>Chưa đủ ĐK<br/><span style={{ fontSize: 10 }}>({e.total} việc)</span></span>
-                            : <span style={{ fontSize: 20, fontWeight: 800, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ</span>
+                            : <span onClick={() => setWhyEmp(e)} style={{ cursor: "pointer", fontSize: 20, fontWeight: 800, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ <span style={{ fontSize: 12 }}>ℹ️</span></span>
                           }
                         </div>
                       </div>
@@ -105,6 +106,7 @@ export default function Reports({
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <div style={{ width: 60, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: e.perfScore + "%", background: e.perfScore >= 80 ? "#16a34a" : e.perfScore >= 50 ? "#f59e0b" : "#dc2626", borderRadius: 6 }} /></div>
                               <span style={{ fontSize: 12, fontWeight: 700, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ</span>
+                              <button onClick={() => setWhyEmp(e)} title="Vì sao điểm này?" style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 6, padding: "1px 6px", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>ℹ️</button>
                             </div>
                           )}
                         </td>
@@ -216,6 +218,44 @@ export default function Reports({
           </div>
         </div>
       )}
+
+      {/* MODAL: Vì sao điểm này? */}
+      {whyEmp && whyEmp.breakdown && (() => {
+        const e = whyEmp, b = e.breakdown;
+        const Row = ({ icon, label, sub, val, neg }) => (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "9px 0", borderBottom: "1px solid #f3f4f6", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{icon} {label}</div>
+              {sub && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{sub}</div>}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: neg ? "#b91c1c" : val > 0 ? "#15803d" : "#9ca3af", whiteSpace: "nowrap" }}>{neg ? "−" : "+"}{Math.abs(val)}</div>
+          </div>
+        );
+        return (
+          <div onClick={() => setWhyEmp(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: isMobile ? "12px 8px" : 16 }}>
+            <div onClick={ev => ev.stopPropagation()} style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 440, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+              <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>Vì sao {e.perfScore}đ?</div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{e.name} · {e.dept} · {VI_MONTHS[repMonth]}/{repYear}</div>
+                </div>
+                <button onClick={() => setWhyEmp(null)} style={{ background: "#f3f4f6", border: "none", cursor: "pointer", fontSize: 16, color: "#374151", width: 28, height: 28, borderRadius: "50%" }}>✕</button>
+              </div>
+              <div style={{ padding: "8px 18px 0" }}>
+                <Row icon="①" label="Điểm thời hạn" sub={`(${e.onTime} đúng hạn ×60 + ${e.completedLate} trễ ×30) ÷ ${e.resolved} việc đã đến hạn · tối đa 60`} val={b.timeliness} />
+                <Row icon="②" label="Điểm chất lượng" sub={`Đánh giá kết quả ${e.onTime} việc đúng hạn (chưa ĐG = Trung bình) · tối đa 40`} val={b.quality} />
+                <Row icon="③" label="Phạt trễ & quá hạn" sub={`(${e.completedLate} HT trễ + ${e.over} quá hạn) × 2đ`} val={b.penalty} neg />
+                <Row icon="④" label="Thưởng khối lượng" sub={`Vượt ${Math.max(e.resolved - 5, 0)} việc so với mốc 5 · tối đa +10`} val={b.workloadBonus} />
+                <Row icon="⑤" label="Thưởng phối hợp" sub={e.collabTotal > 0 ? `${e.collabDone}/${e.collabTotal} việc phối hợp hoàn thành (×0.5 so với chủ trì)` : "Không có việc phối hợp"} val={b.collabBonus} />
+              </div>
+              <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f8fafc", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Tổng điểm <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400 }}>(giới hạn 0–100)</span></span>
+                <span style={{ fontSize: 22, fontWeight: 800, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

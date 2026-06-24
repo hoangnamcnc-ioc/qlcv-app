@@ -1,6 +1,18 @@
 import React from "react";
-import { ROLE_COLORS, ROLE_LABELS, RATING, STATUS, STATUS_ORDER } from "../constants";
+import { ROLE_COLORS, ROLE_LABELS, RATING, STATUS, STATUS_ORDER, PRIO } from "../constants";
 import { isCompletedStatus } from "../helpers";
+
+// Nhãn trạng thái nhiệm vụ (chấm màu + tên) — dùng chung toàn app
+export const Chip = ({ s }) => (
+  <span style={{ background: STATUS[s].bg, color: STATUS[s].col, fontSize: 12, padding: "2px 8px", borderRadius: 12, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }}>
+    <span style={{ width: 6, height: 6, borderRadius: "50%", background: STATUS[s].dot, flexShrink: 0 }} />{STATUS[s].label}
+  </span>
+);
+
+// Nhãn mức ưu tiên
+export const PChip = ({ p }) => (
+  <span style={{ background: PRIO[p].bg, color: PRIO[p].col, fontSize: 12, padding: "2px 8px", borderRadius: 12 }}>{PRIO[p].label}</span>
+);
 
 export const ProgressBar = ({ value, onChange, editable = false }) => (
   <div>

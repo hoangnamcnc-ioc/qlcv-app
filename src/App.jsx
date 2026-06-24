@@ -1,16 +1,17 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from "react";
+﻿import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { supabase } from "./supabase";
 import LOGO from "./logo.jpg";
-import Investment from "./Investment";
-import DutySchedule from "./DutySchedule";
-import Feedback from "./Feedback";
-import Documents from "./Documents";
+// Code-split: các view ít dùng chỉ tải khi mở (giảm dung lượng tải lần đầu)
+const Investment = lazy(()=>import("./Investment"));
+const DutySchedule = lazy(()=>import("./DutySchedule"));
+const Feedback = lazy(()=>import("./Feedback"));
+const Documents = lazy(()=>import("./Documents"));
 import { DEPTS, DEPT_COLOR, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
 import { addDays, today, todayStr, nowStr, getNextDate, isCompletedLateByDate, getStatus, isCompletedStatus, isLateStatus, parseJSON, hashPwd, getFileIcon } from "./helpers";
-import { ProgressBar, RoleBadge, RatingBadge } from "./components/ui";
+import { ProgressBar, RoleBadge, RatingBadge, Chip, PChip } from "./components/ui";
 import Dashboard from "./components/Dashboard";
 import TaskList from "./components/TaskList";
-import Reports from "./components/Reports";
+const Reports = lazy(()=>import("./components/Reports"));
 import Employees from "./components/Employees";
 import TaskModal from "./components/TaskModal";
 
@@ -226,9 +227,24 @@ export default function App() {
   const repTasks=useMemo(()=>computed.filter(t=>{const d=new Date(t.deadline);return d.getFullYear()===repYear&&d.getMonth()===repMonth;}),[computed,repYear,repMonth]);
   const repStats=useMemo(()=>{const total=repTasks.length,done=repTasks.filter(t=>isCompletedStatus(t.status)).length,over=repTasks.filter(t=>t.status==="overdue").length,completedLate=repTasks.filter(t=>t.status==="completed_late").length;return{total,done,over,completedLate,rate:total?Math.round(done/total*100):0};},[repTasks]);
   const repDeptData=useMemo(()=>DEPTS.map(d=>{const dt=repTasks.filter(t=>t.dept===d);const done=dt.filter(t=>isCompletedStatus(t.status)).length;const over=dt.filter(t=>t.status==="overdue").length;const completedLate=dt.filter(t=>t.status==="completed_late").length;return{name:d,total:dt.length,done,over,completedLate,rate:dt.length?Math.round(done/dt.length*100):0};}), [repTasks]);
+  // ── Index theo (nhân viên | năm | tháng) — dựng MỘT lần, tra cứu O(1) thay vì quét toàn bộ mỗi lần ──
+  // byEid: việc mình chủ trì ; byCollab: việc mình phối hợp
+  const perfIndex=useMemo(()=>{
+    const byEid=new Map(),byCollab=new Map();
+    const push=(map,key,t)=>{let a=map.get(key);if(!a){a=[];map.set(key,a);}a.push(t);};
+    for(const t of computed){
+      if(!t.deadline)continue;
+      const d=new Date(t.deadline);if(isNaN(d))continue;
+      const ym=`${d.getFullYear()}|${d.getMonth()}`;
+      push(byEid,`${t.eid}|${ym}`,t);
+      for(const cid of parseJSON(t.collab_eids,[]))push(byCollab,`${cid}|${ym}`,t);
+    }
+    return{byEid,byCollab};
+  },[computed]);
   // ── Công thức tính điểm hiệu suất 1 THÁNG (dùng chung cho bảng "Hiệu suất tháng" và "Xếp hạng năm") ──
   const calcMonthPerf=(empId,year,month)=>{
-    const et=computed.filter(t=>t.eid===empId&&{}.hasOwnProperty.call(t,"deadline")&&t.deadline&&(()=>{const d=new Date(t.deadline);return d.getFullYear()===year&&d.getMonth()===month;})());
+    const ym=`${year}|${month}`;
+    const et=perfIndex.byEid.get(`${empId}|${ym}`)||[];
     // Phân loại theo trạng thái
     const onTimeTasks=et.filter(t=>t.status==="completed");   // HT đúng hạn (Đ)
     const onTime=onTimeTasks.length;
@@ -239,10 +255,10 @@ export default function App() {
     const completionRate=et.length?Math.round(done/et.length*100):0;
     const eligible=et.length>=5;
     // Task phối hợp trong tháng
-    const collabTasks=computed.filter(t=>parseJSON(t.collab_eids,[]).includes(empId)&&t.deadline&&(()=>{const d=new Date(t.deadline);return d.getFullYear()===year&&d.getMonth()===month;})());
+    const collabTasks=perfIndex.byCollab.get(`${empId}|${ym}`)||[];
     const collabDone=collabTasks.filter(t=>isCompletedStatus(t.status)).length;
     const collabTotal=collabTasks.length;
-    let perfScore=0;
+    let perfScore=0,breakdown=null;
     if(eligible){
       // ① Điểm thời hạn (tối đa 60)
       const timeliness=(onTime*60+completedLate*30)/resolved;
@@ -256,8 +272,10 @@ export default function App() {
       // ⑤ Điểm phối hợp (×0.5 so với chủ trì)
       const collabBonus=collabTotal>0?Math.round((collabDone/collabTotal)*100*0.5*0.1):0; // tối đa ~5đ
       perfScore=Math.max(0,Math.min(100,Math.round(timeliness+quality-penalty+workloadBonus+collabBonus)));
+      // Lưu chi tiết để hiển thị "Vì sao điểm này?"
+      breakdown={timeliness:Math.round(timeliness*10)/10,quality:Math.round(quality*10)/10,penalty,workloadBonus,collabBonus};
     }
-    return{total:et.length,done,onTime,completedLate,over,resolved,completionRate,collabTotal,collabDone,perfScore,eligible};
+    return{total:et.length,done,onTime,completedLate,over,resolved,completionRate,collabTotal,collabDone,perfScore,eligible,breakdown};
   };
   const repEmpData=useMemo(()=>(employees||[]).map(emp=>{
     const m=calcMonthPerf(emp.id,repYear,repMonth);
@@ -331,8 +349,6 @@ export default function App() {
   const exportPDF=()=>{const rows=computed.filter(t=>(exStatus==="all"||t.status===exStatus)&&(exDept==="all"||t.dept===exDept));const total=rows.length,done=rows.filter(t=>t.status==="completed").length,over=rows.filter(t=>t.status==="overdue").length,nd=rows.filter(t=>t.status==="nearly_due").length;const rows_html=rows.map(t=>{const emp=getEmp(t.eid);const sc=STATUS[t.status];return`<tr><td>${t.title||""}</td><td>${t.dept}</td><td>${emp?.name||"–"}</td><td>${PRIO[t.prio]?.label||""}</td><td style="color:${t.status==="overdue"?"#b91c1c":"inherit"}">${t.deadline}</td><td>${t.progress||0}%</td><td style="color:${sc?.col}">${sc?.label||""}</td><td>${t.rating?RATING[t.rating]?.label:"–"}</td></tr>`;}).join("");const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Báo cáo nhiệm vụ</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{color:#1e1b4b;font-size:20px;margin-bottom:4px}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}.stats{display:flex;gap:16px;margin-bottom:20px}.stat{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:12px 20px;text-align:center}.stat .val{font-size:26px;font-weight:700;color:#4338ca}.stat .lbl{font-size:12px;color:#6b7280;margin-top:2px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#f1f5f9;padding:8px 10px;text-align:left;border:1px solid #e5e7eb;font-size:12px;color:#374151}td{padding:7px 10px;border:1px solid #e5e7eb}tr:nth-child(even){background:#fafafa}@media print{body{padding:0}button{display:none}}</style></head><body><h1>📋 Báo cáo Nhiệm vụ</h1><div class="meta">Xuất ngày: ${new Date().toLocaleDateString("vi-VN")} · Bộ lọc: ${exStatus==="all"?"Tất cả":STATUS[exStatus]?.label} · Phòng: ${exDept==="all"?"Tất cả":exDept}</div><div class="stats"><div class="stat"><div class="val">${total}</div><div class="lbl">Tổng</div></div><div class="stat"><div class="val" style="color:#15803d">${done}</div><div class="lbl">Hoàn thành</div></div><div class="stat"><div class="val" style="color:#b91c1c">${over}</div><div class="lbl">Quá hạn</div></div><div class="stat"><div class="val" style="color:#92400e">${nd}</div><div class="lbl">Sắp hết hạn</div></div><div class="stat"><div class="val" style="color:#4338ca">${total?Math.round(done/total*100):0}%</div><div class="lbl">Tỷ lệ HT</div></div></div><table><thead><tr><th>Tiêu đề</th><th>Phòng</th><th>Nhân viên</th><th>Ưu tiên</th><th>Hạn chót</th><th>Tiến độ</th><th>Trạng thái</th><th>Đánh giá</th></tr></thead><tbody>${rows_html}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`;const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}setExModal(false);};
 
   const inp={padding:"7px 10px",border:"1px solid #d1d5db",borderRadius:7,fontSize:13,background:"#fff",color:"#111",width:"100%",boxSizing:"border-box"};
-  const Chip=({s})=>(<span style={{background:STATUS[s].bg,color:STATUS[s].col,fontSize:12,padding:"2px 8px",borderRadius:12,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:6,height:6,borderRadius:"50%",background:STATUS[s].dot,flexShrink:0}}/>{STATUS[s].label}</span>);
-  const PChip=({p})=>(<span style={{background:PRIO[p].bg,color:PRIO[p].col,fontSize:12,padding:"2px 8px",borderRadius:12}}>{PRIO[p].label}</span>);
   const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"calendar",icon:"🗓️",label:"Lịch trực"},{id:"documents",icon:"📁",label:"Văn bản"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
 
   if(!currentUser)return(
@@ -363,12 +379,12 @@ export default function App() {
       {!isMobile&&(
         <div style={{width:220,background:"#1e1b4b",display:"flex",flexDirection:"column",flexShrink:0}}>
           <div style={{padding:"14px",borderBottom:"1px solid rgba(255,255,255,0.1)",display:"flex",alignItems:"center",gap:10}}><img src={LOGO} alt="logo" style={{width:40,height:40,objectFit:"contain",borderRadius:"50%",flexShrink:0}}/><div><div style={{color:"#fff",fontWeight:700,fontSize:13,lineHeight:1.3}}>QUẢN LÝ GIAO VIỆC</div><div style={{color:"#a5b4fc",fontSize:11,marginTop:1}}>DAK LAK IOC</div></div></div>
-          <nav style={{flex:1,padding:"8px 0"}}>
+          <nav style={{flex:1,padding:"8px 0",overflowY:"auto",minHeight:0}}>
             {navItems.map(n=><button key={n.id} onClick={()=>{setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:view===n.id?"rgba(165,180,252,0.15)":"transparent",border:"none",cursor:"pointer",color:view===n.id?"#c7d2fe":"#94a3b8",textAlign:"left",fontSize:13}}><span>{n.icon}</span>{n.label}</button>)}
             {canCreate&&<button onClick={()=>setShowRecurring(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",color:"#94a3b8",textAlign:"left",fontSize:13}}>🔄 Nhiệm vụ định kỳ{recurringTemplates.filter(t=>t.active).length>0&&<span style={{background:"#6366f1",color:"#fff",fontSize:10,padding:"1px 6px",borderRadius:10,marginLeft:"auto"}}>{recurringTemplates.filter(t=>t.active).length}</span>}</button>}
             {isAdmin&&<button onClick={()=>setUserModal(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",color:"#94a3b8",textAlign:"left",fontSize:13}}>🔐 Tài khoản</button>}
           </nav>
-          <div style={{padding:"10px 14px",borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",flexDirection:"column",gap:6}}>
+          <div style={{padding:"10px 14px",borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
             {canSeeAll&&<button onClick={()=>setExModal(true)} style={{background:"rgba(99,102,241,0.25)",border:"none",borderRadius:7,padding:"8px 10px",cursor:"pointer",color:"#c7d2fe",fontSize:13,textAlign:"left"}}>📤 Xuất CSV</button>}
             {/* User info + actions */}
             <div style={{background:"rgba(255,255,255,0.05)",borderRadius:8,padding:"8px 10px"}}>
@@ -425,6 +441,7 @@ export default function App() {
         </div>
 
         <div style={{flex:1,overflowY:"auto",padding:isMobile?12:20}}>
+        <Suspense fallback={<div style={{padding:40,textAlign:"center",color:"#9ca3af",fontSize:13}}>Đang tải…</div>}>
 
           {/* DASHBOARD */}
           {view==="dashboard"&&(
@@ -554,6 +571,7 @@ export default function App() {
               </div>
             </div>
           )}
+        </Suspense>
       </div>
 
       {/* MOBILE BOTTOM NAV */}

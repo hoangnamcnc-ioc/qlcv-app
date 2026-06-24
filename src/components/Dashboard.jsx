@@ -15,12 +15,6 @@ export default function Dashboard({
   setModal, loadComments,
   getEmp, todayStr,
 }) {
-  const Chip = ({ s }) => (
-    <span style={{ background: STATUS[s].bg, color: STATUS[s].col, fontSize: 12, padding: "2px 8px", borderRadius: 12, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: STATUS[s].dot, flexShrink: 0 }} />{STATUS[s].label}
-    </span>
-  );
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {["admin","director"].includes(currentUser.role) && (

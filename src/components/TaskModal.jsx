@@ -1,7 +1,7 @@
 import React from "react";
-import { DEPT_COLOR, STATUS, PRIO, RATING, LATE_REASONS } from "../constants";
+import { DEPT_COLOR, RATING, LATE_REASONS } from "../constants";
 import { parseJSON, getFileIcon } from "../helpers";
-import { ProgressBar, RatingBadge } from "./ui";
+import { ProgressBar, RatingBadge, Chip, PChip } from "./ui";
 
 export default function TaskModal({
   modal, setModal,
@@ -23,12 +23,6 @@ export default function TaskModal({
 }) {
   if (!modal) return null;
 
-  const Chip = ({ s }) => (
-    <span style={{ background: STATUS[s].bg, color: STATUS[s].col, fontSize: 12, padding: "2px 8px", borderRadius: 12, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: STATUS[s].dot, flexShrink: 0 }} />{STATUS[s].label}
-    </span>
-  );
-  const PChip = ({ p }) => <span style={{ background: PRIO[p].bg, color: PRIO[p].col, fontSize: 12, padding: "2px 8px", borderRadius: 12 }}>{PRIO[p].label}</span>;
 
   return (
     <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: isMobile ? "12px 8px" : 16 }}>
