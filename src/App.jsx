@@ -440,7 +440,7 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{flex:1,overflowY:"auto",padding:isMobile?12:20}}>
+        <div style={{flex:1,overflowY:"auto",padding:isMobile?12:20,paddingBottom:isMobile?"72px":20}}>
         <Suspense fallback={<div style={{padding:40,textAlign:"center",color:"#9ca3af",fontSize:13}}>Đang tải…</div>}>
 
           {/* DASHBOARD */}
@@ -574,9 +574,9 @@ export default function App() {
         </Suspense>
       </div>
 
-      {/* MOBILE BOTTOM NAV */}
+      {/* MOBILE BOTTOM NAV — fixed để không bị đẩy xuống khi zoom hoặc content cao */}
       {isMobile&&(
-        <div style={{background:"#1e1b4b",display:"flex",flexShrink:0,borderTop:"1px solid rgba(255,255,255,0.1)"}}>
+        <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#1e1b4b",display:"flex",borderTop:"1px solid rgba(255,255,255,0.1)",zIndex:50,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
           {navItems.map(n=><button key={n.id} onClick={()=>{setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:view===n.id?"#c7d2fe":"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>{n.icon}</span><span style={{fontSize:9}}>{n.label}</span></button>)}
           {canCreate&&<button onClick={()=>setShowRecurring(true)} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>🔄</span><span style={{fontSize:9}}>Định kỳ</span></button>}
           {isAdmin&&<button onClick={()=>setUserModal(true)} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>🔐</span><span style={{fontSize:9}}>TK</span></button>}
