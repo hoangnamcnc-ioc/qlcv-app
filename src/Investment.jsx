@@ -10,6 +10,8 @@ const parseJSON=(v,d=[])=>{try{return JSON.parse(v||JSON.stringify(d));}catch{re
 
 // ───── ĐẦU TƯ: Quy trình & trạng thái ─────
 const INV_STEP_STATUS = {pending:{label:"Chưa làm",bg:"#f1f5f9",col:"#64748b"},doing:{label:"Đang làm",bg:"#dbeafe",col:"#1d4ed8"},done:{label:"Hoàn thành",bg:"#dcfce7",col:"#15803d"},skipped:{label:"Bỏ qua",bg:"#f3f4f6",col:"#9ca3af"}};
+const STEP_QUALITY = {1:{label:"Đạt",bg:"#f0fdf4",col:"#15803d",star:"★"},2:{label:"Tốt",bg:"#eff6ff",col:"#1d4ed8",star:"★★"},3:{label:"Xuất sắc",bg:"#fef9c3",col:"#92400e",star:"★★★"}};
+const PROJ_QUALITY_LABELS = ["","Kém","Trung bình","Đạt","Tốt","Xuất sắc"];
 const isStepOverdue=s=>{if(!s.end||s.status==="done"||s.status==="skipped")return false;const d=new Date(s.end);d.setHours(0,0,0,0);return d<today;};
 const countOverdueSteps=stepsArr=>(stepsArr||[]).filter(isStepOverdue).length;
 const FUND_SOURCES = ["Vốn đầu tư công","Chi thường xuyên","Vốn sự nghiệp","Nguồn khác"];
@@ -37,7 +39,7 @@ const INV_TEMPLATES = {
 };
 const fmtMoney=n=>{const v=Number(n)||0;return v.toLocaleString("vi-VN")+" đ";};
 
-function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,onEdit,onDelete,onUpdateSteps,uploadFiles,uploadingFiles,inp,currentUser}){
+function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,onEdit,onDelete,onUpdateSteps,onSaveQuality,uploadFiles,uploadingFiles,inp,currentUser}){
   const steps=parseJSON(proj.steps,[]);
   const [editStep,setEditStep]=React.useState(null);
   const [stepDraft,setStepDraft]=React.useState(null);
@@ -53,10 +55,25 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
   const canEditProject=isBGD||isProjLead; // Sửa dự án + thêm bước
   const canDeleteProject=isCreator; // Chỉ người tạo được xóa
   const canEditStep=(s)=>isBGD||isProjLead||(myEid&&s.lead_eid===myEid); // Sửa bước: BGĐ, PT chính, hoặc chủ trì bước đó
-  const setStepStatus=async(idx,status)=>{const ns=steps.map((s,i)=>i===idx?{...s,status}:s);await onUpdateSteps(proj,ns);};
+  const setStepStatus=(idx,status)=>{
+    if(status==="done"){setStepQualityPopup({idx,quality:1,note:""});return;}
+    onUpdateSteps(proj,steps.map((s,i)=>i===idx?{...s,status}:s));
+  };
   const [openComment,setOpenComment]=React.useState(null);
   const [cmtText,setCmtText]=React.useState("");
   const [cmtFiles,setCmtFiles]=React.useState([]);
+  // ── Đánh giá chất lượng bước ──
+  const [stepQualityPopup,setStepQualityPopup]=React.useState(null); // {idx, quality:1-3, note:""}
+  const confirmStepDone=async(idx)=>{
+    const q=stepQualityPopup;
+    if(!q)return;
+    const ns=steps.map((s,i)=>i===idx?{...s,status:"done",quality:q.quality,quality_note:q.note,quality_at:new Date().toLocaleDateString("vi-VN")}:s);
+    await onUpdateSteps(proj,ns);
+    setStepQualityPopup(null);
+  };
+  // ── Đánh giá tổng thể dự án ──
+  const [projQualityModal,setProjQualityModal]=React.useState(false);
+  const [projQForm,setProjQForm]=React.useState({rating:0,note:"",on_time:true,on_budget:true});
   const addStepComment=async(idx)=>{if(!cmtText.trim()&&cmtFiles.length===0)return;const c={by:currentUser.full_name,text:cmtText.trim(),files:cmtFiles,at:new Date().toLocaleString("vi-VN")};const ns=steps.map((s,i)=>i===idx?{...s,comments:[...(s.comments||[]),c]}:s);await onUpdateSteps(proj,ns);setCmtText("");setCmtFiles([]);};
   const openEditStep=(s,idx)=>{setEditStep(idx);setStepDraft({...s});};
   const saveStep=async()=>{const ns=steps.map((s,i)=>i===editStep?stepDraft:s);await onUpdateSteps(proj,ns);setEditStep(null);setStepDraft(null);};
@@ -100,9 +117,14 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
                   {(s.collab_eids||[]).length>0&&<div style={{fontSize:13,color:"#15803d",marginTop:3}}>👥 TV phối hợp: {(s.collab_eids||[]).map(id=>getEmp(id)?.name).filter(Boolean).join(", ")}</div>}
                   {(s.start||s.end)&&<div style={{fontSize:13,color:"#6b7280",marginTop:3}}>📅 {s.start||"?"} → {s.end||"?"}</div>}
                   {s.note&&<div style={{fontSize:13,color:"#475569",marginTop:3,fontStyle:"italic"}}>{s.note}</div>}
+                  {s.status==="done"&&s.quality_note&&<div style={{fontSize:12,color:"#15803d",marginTop:3,background:"#f0fdf4",padding:"4px 10px",borderRadius:6}}>✅ Đánh giá: {s.quality_note}</div>}
                   {(s.attachments||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{(s.attachments||[]).map((f,fi)=><a key={fi} href={f.url} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
                 </div>
-                <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flexShrink:0}}><span style={{fontSize:12,background:INV_STEP_STATUS[s.status]?.bg,color:INV_STEP_STATUS[s.status]?.col,padding:"3px 8px",borderRadius:8,fontWeight:600}}>{INV_STEP_STATUS[s.status]?.label}</span>{isStepOverdue(s)&&<span style={{fontSize:12,background:"#fee2e2",color:"#b91c1c",padding:"3px 8px",borderRadius:8,fontWeight:600}}>⚠ Trễ hạn</span>}</div>
+                <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flexShrink:0}}>
+                  <span style={{fontSize:12,background:INV_STEP_STATUS[s.status]?.bg,color:INV_STEP_STATUS[s.status]?.col,padding:"3px 8px",borderRadius:8,fontWeight:600}}>{INV_STEP_STATUS[s.status]?.label}</span>
+                  {s.status==="done"&&s.quality&&<span style={{fontSize:11,background:STEP_QUALITY[s.quality]?.bg,color:STEP_QUALITY[s.quality]?.col,padding:"2px 8px",borderRadius:8,fontWeight:600}}>{STEP_QUALITY[s.quality]?.star} {STEP_QUALITY[s.quality]?.label}</span>}
+                  {isStepOverdue(s)&&<span style={{fontSize:12,background:"#fee2e2",color:"#b91c1c",padding:"3px 8px",borderRadius:8,fontWeight:600}}>⚠ Trễ hạn</span>}
+                </div>
               </div>
               {canEditStep(s)&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
                 {Object.entries(INV_STEP_STATUS).map(([k,v])=><button key={k} onClick={()=>setStepStatus(idx,k)} style={{padding:"3px 8px",border:"1px solid "+(s.status===k?v.col:"#e5e7eb"),borderRadius:6,background:s.status===k?v.bg:"#fff",color:s.status===k?v.col:"#9ca3af",cursor:"pointer",fontSize:12.5,fontWeight:s.status===k?600:400}}>{v.label}</button>)}
@@ -126,11 +148,94 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
           </div>
         </div>))}
       </div>
+      {/* Nút nghiệm thu tổng thể khi tất cả bước hoàn thành */}
+      {pct===100&&!proj.quality_rating&&isBGD&&(
+        <div style={{margin:"0 20px 16px",padding:"14px 16px",background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+          <div><div style={{fontWeight:600,fontSize:13,color:"#15803d"}}>✅ Tất cả bước đã hoàn thành!</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>Đánh giá nghiệm thu tổng thể để lưu kết quả chất lượng dự án.</div></div>
+          <button onClick={()=>{setProjQForm({rating:4,note:"",on_time:true,on_budget:true});setProjQualityModal(true);}} style={{padding:"8px 16px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600,whiteSpace:"nowrap"}}>📋 Nghiệm thu</button>
+        </div>
+      )}
+      {proj.quality_rating&&(
+        <div style={{margin:"0 20px 16px",padding:"12px 16px",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <div style={{fontWeight:600,fontSize:13,color:"#92400e",marginBottom:4}}>📋 Nghiệm thu tổng thể</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:4}}>
+                <span style={{fontSize:14,color:"#f59e0b"}}>{"★".repeat(proj.quality_rating)}{"☆".repeat(5-proj.quality_rating)}</span>
+                <span style={{fontWeight:600,color:"#92400e"}}>{PROJ_QUALITY_LABELS[proj.quality_rating]}</span>
+                {proj.quality_on_time!==null&&<span style={{fontSize:11,background:proj.quality_on_time?"#dcfce7":"#fee2e2",color:proj.quality_on_time?"#15803d":"#b91c1c",padding:"1px 8px",borderRadius:8}}>{proj.quality_on_time?"✓ Đúng tiến độ":"✗ Trễ tiến độ"}</span>}
+                {proj.quality_on_budget!==null&&<span style={{fontSize:11,background:proj.quality_on_budget?"#dcfce7":"#fee2e2",color:proj.quality_on_budget?"#15803d":"#b91c1c",padding:"1px 8px",borderRadius:8}}>{proj.quality_on_budget?"✓ Trong ngân sách":"✗ Vượt ngân sách"}</span>}
+              </div>
+              {proj.quality_note&&<div style={{fontSize:12,color:"#475569",fontStyle:"italic"}}>{proj.quality_note}</div>}
+              <div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>Đánh giá bởi {proj.quality_rated_by} · {proj.quality_rated_at}</div>
+            </div>
+            {isBGD&&<button onClick={()=>{setProjQForm({rating:proj.quality_rating,note:proj.quality_note||"",on_time:proj.quality_on_time!==false,on_budget:proj.quality_on_budget!==false});setProjQualityModal(true);}} style={{padding:"4px 10px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",cursor:"pointer",fontSize:12,color:"#92400e",flexShrink:0}}>✏️ Sửa</button>}
+          </div>
+        </div>
+      )}
       {(canEditProject||canDeleteProject)&&<div style={{padding:"12px 20px",borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",position:"sticky",bottom:0,background:"#fff"}}>
         {canEditProject?<button onClick={onEdit} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>✏️ Sửa dự án</button>:<span/>}
         {canDeleteProject?<button onClick={onDelete} style={{padding:"8px 16px",border:"1px solid #fca5a5",borderRadius:8,background:"#fff0f0",cursor:"pointer",fontSize:13,color:"#dc2626"}}>🗑️ Xóa dự án</button>:<span/>}
       </div>}
     </div>
+    {/* ── Popup đánh giá chất lượng bước ── */}
+    {stepQualityPopup&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:80,padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:380,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb"}}><div style={{fontWeight:600,fontSize:15}}>✅ Hoàn thành bước</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{steps[stepQualityPopup.idx]?.content}</div></div>
+        <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+          <div>
+            <div style={{fontSize:12,color:"#6b7280",marginBottom:8,fontWeight:500}}>Chất lượng kết quả đầu ra</div>
+            <div style={{display:"flex",gap:8}}>
+              {Object.entries(STEP_QUALITY).map(([k,v])=><button key={k} onClick={()=>setStepQualityPopup(p=>({...p,quality:Number(k)}))} style={{flex:1,padding:"10px 6px",border:"2px solid "+(stepQualityPopup.quality===Number(k)?v.col:"#e5e7eb"),borderRadius:10,background:stepQualityPopup.quality===Number(k)?v.bg:"#fff",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                <span style={{fontSize:18,color:v.col}}>{v.star}</span>
+                <span style={{fontSize:12,fontWeight:600,color:v.col}}>{v.label}</span>
+              </button>)}
+            </div>
+          </div>
+          <div>
+            <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Ghi chú kết quả (không bắt buộc)</label>
+            <input value={stepQualityPopup.note} onChange={e=>setStepQualityPopup(p=>({...p,note:e.target.value}))} placeholder="VD: Hồ sơ đầy đủ, đúng mẫu..." style={{width:"100%",padding:"8px 10px",border:"1px solid #d1d5db",borderRadius:8,fontSize:13,boxSizing:"border-box"}}/>
+          </div>
+        </div>
+        <div style={{padding:"0 20px 18px",display:"flex",gap:10}}>
+          <button onClick={()=>setStepQualityPopup(null)} style={{flex:1,padding:"9px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button>
+          <button onClick={()=>confirmStepDone(stepQualityPopup.idx)} style={{flex:2,padding:"9px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Xác nhận hoàn thành</button>
+        </div>
+      </div>
+    </div>)}
+    {/* ── Modal nghiệm thu tổng thể dự án ── */}
+    {projQualityModal&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:80,padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:440,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb"}}><div style={{fontWeight:600,fontSize:15}}>📋 Nghiệm thu tổng thể dự án</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{proj.name}</div></div>
+        <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+          <div>
+            <div style={{fontSize:12,color:"#6b7280",marginBottom:8,fontWeight:500}}>Chất lượng tổng thể (1-5 sao)</div>
+            <div style={{display:"flex",gap:6,justifyContent:"center"}}>
+              {[1,2,3,4,5].map(n=><button key={n} onClick={()=>setProjQForm(f=>({...f,rating:n}))} style={{fontSize:28,background:"none",border:"none",cursor:"pointer",color:projQForm.rating>=n?"#f59e0b":"#d1d5db",padding:"2px 4px"}}>{projQForm.rating>=n?"★":"☆"}</button>)}
+            </div>
+            {projQForm.rating>0&&<div style={{textAlign:"center",fontSize:13,fontWeight:600,color:"#92400e",marginTop:4}}>{PROJ_QUALITY_LABELS[projQForm.rating]}</div>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <button onClick={()=>setProjQForm(f=>({...f,on_time:!f.on_time}))} style={{padding:"10px",border:"2px solid "+(projQForm.on_time?"#16a34a":"#e5e7eb"),borderRadius:10,background:projQForm.on_time?"#f0fdf4":"#fff",cursor:"pointer",textAlign:"center"}}>
+              <div style={{fontSize:18}}>{projQForm.on_time?"✅":"⬜"}</div>
+              <div style={{fontSize:12,fontWeight:500,color:projQForm.on_time?"#15803d":"#6b7280",marginTop:2}}>Đúng tiến độ</div>
+            </button>
+            <button onClick={()=>setProjQForm(f=>({...f,on_budget:!f.on_budget}))} style={{padding:"10px",border:"2px solid "+(projQForm.on_budget?"#16a34a":"#e5e7eb"),borderRadius:10,background:projQForm.on_budget?"#f0fdf4":"#fff",cursor:"pointer",textAlign:"center"}}>
+              <div style={{fontSize:18}}>{projQForm.on_budget?"✅":"⬜"}</div>
+              <div style={{fontSize:12,fontWeight:500,color:projQForm.on_budget?"#15803d":"#6b7280",marginTop:2}}>Trong ngân sách</div>
+            </button>
+          </div>
+          <div>
+            <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Nhận xét / kết luận nghiệm thu</label>
+            <textarea value={projQForm.note} onChange={e=>setProjQForm(f=>({...f,note:e.target.value}))} rows={3} placeholder="VD: Dự án hoàn thành đúng hạn, chất lượng tốt, hồ sơ đầy đủ..." style={{width:"100%",padding:"8px 10px",border:"1px solid #d1d5db",borderRadius:8,fontSize:13,resize:"vertical",boxSizing:"border-box"}}/>
+          </div>
+        </div>
+        <div style={{padding:"0 20px 18px",display:"flex",gap:10}}>
+          <button onClick={()=>setProjQualityModal(false)} style={{flex:1,padding:"9px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button>
+          <button disabled={projQForm.rating===0} onClick={async()=>{const upd={quality_rating:projQForm.rating,quality_note:projQForm.note,quality_on_time:projQForm.on_time,quality_on_budget:projQForm.on_budget,quality_rated_by:currentUser.full_name,quality_rated_at:new Date().toISOString().split("T")[0]};await onSaveQuality(proj.id,upd);setProjQualityModal(false);}} style={{flex:2,padding:"9px",background:projQForm.rating===0?"#d1d5db":"#059669",color:"#fff",border:"none",borderRadius:8,cursor:projQForm.rating===0?"not-allowed":"pointer",fontSize:13,fontWeight:600}}>Lưu nghiệm thu</button>
+        </div>
+      </div>
+    </div>)}
     {editStep!==null&&stepDraft&&(<div onClick={()=>setEditStep(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:70,padding:"12px 8px",overflowY:"auto"}}>
       <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:480,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.25)"}}>
         <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:14}}>Sửa bước {stepDraft.id}</span><button onClick={()=>setEditStep(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#9ca3af"}}>✕</button></div>
@@ -179,7 +284,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
   const projStatus=(p)=>{const steps=parseJSON(p.steps,[]);if(steps.length===0)return"pending";const done=steps.filter(s=>s.status==="done").length;if(countOverdueSteps(steps)>0)return"overdue";if(done===steps.length)return"done";return"doing";};
   const statusCounts=useMemo(()=>{let done=0,doing=0,overdue=0;projects.forEach(p=>{const st=projStatus(p);if(st==="done")done++;else if(st==="overdue")overdue++;else doing++;});return{done,doing,overdue};},[projects]);
   const filteredProjects=useMemo(()=>statusFilter?projects.filter(p=>projStatus(p)===statusFilter):projects,[projects,statusFilter]);
-  const reportRows=useMemo(()=>projects.map(p=>{const steps=parseJSON(p.steps,[]);const done=steps.filter(s=>s.status==="done").length;const doing=steps.filter(s=>s.status==="doing").length;const pct=steps.length?Math.round(done/steps.length*100):0;const overdue=countOverdueSteps(steps);const budget=Number(p.total_budget)||0;const spent=Number(p.spent)||0;const ld=(users||[]).find(u=>u.id===p.leader_id);const members=parseJSON(p.member_eids,[]).length;return{id:p.id,name:p.name,dept:p.dept,fund:p.fund_source,leader:ld?ld.full_name:"—",lead:getEmp(p.lead_eid)?.name||"—",members,total:steps.length,done,doing,pct,overdue,budget,spent,remain:budget-spent};}),[projects,users]);
+  const reportRows=useMemo(()=>projects.map(p=>{const steps=parseJSON(p.steps,[]);const done=steps.filter(s=>s.status==="done").length;const doing=steps.filter(s=>s.status==="doing").length;const pct=steps.length?Math.round(done/steps.length*100):0;const overdue=countOverdueSteps(steps);const budget=Number(p.total_budget)||0;const spent=Number(p.spent)||0;const ld=(users||[]).find(u=>u.id===p.leader_id);const members=parseJSON(p.member_eids,[]).length;const ratedSteps=steps.filter(s=>s.status==="done"&&s.quality);const avgStepQ=ratedSteps.length?Math.round(ratedSteps.reduce((a,s)=>a+s.quality,0)/ratedSteps.length*10)/10:null;return{id:p.id,name:p.name,dept:p.dept,fund:p.fund_source,leader:ld?ld.full_name:"—",lead:getEmp(p.lead_eid)?.name||"—",members,total:steps.length,done,doing,pct,overdue,budget,spent,remain:budget-spent,avgStepQ,projQ:p.quality_rating||null,on_time:p.quality_on_time,on_budget:p.quality_on_budget};}),[projects,users]);
   const reportChart=useMemo(()=>reportRows.map(r=>({name:r.name.length>14?r.name.slice(0,14)+"…":r.name,"Tiến độ":r.pct,"Trễ hạn":r.overdue})),[reportRows]);
   const statusPie=useMemo(()=>{let pending=0,doing=0,done=0,skipped=0;projects.forEach(p=>parseJSON(p.steps,[]).forEach(s=>{if(s.status==="done")done++;else if(s.status==="doing")doing++;else if(s.status==="skipped")skipped++;else pending++;}));return[{name:"Hoàn thành",value:done,fill:"#16a34a"},{name:"Đang làm",value:doing,fill:"#3b82f6"},{name:"Chưa làm",value:pending,fill:"#94a3b8"},{name:"Bỏ qua",value:skipped,fill:"#d1d5db"}].filter(x=>x.value>0);},[projects]);
   const exportReportCSV=()=>{const head=["Tên dự án","Nguồn vốn","Lãnh đạo PT","Phụ trách chính","Số thành viên","Tổng bước","Hoàn thành","Tiến độ %","Bước trễ","Tổng mức (đ)","Đã chi (đ)","Còn lại (đ)"];const rows=reportRows.map(r=>[r.name,r.fund,r.leader,r.lead,r.members,r.total,r.done,r.pct,r.overdue,r.budget,r.spent,r.remain]);const csv="\uFEFF"+[head,...rows].map(row=>row.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`BaoCao_NhiemVuNganSach_${todayStr}.csv`;a.click();URL.revokeObjectURL(url);};
@@ -192,6 +297,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
   const saveProject=async()=>{if(!projForm.name||!projForm.dept){showToast&&showToast("Nhập tên dự án và phòng ban","error");return;}setSaving(true);const f=projForm;if(f.id){const upd={name:f.name,dept:f.dept,leader_id:f.leader_id||"",fund_source:f.fund_source,total_budget:Number(f.total_budget)||0,spent:Number(f.spent)||0,lead_eid:f.lead_eid,member_eids:f.member_eids,deadline:f.deadline,note:f.note,steps:f.steps};const{error}=await supabase.from("projects").update(upd).eq("id",f.id);if(!error){setProjects(p=>p.map(x=>x.id===f.id?{...x,...upd}:x));showToast&&showToast("Đã cập nhật dự án");setProjForm(null);}else showToast&&showToast("Lỗi: "+(error.message||""),"error");}else{const proj={id:`pj${Date.now()}`,name:f.name,dept:f.dept,leader_id:f.leader_id||"",fund_source:f.fund_source,total_budget:Number(f.total_budget)||0,spent:Number(f.spent)||0,lead_eid:f.lead_eid,member_eids:f.member_eids,deadline:f.deadline,note:f.note,steps:f.steps,created:todayStr,created_by:currentUser.full_name};const{error}=await supabase.from("projects").insert(proj);if(!error){setProjects(p=>[proj,...p]);showToast&&showToast("Đã tạo dự án");setProjForm(null);}else showToast&&showToast("Lỗi: "+(error.message||""),"error");}setSaving(false);};
   const deleteProject=async id=>{if(!window.confirm("Xóa vĩnh viễn dự án này?"))return;setSaving(true);await supabase.from("projects").delete().eq("id",id);setProjects(p=>p.filter(x=>x.id!==id));setProjDetail(null);setSaving(false);showToast&&showToast("Đã xóa dự án");};
   const updateProjectSteps=async(proj,newSteps)=>{const stepsStr=JSON.stringify(newSteps);const{error}=await supabase.from("projects").update({steps:stepsStr}).eq("id",proj.id);if(!error){setProjects(p=>p.map(x=>x.id===proj.id?{...x,steps:stepsStr}:x));setProjDetail(d=>d&&d.id===proj.id?{...d,steps:stepsStr}:d);}else showToast&&showToast("Lỗi cập nhật bước","error");};
+  const saveProjectQuality=async(id,upd)=>{const{error}=await supabase.from("projects").update(upd).eq("id",id);if(!error){setProjects(p=>p.map(x=>x.id===id?{...x,...upd}:x));setProjDetail(d=>d&&d.id===id?{...d,...upd}:d);showToast&&showToast("Đã lưu nghiệm thu tổng thể");}else showToast&&showToast("Lỗi lưu nghiệm thu","error");};
 
   return (<div style={{display:"flex",flexDirection:"column",gap:14}}>
     <div style={{display:"flex",justifyContent:"flex-end",gap:8}}><button onClick={()=>setShowReport(true)} style={{background:"#fff",color:"#1d4ed8",border:"1px solid #bfdbfe",borderRadius:8,padding:isMobile?"6px 12px":"7px 16px",fontSize:isMobile?12:13,cursor:"pointer",fontWeight:500}}>📊 Báo cáo</button>{canManageInvest&&<button onClick={openCreate} style={{background:"#059669",color:"#fff",border:"none",borderRadius:8,padding:isMobile?"6px 12px":"7px 16px",fontSize:isMobile?12:13,cursor:"pointer",fontWeight:500}}>+ Nhiệm vụ ngân sách</button>}</div>
@@ -220,6 +326,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}><span style={{fontSize:11,background:"#f1f5f9",color:"#475569",padding:"2px 8px",borderRadius:8}}>{p.fund_source}</span>{p.leader_id&&(users||[]).find(u=>u.id===p.leader_id)&&<span style={{fontSize:11,background:"#fef3c7",color:"#92400e",padding:"2px 8px",borderRadius:8}}>⭐ {(users||[]).find(u=>u.id===p.leader_id)?.full_name}</span>}{getEmp(p.lead_eid)&&<span style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:8}}>👤 {getEmp(p.lead_eid)?.name}</span>}</div>
             <div style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}><span style={{color:"#6b7280"}}>Tiến độ quy trình</span><span style={{fontWeight:600,color:pct===100?"#15803d":"#1d4ed8"}}>{doneSteps}/{steps.length} bước · {pct}%</span></div><div style={{height:6,background:"#e5e7eb",borderRadius:6,overflow:"hidden"}}><div style={{height:"100%",width:pct+"%",background:pct===100?"#16a34a":"#3b82f6",borderRadius:6}}/></div></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,fontSize:11,paddingTop:10,borderTop:"1px solid #f3f4f6"}}><div><div style={{color:"#9ca3af"}}>Tổng mức</div><div style={{fontWeight:600,color:"#1e40af"}}>{fmtMoney(p.total_budget)}</div></div><div><div style={{color:"#9ca3af"}}>Đã chi</div><div style={{fontWeight:600,color:"#b45309"}}>{fmtMoney(p.spent)}</div></div><div><div style={{color:"#9ca3af"}}>Còn lại</div><div style={{fontWeight:600,color:remain<0?"#dc2626":"#15803d"}}>{fmtMoney(remain)}</div></div></div>
+            {p.quality_rating&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #f3f4f6",display:"flex",alignItems:"center",gap:6,fontSize:11}}><span style={{color:"#f59e0b"}}>{"★".repeat(p.quality_rating)}</span><span style={{fontWeight:600,color:"#92400e"}}>{PROJ_QUALITY_LABELS[p.quality_rating]}</span>{p.quality_on_time!==null&&<span style={{background:p.quality_on_time?"#dcfce7":"#fee2e2",color:p.quality_on_time?"#15803d":"#b91c1c",padding:"1px 6px",borderRadius:6}}>{p.quality_on_time?"✓ Đúng TĐ":"✗ Trễ TĐ"}</span>}{p.quality_on_budget!==null&&<span style={{background:p.quality_on_budget?"#dcfce7":"#fee2e2",color:p.quality_on_budget?"#15803d":"#b91c1c",padding:"1px 6px",borderRadius:6}}>{p.quality_on_budget?"✓ Trong NS":"✗ Vượt NS"}</span>}</div>}
           </div>);})}
       </div>}
       </div>
@@ -245,7 +352,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
       <div style={{padding:"0 18px 18px",display:"flex",gap:10,justifyContent:"flex-end"}}><button onClick={()=>setProjForm(null)} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={saveProject} disabled={saving} style={{padding:"8px 16px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>{saving?"Đang lưu…":(projForm.id?"Cập nhật":"Tạo dự án")}</button></div>
     </div></div>)}
 
-    {projDetail&&(<ProjectDetail proj={projDetail} onClose={()=>setProjDetail(null)} canManage={canManageInvest} getEmp={getEmp} employees={employees} users={users} isMobile={isMobile} onEdit={()=>{setProjForm({...projDetail,total_budget:projDetail.total_budget||0,spent:projDetail.spent||0,member_eids:projDetail.member_eids||"[]",leader_id:projDetail.leader_id||""});setProjDetail(null);}} onDelete={()=>deleteProject(projDetail.id)} onUpdateSteps={updateProjectSteps} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} inp={inp} currentUser={currentUser}/>)}
+    {projDetail&&(<ProjectDetail proj={projDetail} onClose={()=>setProjDetail(null)} canManage={canManageInvest} getEmp={getEmp} employees={employees} users={users} isMobile={isMobile} onEdit={()=>{setProjForm({...projDetail,total_budget:projDetail.total_budget||0,spent:projDetail.spent||0,member_eids:projDetail.member_eids||"[]",leader_id:projDetail.leader_id||""});setProjDetail(null);}} onDelete={()=>deleteProject(projDetail.id)} onUpdateSteps={updateProjectSteps} onSaveQuality={saveProjectQuality} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} inp={inp} currentUser={currentUser}/>)}
 
     {showReport&&(<div onClick={()=>setShowReport(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:isMobile?"12px 8px":16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:920,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
       <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:2}}><span style={{fontWeight:700,fontSize:16}}>📊 Báo cáo tiến độ Nhiệm vụ ngân sách</span><button onClick={()=>setShowReport(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div>
@@ -263,8 +370,8 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontWeight:600,fontSize:14}}>Bảng chi tiết</div><div style={{display:"flex",gap:8}}><button onClick={exportReportCSV} style={{padding:"6px 12px",border:"1px solid #86efac",borderRadius:7,background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#15803d"}}>⬇ CSV (Excel)</button><button onClick={exportReportPDF} style={{padding:"6px 12px",border:"1px solid #fca5a5",borderRadius:7,background:"#fef2f2",cursor:"pointer",fontSize:12,color:"#dc2626"}}>🖨 PDF / In</button></div></div>
         <div style={{overflowX:"auto",border:"1px solid #e5e7eb",borderRadius:10}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:720}}>
-            <thead><tr style={{background:"#f8fafc"}}>{["Dự án","Nguồn vốn","Lãnh đạo PT","Phụ trách","TV","Tiến độ","Trễ","Tổng mức","Đã chi","Còn lại"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",borderBottom:"1px solid #e5e7eb",fontWeight:600,color:"#475569",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
-            <tbody>{reportRows.length===0?<tr><td colSpan={10} style={{padding:24,textAlign:"center",color:"#9ca3af"}}>Chưa có dự án</td></tr>:reportRows.map(r=>(<tr key={r.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+            <thead><tr style={{background:"#f8fafc"}}>{["Dự án","Nguồn vốn","Lãnh đạo PT","Phụ trách","TV","Tiến độ","Trễ","CL bước","Nghiệm thu","Tổng mức","Đã chi","Còn lại"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",borderBottom:"1px solid #e5e7eb",fontWeight:600,color:"#475569",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+            <tbody>{reportRows.length===0?<tr><td colSpan={12} style={{padding:24,textAlign:"center",color:"#9ca3af"}}>Chưa có dự án</td></tr>:reportRows.map(r=>(<tr key={r.id} style={{borderBottom:"1px solid #f3f4f6"}}>
               <td style={{padding:"8px 10px",fontWeight:500}}>{r.name}</td>
               <td style={{padding:"8px 10px",color:"#6b7280"}}>{r.fund}</td>
               <td style={{padding:"8px 10px"}}>{r.leader}</td>
@@ -272,6 +379,8 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
               <td style={{padding:"8px 10px",textAlign:"center"}}>{r.members}</td>
               <td style={{padding:"8px 10px"}}><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{flex:1,minWidth:50,height:6,background:"#e5e7eb",borderRadius:6,overflow:"hidden"}}><div style={{height:"100%",width:r.pct+"%",background:r.pct===100?"#16a34a":"#3b82f6"}}/></div><span style={{fontSize:11,fontWeight:600,color:r.pct===100?"#15803d":"#1d4ed8"}}>{r.pct}%</span></div><div style={{fontSize:10,color:"#9ca3af"}}>{r.done}/{r.total} bước</div></td>
               <td style={{padding:"8px 10px",textAlign:"center"}}>{r.overdue>0?<span style={{background:"#fee2e2",color:"#b91c1c",padding:"1px 8px",borderRadius:8,fontWeight:600,fontSize:11}}>{r.overdue}</span>:<span style={{color:"#9ca3af"}}>0</span>}</td>
+              <td style={{padding:"8px 10px",textAlign:"center"}}>{r.avgStepQ?<span style={{fontSize:11,color:"#92400e",fontWeight:600}}>{r.avgStepQ}/3</span>:<span style={{color:"#d1d5db",fontSize:11}}>—</span>}</td>
+              <td style={{padding:"8px 10px"}}>{r.projQ?<div><div style={{color:"#f59e0b",fontSize:12}}>{"★".repeat(r.projQ)}</div><div style={{fontSize:10,display:"flex",gap:4}}>{r.on_time!==null&&<span style={{color:r.on_time?"#15803d":"#b91c1c"}}>{r.on_time?"✓TĐ":"✗TĐ"}</span>}{r.on_budget!==null&&<span style={{color:r.on_budget?"#15803d":"#b91c1c"}}>{r.on_budget?"✓NS":"✗NS"}</span>}</div></div>:<span style={{color:"#d1d5db",fontSize:11}}>—</span>}</td>
               <td style={{padding:"8px 10px",textAlign:"right",color:"#1e40af",fontWeight:500,whiteSpace:"nowrap"}}>{fmtMoney(r.budget)}</td>
               <td style={{padding:"8px 10px",textAlign:"right",color:"#b45309",whiteSpace:"nowrap"}}>{fmtMoney(r.spent)}</td>
               <td style={{padding:"8px 10px",textAlign:"right",color:r.remain<0?"#dc2626":"#15803d",fontWeight:500,whiteSpace:"nowrap"}}>{fmtMoney(r.remain)}</td>
