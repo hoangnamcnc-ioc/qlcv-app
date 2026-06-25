@@ -53,6 +53,7 @@ export default function App() {
   const [ratingNote,setRatingNote]=useState(""); const [lateNote,setLateNote]=useState("");
   const [deleteConfirm,setDeleteConfirm]=useState(null);
   const [showNotif,setShowNotif]=useState(false);
+  const [showZoom,setShowZoom]=useState(false);
   const [quickRate,setQuickRate]=useState(null);
   const [quickProgress,setQuickProgress]=useState(null);
   const [zoom,setZoom]=useState(()=>parseFloat(localStorage.getItem("qlcv_zoom")||"1"));
@@ -415,6 +416,22 @@ export default function App() {
               <button onClick={()=>changeZoom(zoom-0.1)} disabled={zoom<=0.8} style={{padding:"5px 8px",background:"none",border:"none",cursor:zoom<=0.8?"not-allowed":"pointer",fontSize:13,color:zoom<=0.8?"#d1d5db":"#374151",fontWeight:600}}>A−</button>
               <span style={{padding:"0 4px",fontSize:11,color:"#9ca3af",borderLeft:"1px solid #e5e7eb",borderRight:"1px solid #e5e7eb"}}>{Math.round(zoom*100)}%</span>
               <button onClick={()=>changeZoom(zoom+0.1)} disabled={zoom>=1.4} style={{padding:"5px 8px",background:"none",border:"none",cursor:zoom>=1.4?"not-allowed":"pointer",fontSize:13,color:zoom>=1.4?"#d1d5db":"#374151",fontWeight:700}}>A+</button>
+            </div>}
+            {isMobile&&<div style={{position:"relative"}}>
+              <button onClick={()=>setShowZoom(v=>!v)} style={{padding:"5px 9px",background:"#f1f5f9",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:700,color:"#374151",lineHeight:1}}>Aa</button>
+              {showZoom&&<div style={{position:"fixed",top:54,right:8,background:"#fff",border:"1px solid #e5e7eb",borderRadius:12,boxShadow:"0 4px 16px rgba(0,0,0,0.15)",zIndex:300,padding:"12px 16px",minWidth:180}}>
+                <div style={{fontSize:12,color:"#6b7280",marginBottom:10,fontWeight:500}}>Cỡ chữ</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <button onClick={()=>changeZoom(zoom-0.1)} disabled={zoom<=0.8} style={{width:36,height:36,border:"1px solid #e5e7eb",borderRadius:8,background:zoom<=0.8?"#f9fafb":"#fff",cursor:zoom<=0.8?"not-allowed":"pointer",fontSize:16,fontWeight:700,color:zoom<=0.8?"#d1d5db":"#374151",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+                  <div style={{flex:1,textAlign:"center"}}>
+                    <div style={{fontSize:18,fontWeight:700,color:"#111"}}>{Math.round(zoom*100)}%</div>
+                    <div style={{fontSize:10,color:"#9ca3af"}}>mặc định 100%</div>
+                  </div>
+                  <button onClick={()=>changeZoom(zoom+0.1)} disabled={zoom>=1.4} style={{width:36,height:36,border:"1px solid #e5e7eb",borderRadius:8,background:zoom>=1.4?"#f9fafb":"#fff",cursor:zoom>=1.4?"not-allowed":"pointer",fontSize:16,fontWeight:700,color:zoom>=1.4?"#d1d5db":"#374151",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                </div>
+                {zoom!==1&&<button onClick={()=>changeZoom(1)} style={{width:"100%",marginTop:10,padding:"6px",border:"1px solid #e5e7eb",borderRadius:7,background:"#f8fafc",cursor:"pointer",fontSize:12,color:"#6b7280"}}>Về mặc định</button>}
+                <button onClick={()=>setShowZoom(false)} style={{position:"absolute",top:8,right:10,background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#9ca3af"}}>✕</button>
+              </div>}
             </div>}
             {/* Bell notification */}
             <div style={{position:"relative"}}>

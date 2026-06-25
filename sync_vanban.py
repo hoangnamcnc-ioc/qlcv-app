@@ -386,23 +386,25 @@ class QLCVInserter:
                 "  → Copy 'service_role' key và dán vào CONFIG['SUPABASE_SERVICE_KEY']"
             )
 
-        # Xác thực username/password qua bảng users
-        resp = requests.get(
-            f"{CONFIG['SUPABASE_URL']}/rest/v1/users?username=eq.{username}&limit=1",
-            headers={"apikey": anon_key, "Authorization": f"Bearer {anon_key}"},
+        # Xác thực qua RPC login (an toàn, không lộ password hash)
+        resp = requests.post(
+            f"{CONFIG['SUPABASE_URL']}/rest/v1/rpc/login",
+            headers={
+                "apikey": anon_key,
+                "Authorization": f"Bearer {anon_key}",
+                "Content-Type": "application/json",
+            },
+            json={"p_username": username, "p_password": password},
             timeout=10,
         )
-        if resp.status_code != 200 or not resp.json():
+        rows = resp.json() if resp.status_code == 200 else []
+        if not rows:
             raise RuntimeError(
-                f"Không tìm thấy username '{username}' trong hệ thống.\n"
-                f"Kiểm tra lại QLCV_USERNAME trong CONFIG."
+                f"Đăng nhập thất bại cho username '{username}'.\n"
+                f"Kiểm tra lại QLCV_USERNAME / QLCV_PASSWORD trong CONFIG.\n"
+                f"Lỗi: {resp.text[:120]}"
             )
-        user = resp.json()[0]
-
-        # Kiểm tra password (hash hoặc plaintext)
-        stored_pw = user.get("password", "")
-        if stored_pw and stored_pw != password and not stored_pw.startswith("h$"):
-            raise RuntimeError(f"Sai mật khẩu cho user '{username}'.")
+        user = rows[0]
 
         print(f"✓ Đăng nhập qlcv-app: {user.get('full_name', username)} ({user.get('role', '')})")
         return cls(user_id=user["id"])
