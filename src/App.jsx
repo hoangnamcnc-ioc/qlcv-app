@@ -368,7 +368,7 @@ export default function App() {
   if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:"#6b7280"}}>Đang tải dữ liệu…</div>;
 
   return(
-    <div className={darkMode?"qlcv-dark":""} style={{display:"flex",flexDirection:isMobile?"column":"row",height:"100vh",fontFamily:"system-ui,sans-serif",background:darkMode?"#0f172a":"#f8fafc",overflow:"hidden",zoom:zoom}}>
+    <div className={darkMode?"qlcv-dark":""} style={{display:"flex",flexDirection:isMobile?"column":"row",height:"100dvh",fontFamily:"system-ui,sans-serif",background:darkMode?"#0f172a":"#f8fafc",overflow:"hidden",zoom:zoom}}>
       <style>{`
         .qlcv-dark { filter: invert(1) hue-rotate(180deg); }
         .qlcv-dark img, .qlcv-dark svg { filter: invert(1) hue-rotate(180deg); }
