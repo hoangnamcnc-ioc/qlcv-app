@@ -367,7 +367,7 @@ export default function App() {
 
   if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:"#6b7280"}}>Đang tải dữ liệu…</div>;
 
-  return(
+  return(<>
     <div className={darkMode?"qlcv-dark":""} style={{display:"flex",flexDirection:isMobile?"column":"row",height:"100dvh",fontFamily:"system-ui,sans-serif",background:darkMode?"#0f172a":"#f8fafc",overflow:"hidden",zoom:zoom}}>
       <style>{`
         .qlcv-dark { filter: invert(1) hue-rotate(180deg); }
@@ -411,11 +411,11 @@ export default function App() {
             {isMobile&&<RoleBadge role={currentUser.role}/>}
             {/* Font size controls */}
             <button onClick={toggleDark} title={darkMode?"Chuyển sang nền sáng":"Chuyển sang nền tối"} style={{padding:"6px 10px",background:darkMode?"#374151":"#f1f5f9",border:"1px solid "+(darkMode?"#4b5563":"#e5e7eb"),borderRadius:8,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center"}}>{darkMode?"☀️":"🌙"}</button>
-            <div style={{display:"flex",alignItems:"center",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden"}}>
+            {!isMobile&&<div style={{display:"flex",alignItems:"center",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden"}}>
               <button onClick={()=>changeZoom(zoom-0.1)} disabled={zoom<=0.8} style={{padding:"5px 8px",background:"none",border:"none",cursor:zoom<=0.8?"not-allowed":"pointer",fontSize:13,color:zoom<=0.8?"#d1d5db":"#374151",fontWeight:600}}>A−</button>
               <span style={{padding:"0 4px",fontSize:11,color:"#9ca3af",borderLeft:"1px solid #e5e7eb",borderRight:"1px solid #e5e7eb"}}>{Math.round(zoom*100)}%</span>
               <button onClick={()=>changeZoom(zoom+0.1)} disabled={zoom>=1.4} style={{padding:"5px 8px",background:"none",border:"none",cursor:zoom>=1.4?"not-allowed":"pointer",fontSize:13,color:zoom>=1.4?"#d1d5db":"#374151",fontWeight:700}}>A+</button>
-            </div>
+            </div>}
             {/* Bell notification */}
             <div style={{position:"relative"}}>
               <button onClick={()=>setShowNotif(v=>!v)} style={{position:"relative",background:"none",border:"1px solid #e5e7eb",borderRadius:8,padding:"5px 8px",cursor:"pointer",fontSize:16}}>
@@ -574,14 +574,6 @@ export default function App() {
         </Suspense>
       </div>
 
-      {/* MOBILE BOTTOM NAV — fixed để không bị đẩy xuống khi zoom hoặc content cao */}
-      {isMobile&&(
-        <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#1e1b4b",display:"flex",borderTop:"1px solid rgba(255,255,255,0.1)",zIndex:50,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
-          {navItems.map(n=><button key={n.id} onClick={()=>{setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:view===n.id?"#c7d2fe":"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>{n.icon}</span><span style={{fontSize:9}}>{n.label}</span></button>)}
-          {canCreate&&<button onClick={()=>setShowRecurring(true)} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>🔄</span><span style={{fontSize:9}}>Định kỳ</span></button>}
-          {isAdmin&&<button onClick={()=>setUserModal(true)} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>🔐</span><span style={{fontSize:9}}>TK</span></button>}
-        </div>
-      )}
 
       {/* Popup thông báo khi đăng nhập: việc mới + việc trễ hạn */}
       {showLoginPopup&&(<div onClick={()=>setShowLoginPopup(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:isMobile?"12px 8px":16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:460,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.25)"}}>
@@ -767,5 +759,13 @@ export default function App() {
       {deleteConfirm&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}}><div style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:360,boxShadow:"0 12px 40px rgba(0,0,0,0.2)",overflow:"hidden"}}><div style={{padding:"24px 20px 0",textAlign:"center"}}><div style={{fontSize:44,marginBottom:8}}>🗑️</div><div style={{fontWeight:700,fontSize:16,marginBottom:6}}>Xóa nhiệm vụ?</div><div style={{fontSize:13,color:"#6b7280",marginBottom:20,lineHeight:1.5}}>Nhiệm vụ sẽ được chuyển vào Thùng rác.<br/>Bạn có thể khôi phục lại sau nếu cần.</div></div><div style={{padding:"0 20px 20px",display:"flex",gap:10}}><button onClick={()=>setDeleteConfirm(null)} style={{flex:1,padding:"10px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:14,fontWeight:500}}>Hủy</button><button onClick={()=>{deleteTaskFn(deleteConfirm);setDeleteConfirm(null);}} style={{flex:1,padding:"10px",border:"none",borderRadius:8,background:"#dc2626",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:600}}>Xóa</button></div></div></div>)}
     </div>
     </div>
-  );
+    {/* MOBILE BOTTOM NAV — ngoài div zoom để position:fixed không bị scale */}
+    {isMobile&&(
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#1e1b4b",display:"flex",borderTop:"1px solid rgba(255,255,255,0.1)",zIndex:200,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
+        {navItems.map(n=><button key={n.id} onClick={()=>{setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:view===n.id?"#c7d2fe":"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>{n.icon}</span><span style={{fontSize:9}}>{n.label}</span></button>)}
+        {canCreate&&<button onClick={()=>setShowRecurring(true)} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>🔄</span><span style={{fontSize:9}}>Định kỳ</span></button>}
+        {isAdmin&&<button onClick={()=>setUserModal(true)} style={{flex:1,padding:"10px 4px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>🔐</span><span style={{fontSize:9}}>TK</span></button>}
+      </div>
+    )}
+  </>);
 }
