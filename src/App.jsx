@@ -11,6 +11,12 @@ const Documents = lazy(()=>import("./Documents"));
 import { DEPTS, DEPT_COLOR, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
 import { addDays, today, todayStr, nowStr, getNextDate, isCompletedLateByDate, getStatus, isCompletedStatus, isLateStatus, parseJSON, hashPwd, getFileIcon } from "./helpers";
 import { ProgressBar, RoleBadge, RatingBadge, Chip, PChip } from "./components/ui";
+import ErrorBoundary from "./components/ErrorBoundary";
+import useTasks from "./hooks/useTasks";
+import useAuth from "./hooks/useAuth";
+import useEmployees from "./hooks/useEmployees";
+import useUsers from "./hooks/useUsers";
+import useReports from "./hooks/useReports";
 import Dashboard from "./components/Dashboard";
 import TaskList from "./components/TaskList";
 const Reports = lazy(()=>import("./components/Reports"));
@@ -31,30 +37,18 @@ export default function App() {
   const [isMobile,setIsMobile]=useState(window.innerWidth<768);
   useEffect(()=>{const h=()=>setIsMobile(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
 
-  const [currentUser,setCurrentUser]=useState(null);
-  const [loginForm,setLoginForm]=useState({username:"",password:""});
-  const [loginError,setLoginError]=useState(""); const [loginLoading,setLoginLoading]=useState(false);
   const [view,setView]=useState("dashboard");
   const [tasks,setTasks]=useState(null); const [employees,setEmployees]=useState(null);
   const [otherTasks,setOtherTasks]=useState([]);
   const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false);
   const [modal,setModal]=useState(null); const [taskForm,setTaskForm]=useState(null);
-  const [empForm,setEmpForm]=useState(null); const [empDeptTab,setEmpDeptTab]=useState("HCTH");
-  const [fStatus,setFStatus]=useState("all"); const [fDept,setFDept]=useState("all");
-  const [fEid,setFEid]=useState("all"); const [search,setSearch]=useState(""); const [fSort,setFSort]=useState("urgency");
-  const [page,setPage]=useState(1); const PAGE_SIZE=20;
   const [showTrash,setShowTrash]=useState(false);
   const [exModal,setExModal]=useState(false); const [exStatus,setExStatus]=useState("all"); const [exDept,setExDept]=useState("all");
   const [toast,setToast]=useState(null); const [uploadingFiles,setUploadingFiles]=useState(false);
   const [comments,setComments]=useState({}); const [commentText,setCommentText]=useState(""); const [commentLoading,setCommentLoading]=useState(false); const [commentFiles,setCommentFiles]=useState([]);
-  const [userModal,setUserModal]=useState(false); const [users,setUsers]=useState([]);
-  const [userForm,setUserForm]=useState({username:"",password:"",full_name:"",role:"staff",employee_id:""}); const [userEditId,setUserEditId]=useState(null);
+  const [users,setUsers]=useState([]);
   const [calYear,setCalYear]=useState(today.getFullYear()); const [calMonth,setCalMonth]=useState(today.getMonth()); const [calDay,setCalDay]=useState(null);
-  const [repMonth,setRepMonth]=useState(today.getMonth()); const [repYear,setRepYear]=useState(today.getFullYear()); const [repTab,setRepTab]=useState("monthly");
-  const [rankYear,setRankYear]=useState(today.getFullYear());
   const [overloadThreshold,setOverloadThreshold]=useState(()=>parseInt(localStorage.getItem("qlcv_overload")||"5"));
-  const [ratingNote,setRatingNote]=useState(""); const [lateNote,setLateNote]=useState("");
-  const [deleteConfirm,setDeleteConfirm]=useState(null);
   const [showNotif,setShowNotif]=useState(false);
   const [showZoom,setShowZoom]=useState(false);
   const [quickRate,setQuickRate]=useState(null);
@@ -70,21 +64,19 @@ export default function App() {
   const [statFilter,setStatFilter]=useState(null);
   const [overloadPopup,setOverloadPopup]=useState(null);
   const [linkInput,setLinkInput]=useState({name:"",url:""});
-  const [forwardModal,setForwardModal]=useState(null);
-  const [forwardEid,setForwardEid]=useState("");
   const [recurringTemplates,setRecurringTemplates]=useState([]);
   const [showRecurring,setShowRecurring]=useState(false); const [templateForm,setTemplateForm]=useState(null);
   const recurringChecked=useRef(false);
-  // ── Đổi mật khẩu ──
-  const [showChangePwd,setShowChangePwd]=useState(false);
-  const [changePwdForm,setChangePwdForm]=useState({current:"",next:"",confirm:""});
-  const [changePwdError,setChangePwdError]=useState("");
-  // ── Ghi chú hoàn thành ──
-  const [completionNoteModal,setCompletionNoteModal]=useState(null);
-  const [completionNote,setCompletionNote]=useState("");
-  const [completionFiles,setCompletionFiles]=useState([]);
+  const [loginNotifShown,setLoginNotifShown]=useState(false);
 
   const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),3000);};
+
+  // ── Đăng nhập/đăng xuất, đổi mật khẩu ──
+  const {
+    currentUser, setCurrentUser,
+    loginForm, setLoginForm, loginError, loginLoading, handleLogin, handleLogout,
+    showChangePwd, setShowChangePwd, changePwdForm, setChangePwdForm, changePwdError, handleChangePwd,
+  } = useAuth({ showToast, onLogout: () => setLoginNotifShown(false) });
 
   const userDept=useMemo(()=>!currentUser||!employees?null:employees.find(e=>e.id===currentUser.employee_id)?.dept||null,[currentUser,employees]);
   const canSeeAll=useMemo(()=>FULL_ACCESS.includes(currentUser?.role),[currentUser]);
@@ -92,39 +84,7 @@ export default function App() {
   const canCreate=useMemo(()=>CAN_CREATE.includes(currentUser?.role),[currentUser]);
   const isAdmin=currentUser?.role==="admin";
   const availableDepts=useMemo(()=>canAssignAllDepts?DEPTS:userDept?[userDept]:DEPTS,[canAssignAllDepts,userDept]);
-  const canSeeTask=useMemo(()=>(t)=>{if(!currentUser)return false;if(canSeeAll)return true;if(["manager","deputy_manager"].includes(currentUser.role))return t.dept===userDept;if(t.eid===currentUser.employee_id)return true;return parseJSON(t.collab_eids,[]).includes(currentUser.employee_id);},[currentUser,canSeeAll,userDept]);
-  const canEditTask=useMemo(()=>(t)=>{if(!currentUser)return false;if(["admin","director"].includes(currentUser.role))return true;if(["manager","deputy_manager","manager_hcth"].includes(currentUser.role))return t.dept===userDept;return false;},[currentUser,userDept]);
-  const canDeleteTask=useMemo(()=>(t)=>{if(!currentUser)return false;if(["admin","director"].includes(currentUser.role))return true;if(["manager","manager_hcth"].includes(currentUser.role))return t.dept===userDept;return false;},[currentUser,userDept]);
-  const canUpdateProgress=useMemo(()=>(t)=>canEditTask(t)||currentUser?.employee_id===t.eid||parseJSON(t.collab_eids,[]).includes(currentUser?.employee_id),[canEditTask,currentUser]);
-  const canRate=(t)=>{const st=t.status||getStatus(t);if(st==="completed_late")return false;if(!t.completed&&st!=="completed")return false;if(t.created_by_id){if(currentUser.id===t.created_by_id)return true;if(t.forwarded_by&&t.forwarded_by===currentUser.full_name)return true;return FULL_ACCESS.includes(currentUser.role)&&false;}return canCreate;};
-  const canForward=(t)=>{if(!currentUser)return false;if(t.completed||isCompletedStatus(t.status))return false;return ["manager","deputy_manager"].includes(currentUser.role)&&t.dept===userDept;};
-  const canSetLateReason=(t)=>isLateStatus(t.status)&&(currentUser?.employee_id===t.eid||parseJSON(t.collab_eids,[]).includes(currentUser?.employee_id)||canCreate);
-
-  const logLogin=async(username,success,fullName)=>{try{await supabase.from("login_history").insert({id:`lg${Date.now()}${Math.random().toString(36).slice(2,6)}`,username,full_name:fullName||"",success,at:nowStr()});}catch{}};
-  const handleLogin=async()=>{if(!loginForm.username||!loginForm.password){setLoginError("Vui lòng nhập đầy đủ");return;}setLoginLoading(true);setLoginError("");
-    // Đăng nhập qua RPC server-side: hash được so sánh trong Postgres, password không bao giờ rời server
-    const{data,error}=await supabase.rpc("login",{p_username:loginForm.username,p_password:loginForm.password});
-    const user=Array.isArray(data)?data[0]:data;
-    if(error||!user){setLoginError("Sai tên đăng nhập hoặc mật khẩu");setLoginLoading(false);logLogin(loginForm.username,false,"");return;}
-    setCurrentUser(user);sessionStorage.setItem("qlcv_user",JSON.stringify(user));setLoginLoading(false);logLogin(user.username,true,user.full_name);};
-  const handleLogout=()=>{setCurrentUser(null);sessionStorage.removeItem("qlcv_user");setLoginNotifShown(false);};
-  useEffect(()=>{const s=sessionStorage.getItem("qlcv_user");if(s)try{setCurrentUser(JSON.parse(s));}catch{};},[]);
-
-  // ── Đổi mật khẩu ──
-  const handleChangePwd=async()=>{
-    const{current,next,confirm}=changePwdForm;
-    if(!current||!next||!confirm){setChangePwdError("Vui lòng điền đầy đủ cả 3 ô");return;}
-    if(next.length<6){setChangePwdError("Mật khẩu mới phải có ít nhất 6 ký tự");return;}
-    if(next!==confirm){setChangePwdError("Mật khẩu xác nhận không khớp");return;}
-    // Đổi mật khẩu qua RPC: server tự kiểm tra mật khẩu hiện tại, trả về true/false
-    const{data:ok,error}=await supabase.rpc("change_password",{p_username:currentUser.username,p_current:current,p_new:next});
-    if(error){showToast("Lỗi khi đổi mật khẩu","error");return;}
-    if(!ok){setChangePwdError("Mật khẩu hiện tại không đúng");return;}
-    showToast("Đổi mật khẩu thành công ✓");
-    setShowChangePwd(false);
-    setChangePwdForm({current:"",next:"",confirm:""});
-    setChangePwdError("");
-  };
+  const getEmp=id=>(employees||[]).find(e=>e.id===id);
 
   useEffect(()=>{
     if(!currentUser)return;
@@ -159,189 +119,50 @@ export default function App() {
   const loadComments=async id=>{setCommentLoading(true);const{data}=await supabase.from("comments").select("*").eq("task_id",id).order("created_at");setComments(p=>({...p,[id]:data||[]}));setCommentLoading(false);};
   const addComment=async id=>{if(!commentText.trim()&&commentFiles.length===0)return;const c={id:`c${Date.now()}`,task_id:id,user_name:currentUser.full_name,content:commentText.trim(),attachments:JSON.stringify(commentFiles),created_at:nowStr()};await supabase.from("comments").insert(c);setComments(p=>({...p,[id]:[...(p[id]||[]),c]}));const task=tasks.find(t=>t.id===id);if(task){const h=parseJSON(task.history,[]);h.push({action:`Bình luận: "${commentText.trim()||"(đính kèm file)"}"`,by:currentUser.full_name,at:nowStr()});await supabase.from("tasks").update({history:JSON.stringify(h)}).eq("id",id);setTasks(p=>p.map(t=>t.id===id?{...t,history:JSON.stringify(h)}:t));}setCommentText("");setCommentFiles([]);};
   const uploadFiles=async(files,existing=[])=>{setUploadingFiles(true);const results=[...existing];for(const file of files){const fn=`${Date.now()}_${file.name.replace(/\s/g,"_")}`;const{error}=await supabase.storage.from("attachments").upload(fn,file);if(!error){const{data:{publicUrl}}=supabase.storage.from("attachments").getPublicUrl(fn);results.push({name:file.name,url:publicUrl});}else showToast(`Lỗi upload: ${file.name}`,"error");}setUploadingFiles(false);return results;};
-  const addTask=async data=>{setSaving(true);const h=[{action:"Tạo nhiệm vụ",by:currentUser.full_name,at:nowStr()}];const t={...data,id:`t${Date.now()}`,completed:data.progress===100,created:todayStr,created_by_id:currentUser.id,created_by_name:currentUser.full_name,forwarded_by:"",deleted:false,history:JSON.stringify(h),rating:"",rating_note:"",rated_by:"",rated_at:"",late_reason:"",late_note:""};const{error}=await supabase.from("tasks").insert(t);if(!error){setTasks(p=>[t,...p]);showToast("Đã tạo nhiệm vụ");}else{console.error("Lỗi tạo nhiệm vụ:",error);showToast("Lỗi: "+(error.message||"không tạo được"),"error");}setSaving(false);return error?null:t;};
-  const updateTask=async(id,updates,note)=>{const task=tasks.find(t=>t.id===id);if(updates.progress===100&&task&&getStatus(task)==="overdue"&&!task.late_reason){showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi hoàn thành.","error");setModal({...task,status:"overdue"});return;}setSaving(true);if(note&&task){const h=parseJSON(task.history,[]);h.push({action:note,by:currentUser.full_name,at:nowStr()});updates.history=JSON.stringify(h);}if(updates.progress===100){updates.completed=true;if(!updates.completed_at)updates.completed_at=new Date().toISOString();}if(updates.completed===false)updates.completed_at=null;const{error}=await supabase.from("tasks").update(updates).eq("id",id);if(!error){setTasks(p=>p.map(t=>t.id===id?{...t,...updates}:t));showToast("Đã cập nhật");}else showToast("Lỗi","error");setSaving(false);};
-  const forwardTask=async()=>{if(!forwardModal||!forwardEid)return;setSaving(true);const task=forwardModal;const newEmp=getEmp(forwardEid);const oldEmp=getEmp(task.eid);const h=parseJSON(task.history,[]);h.push({action:`Chuyển tiếp cho ${newEmp?.name||"?"} thực hiện (phụ trách: ${oldEmp?.name||currentUser.full_name})`,by:currentUser.full_name,at:nowStr()});
-    // người cũ (TP) thành phụ trách -> đưa vào collab; người mới thành người thực hiện chính
-    const collab=parseJSON(task.collab_eids,[]);if(task.eid&&!collab.includes(task.eid))collab.push(task.eid);const newCollab=collab.filter(id=>id!==forwardEid);
-    const updates={eid:forwardEid,collab_eids:JSON.stringify(newCollab),forwarded_by:currentUser.full_name,history:JSON.stringify(h)};
-    const{error}=await supabase.from("tasks").update(updates).eq("id",task.id);if(!error){setTasks(p=>p.map(t=>t.id===task.id?{...t,...updates}:t));showToast(`Đã chuyển tiếp cho ${newEmp?.name}`);setForwardModal(null);setForwardEid("");}else{showToast("Lỗi: "+(error.message||"không chuyển được"),"error");}setSaving(false);};
-  const deleteTaskFn=async id=>{setSaving(true);const task=tasks.find(t=>t.id===id);const h=task?parseJSON(task.history,[]):[];h.push({action:"Xóa nhiệm vụ",by:currentUser.full_name,at:nowStr()});await supabase.from("tasks").update({deleted:true,history:JSON.stringify(h)}).eq("id",id);setTasks(p=>p.map(t=>t.id===id?{...t,deleted:true}:t));setModal(null);setSaving(false);showToast("Đã chuyển vào thùng rác");};
-  const restoreTaskFn=async id=>{setSaving(true);await supabase.from("tasks").update({deleted:false}).eq("id",id);setTasks(p=>p.map(t=>t.id===id?{...t,deleted:false}:t));setSaving(false);showToast("Đã khôi phục");};
-  const purgeTaskFn=async id=>{setSaving(true);await supabase.from("tasks").delete().eq("id",id);setTasks(p=>p.filter(t=>t.id!==id));setSaving(false);showToast("Đã xóa vĩnh viễn");};
-  const isSuspiciousCompletion=t=>{
-    if((t.progress||0)>=80)return false;
-    const dl=new Date(t.deadline);dl.setHours(23,59,59,999);
-    const hoursLeft=(dl-new Date())/3600000;
-    return hoursLeft>=0&&hoursLeft<=24;
-  };
-  // ── Nhân viên không tự hoàn thành được nữa: bấm "Yêu cầu hoàn thành" → chờ duyệt → TP/PP/BGĐ duyệt + đánh giá ──
-  const toggleDone=t=>{
-    const st=t.status||getStatus(t);
-    if(t.completed){
-      if(!canEditTask(t)){showToast("Chỉ Trưởng phòng/Phó phòng/Ban Giám đốc mới được bỏ hoàn thành","error");return;}
-      updateTask(t.id,{completed:false,completion_requested:false,progress:t.progress>=100?90:t.progress,completed_at:null,rating:"",rating_note:"",rated_by:"",rated_at:"",completion_note:"",suspicious_completion:false},"Bỏ hoàn thành");
-      return;
-    }
-    if(t.completion_requested){showToast("Nhiệm vụ đang chờ duyệt hoàn thành","error");return;}
-    if(st==="overdue"&&!t.late_reason){showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi yêu cầu hoàn thành.","error");setModal({...t,status:"overdue"});return;}
-    setCompletionNoteModal(t);setCompletionNote("");setCompletionFiles(parseJSON(t.attachments,[]));
-  };
-  const confirmCompletion=async(task)=>{
-    if(!completionNote||completionNote.trim().length<20){showToast("Vui lòng mô tả kết quả (ít nhất 20 ký tự)","error");return;}
-    const suspicious=isSuspiciousCompletion(task);
-    await updateTask(task.id,{completion_requested:true,requested_by:currentUser.full_name,requested_at:nowStr(),progress:100,completion_note:completionNote.trim(),suspicious_completion:suspicious,attachments:JSON.stringify(completionFiles)},`Yêu cầu duyệt hoàn thành: "${completionNote.trim().slice(0,50)}"`);
-    showToast(suspicious?"⚠️ Yêu cầu hoàn thành đột ngột — trưởng phòng sẽ thấy cảnh báo":"Đã gửi yêu cầu duyệt hoàn thành","success");
-    setCompletionNoteModal(null);setCompletionNote("");setCompletionFiles([]);
-  };
-  // ── Duyệt yêu cầu hoàn thành + đánh giá (TP/PP/BGĐ) ──
-  const [approveModal,setApproveModal]=useState(null); // task đang chờ duyệt
-  const [approveRating,setApproveRating]=useState("");
-  const [approveNote,setApproveNote]=useState("");
-  const openApproveModal=t=>{setApproveModal(t);setApproveRating("");setApproveNote("");};
-  const confirmApproveCompletion=async()=>{
-    if(!approveRating){showToast("Vui lòng chọn mức đánh giá","error");return;}
-    const task=approveModal;
-    await updateTask(task.id,{completed:true,completion_requested:false,completed_at:task.completed_at||new Date().toISOString(),rating:approveRating,rating_note:approveNote,rated_by:currentUser.full_name,rated_at:nowStr()},`Duyệt hoàn thành & đánh giá: ${RATING[approveRating]?.label}`);
-    showToast("Đã duyệt hoàn thành nhiệm vụ");
-    setApproveModal(null);setApproveRating("");setApproveNote("");
-  };
-  const rejectCompletionRequest=async(task)=>{
-    if(!window.confirm("Từ chối yêu cầu hoàn thành và trả nhiệm vụ về cho người thực hiện làm lại?"))return;
-    await updateTask(task.id,{completion_requested:false},"Từ chối yêu cầu hoàn thành, yêu cầu làm lại");
-    showToast("Đã từ chối, nhiệm vụ trở lại trạng thái thực hiện");
-  };
-  const rateTask=async(id,rating)=>{const up={rating,rating_note:ratingNote,rated_by:currentUser.full_name,rated_at:nowStr()};await updateTask(id,up,`Đánh giá: ${RATING[rating]?.label}`);setModal(m=>m?{...m,...up}:m);setRatingNote("");};
-  const setLateReasonFn=async(id,reason)=>{const up={late_reason:reason,late_note:lateNote};await updateTask(id,up,`Nguyên nhân trễ: ${LATE_REASONS.find(r=>r.value===reason)?.label||reason}`);setModal(m=>m?{...m,...up}:m);setLateNote("");};
-  const addEmployee=async d=>{setSaving(true);const e={...d,id:`e${Date.now()}`};await supabase.from("employees").insert(e);setEmployees(p=>[...p,e]);showToast("Đã thêm");setSaving(false);};
-  const updateEmployee=async(id,d)=>{setSaving(true);await supabase.from("employees").update(d).eq("id",id);setEmployees(p=>p.map(e=>e.id===id?{...e,...d}:e));setSaving(false);};
-  const deleteEmployee=async id=>{setSaving(true);await supabase.from("employees").delete().eq("id",id);setEmployees(p=>p.filter(e=>e.id!==id));setSaving(false);};
-  const submitUser=async()=>{if(!userForm.username||!userForm.full_name){return;}if(!userEditId&&!userForm.password)return;setSaving(true);if(userEditId){const cur=users.find(u=>u.id===userEditId);const pwd=userForm.password?await hashPwd(userForm.password):cur.password;const uf={...userForm,password:pwd};await supabase.from("users").update(uf).eq("id",userEditId);setUsers(p=>p.map(u=>u.id===userEditId?{...u,...uf}:u));}else{const u={...userForm,password:await hashPwd(userForm.password),id:`u${Date.now()}`};await supabase.from("users").insert(u);setUsers(p=>[...p,u]);}setUserForm({username:"",password:"",full_name:"",role:"staff",employee_id:""});setUserEditId(null);showToast("Đã lưu");setSaving(false);};
-  const deleteUser=async id=>{await supabase.from("users").delete().eq("id",id);setUsers(p=>p.filter(u=>u.id!==id));};
-  const resetUserPwd=async u=>{if(!window.confirm(`Đặt lại mật khẩu của "${u.full_name}" về mặc định (abc123)?`))return;const h=await hashPwd("abc123");await supabase.from("users").update({password:h}).eq("id",u.id);setUsers(p=>p.map(x=>x.id===u.id?{...x,password:h}:x));showToast(`Đã đặt lại mật khẩu của ${u.full_name} → abc123`);};
+  // ── Nhân viên & tài khoản đăng nhập ──
+  const {
+    addEmployee, updateEmployee, deleteEmployee,
+    empForm, setEmpForm, empDeptTab, setEmpDeptTab, openCreateEmp, openEditEmp, submitEmp,
+    deptEmps,
+  } = useEmployees({ employees, setEmployees, showToast, setSaving });
+  const {
+    userModal, setUserModal, userForm, setUserForm, userEditId, setUserEditId, submitUser, deleteUser, resetUserPwd,
+  } = useUsers({ users, setUsers, showToast, setSaving });
+
   const submitTemplate=async()=>{const{data,editId}=templateForm;if(!data.title||!data.eid)return;setSaving(true);if(editId){await supabase.from("recurring_templates").update(data).eq("id",editId);setRecurringTemplates(p=>p.map(t=>t.id===editId?{...t,...data}:t));}else{const nt={...data,id:`rt${Date.now()}`,created_by:currentUser.full_name,last_created:""};await supabase.from("recurring_templates").insert(nt);setRecurringTemplates(p=>[...p,nt]);}showToast("Đã lưu mẫu định kỳ");setTemplateForm(null);setSaving(false);};
   const deleteTemplate=async id=>{await supabase.from("recurring_templates").delete().eq("id",id);setRecurringTemplates(p=>p.filter(t=>t.id!==id));};
   const toggleTemplate=async(id,active)=>{await supabase.from("recurring_templates").update({active}).eq("id",id);setRecurringTemplates(p=>p.map(t=>t.id===id?{...t,active}:t));showToast(active?"Đã kích hoạt":"Đã tạm dừng");};
-  const getEmp=id=>(employees||[]).find(e=>e.id===id);
 
-  const visibleTasks=useMemo(()=>(tasks||[]).filter(t=>!t.deleted&&canSeeTask(t)),[tasks,canSeeTask]);
-  const trashedTasks=useMemo(()=>(tasks||[]).filter(t=>t.deleted&&canSeeTask(t)),[tasks,canSeeTask]);
-  const computed=useMemo(()=>visibleTasks.map(t=>({...t,status:getStatus(t)})),[visibleTasks]);
-  const stats=useMemo(()=>computed.reduce((a,t)=>{a.total+=1;a[t.status]=(a[t.status]||0)+1;return a;},{total:0,on_time:0,nearly_due:0,overdue:0,pending_approval:0,completed_late:0,completed:0}),[computed]);
-  const deptChart=useMemo(()=>DEPTS.map(d=>{const dt=computed.filter(t=>t.dept===d);return{name:d,"Trong hạn":dt.filter(t=>t.status==="on_time").length,"Sắp hết hạn":dt.filter(t=>t.status==="nearly_due").length,"Quá hạn":dt.filter(t=>t.status==="overdue").length,"Chờ duyệt":dt.filter(t=>t.status==="pending_approval").length,"HT quá hạn":dt.filter(t=>t.status==="completed_late").length,"Hoàn thành":dt.filter(t=>t.status==="completed").length};}), [computed]);
-  // ── Tổng hợp điều hành theo phòng ban (cho BGĐ) ──
-  const execDeptSummary=useMemo(()=>DEPTS.map(d=>{
-    const dt=computed.filter(t=>t.dept===d);
-    const overdue=dt.filter(t=>t.status==="overdue").length;
-    const completedLate=dt.filter(t=>t.status==="completed_late").length;
-    const over=overdue+completedLate;
-    const nd=dt.filter(t=>t.status==="nearly_due").length;
-    const done=dt.filter(t=>isCompletedStatus(t.status)).length;
-    const rate=dt.length?Math.round(done/dt.length*100):0;
-    const deptEmpsList=(employees||[]).filter(e=>e.dept===d);
-    const overloaded=deptEmpsList.filter(e=>computed.filter(t=>t.eid===e.id&&!isCompletedStatus(t.status)).length>=overloadThreshold).length;
-    const lead=deptEmpsList.find(e=>["Trưởng phòng","TP. HCTH"].includes(e.role));
-    return{dept:d,total:dt.length,over,overdue,completedLate,nd,done,rate,empCount:deptEmpsList.length,overloaded,lead:lead?.name||"—"};
-  }),[computed,employees,overloadThreshold]);
-  const filtered=useMemo(()=>{const f=computed.filter(t=>{if(fStatus!=="all"&&t.status!==fStatus)return false;if(fDept!=="all"&&t.dept!==fDept)return false;if(fEid!=="all"&&t.eid!==fEid)return false;if(search){const q=search.toLowerCase();const empName=(getEmp(t.eid)?.name||"").toLowerCase();const hit=t.title.toLowerCase().includes(q)||(t.description||"").toLowerCase().includes(q)||empName.includes(q);if(!hit)return false;}return true;});if(fSort==="urgency")return[...f].sort((a,b)=>(STATUS_ORDER[a.status]??9)-(STATUS_ORDER[b.status]??9));if(fSort==="deadline_asc")return[...f].sort((a,b)=>a.deadline.localeCompare(b.deadline));if(fSort==="deadline_desc")return[...f].sort((a,b)=>b.deadline.localeCompare(a.deadline));if(fSort==="newest")return[...f].sort((a,b)=>(b.created||"").localeCompare(a.created||""));return f;},[computed,fStatus,fDept,fEid,search,fSort]);
-  const totalPages=useMemo(()=>Math.max(1,Math.ceil(filtered.length/PAGE_SIZE)),[filtered]);
-  const paged=useMemo(()=>filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE),[filtered,page]);
+  // ── Toàn bộ logic nghiệp vụ của Nhiệm vụ (phân quyền, CRUD, luồng yêu cầu/duyệt, lọc/phân trang, thông báo) ──
+  const {
+    canSeeTask, canEditTask, canDeleteTask, canUpdateProgress, canRate, canForward, canSetLateReason,
+    addTask, updateTask,
+    forwardModal, setForwardModal, forwardEid, setForwardEid, forwardTask,
+    deleteConfirm, setDeleteConfirm, deleteTaskFn, restoreTaskFn, purgeTaskFn,
+    isSuspiciousCompletion, toggleDone, confirmCompletion,
+    completionNoteModal, setCompletionNoteModal, completionNote, setCompletionNote, completionFiles, setCompletionFiles,
+    approveModal, setApproveModal, approveRating, setApproveRating, approveNote, setApproveNote, openApproveModal, confirmApproveCompletion,
+    rejectCompletionRequest,
+    ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,
+    visibleTasks, trashedTasks, computed, stats, deptChart,
+    dateFrom, setDateFrom, dateTo, setDateTo,
+    fStatus, setFStatus, fDept, setFDept, fEid, setFEid, search, setSearch, fSort, setFSort, page, setPage,
+    filtered, paged, totalPages,
+    notifications, unratedTasks, suspiciousTasks,
+    seenKey, markSeen, myAssignedTasks, myNewTasks, myOverdueTasks, myNewTaskIds,
+  } = useTasks({ tasks, setTasks, employees, currentUser, canSeeAll, userDept, canCreate, showToast, getEmp, setModal, setSaving });
+
+  // ── Hiệu suất/Báo cáo (tổng hợp phòng ban, điểm hiệu suất tháng, bảng xếp hạng, thống kê trễ hạn/quá tải) ──
+  const {
+    repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
+    execDeptSummary, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
+    lateReasonStats, overloadedEmps, myTrend, myTasks,
+  } = useReports({ computed, employees, currentUser, overloadThreshold });
+
   const calTasks=useMemo(()=>computed.filter(t=>{const d=new Date(t.deadline);return d.getFullYear()===calYear&&d.getMonth()===calMonth;}),[computed,calYear,calMonth]);
   const calTasksByDay=useMemo(()=>{const m={};calTasks.forEach(t=>{const day=new Date(t.deadline).getDate();if(!m[day])m[day]=[];m[day].push(t);});return m;},[calTasks]);
   const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
   const firstDay=new Date(calYear,calMonth,1).getDay();
-  const repTasks=useMemo(()=>computed.filter(t=>{const d=new Date(t.deadline);return d.getFullYear()===repYear&&d.getMonth()===repMonth;}),[computed,repYear,repMonth]);
-  const repStats=useMemo(()=>{const total=repTasks.length,done=repTasks.filter(t=>isCompletedStatus(t.status)).length,over=repTasks.filter(t=>t.status==="overdue").length,completedLate=repTasks.filter(t=>t.status==="completed_late").length;return{total,done,over,completedLate,rate:total?Math.round(done/total*100):0};},[repTasks]);
-  const repDeptData=useMemo(()=>DEPTS.map(d=>{const dt=repTasks.filter(t=>t.dept===d);const done=dt.filter(t=>isCompletedStatus(t.status)).length;const over=dt.filter(t=>t.status==="overdue").length;const completedLate=dt.filter(t=>t.status==="completed_late").length;return{name:d,total:dt.length,done,over,completedLate,rate:dt.length?Math.round(done/dt.length*100):0};}), [repTasks]);
-  // ── Index theo (nhân viên | năm | tháng) — dựng MỘT lần, tra cứu O(1) thay vì quét toàn bộ mỗi lần ──
-  // byEid: việc mình chủ trì ; byCollab: việc mình phối hợp
-  const perfIndex=useMemo(()=>{
-    const byEid=new Map(),byCollab=new Map();
-    const push=(map,key,t)=>{let a=map.get(key);if(!a){a=[];map.set(key,a);}a.push(t);};
-    for(const t of computed){
-      if(!t.deadline)continue;
-      const d=new Date(t.deadline);if(isNaN(d))continue;
-      const ym=`${d.getFullYear()}|${d.getMonth()}`;
-      push(byEid,`${t.eid}|${ym}`,t);
-      for(const cid of parseJSON(t.collab_eids,[]))push(byCollab,`${cid}|${ym}`,t);
-    }
-    return{byEid,byCollab};
-  },[computed]);
-  // ── Công thức tính điểm hiệu suất 1 THÁNG (dùng chung cho bảng "Hiệu suất tháng" và "Xếp hạng năm") ──
-  const calcMonthPerf=(empId,year,month)=>{
-    const ym=`${year}|${month}`;
-    const et=perfIndex.byEid.get(`${empId}|${ym}`)||[];
-    // Phân loại theo trạng thái
-    const onTimeTasks=et.filter(t=>t.status==="completed");   // HT đúng hạn (Đ)
-    const onTime=onTimeTasks.length;
-    const completedLate=et.filter(t=>t.status==="completed_late").length; // HT trễ (T)
-    const over=et.filter(t=>t.status==="overdue").length;                 // Quá hạn chưa xong (Q)
-    const done=onTime+completedLate;
-    const resolved=onTime+completedLate+over; // Mẫu số N = việc đã đến hạn
-    const completionRate=et.length?Math.round(done/et.length*100):0;
-    const eligible=et.length>=5;
-    // Task phối hợp trong tháng
-    const collabTasks=perfIndex.byCollab.get(`${empId}|${ym}`)||[];
-    const collabDone=collabTasks.filter(t=>isCompletedStatus(t.status)).length;
-    const collabTotal=collabTasks.length;
-    let perfScore=0,breakdown=null;
-    if(eligible){
-      // ① Điểm thời hạn (tối đa 60) — chưa có việc nào đến hạn xử lý xong thì tạm tính 0, tránh chia cho 0
-      const timeliness=resolved>0?(onTime*60+completedLate*30)/resolved:0;
-      // ② Điểm chất lượng (tối đa 40)
-      const qualitySum=onTimeTasks.reduce((s,t)=>s+(RATING[t.rating]?RATING[t.rating].score:2),0);
-      const quality=resolved>0?qualitySum/(resolved*4)*40:0;
-      // ③ Phạt trễ/quá hạn
-      const penalty=(over+completedLate)*LATE_COMPLETION_PENALTY;
-      // ④ Thưởng khối lượng
-      const workloadBonus=Math.max(0,Math.min((resolved-5)*1,10));
-      // ⑤ Điểm phối hợp (×0.5 so với chủ trì)
-      const collabBonus=collabTotal>0?Math.round((collabDone/collabTotal)*100*0.5*0.1):0; // tối đa ~5đ
-      perfScore=Math.max(0,Math.min(100,Math.round(timeliness+quality-penalty+workloadBonus+collabBonus)));
-      // Lưu chi tiết để hiển thị "Vì sao điểm này?"
-      breakdown={timeliness:Math.round(timeliness*10)/10,quality:Math.round(quality*10)/10,penalty,workloadBonus,collabBonus};
-    }
-    return{total:et.length,done,onTime,completedLate,over,resolved,completionRate,collabTotal,collabDone,perfScore,eligible,breakdown};
-  };
-  const repEmpData=useMemo(()=>(employees||[]).map(emp=>{
-    const m=calcMonthPerf(emp.id,repYear,repMonth);
-    return{...emp,...m,perfScore:m.perfScore};
-  }).filter(e=>e.total>0).sort((a,b)=>{
-    if(a.eligible!==b.eligible)return a.eligible?-1:1; // người đủ điều kiện hiện trước
-    if(b.perfScore!==a.perfScore)return b.perfScore-a.perfScore;
-    return b.done-a.done; // cùng điểm -> ai hoàn thành nhiều việc hơn xếp trên
-  }),[employees,repYear,repMonth,computed]);
-  const repMonthTrend=useMemo(()=>{const months=[];for(let i=5;i>=0;i--){const d=new Date(repYear,repMonth-i,1);const m=d.getMonth(),y=d.getFullYear();const mt=computed.filter(t=>{const td=new Date(t.deadline);return td.getFullYear()===y&&td.getMonth()===m;});months.push({name:`T${m+1}`,done:mt.filter(t=>isCompletedStatus(t.status)).length,total:mt.length});}return months;},[computed,repYear,repMonth]);
-  const leaderboard=useMemo(()=>(employees||[]).map(emp=>{
-    const monthly=[...Array(12)].map((_,m)=>calcMonthPerf(emp.id,rankYear,m));
-    const eligibleMonths=monthly.filter(m=>m.eligible);
-    const total=monthly.reduce((s,m)=>s+m.total,0);
-    const done=monthly.reduce((s,m)=>s+m.done,0);
-    const over=monthly.reduce((s,m)=>s+(m.over||0),0);
-    const completedLate=monthly.reduce((s,m)=>s+(m.completedLate||0),0);
-    const avgScore=eligibleMonths.length?Math.round(eligibleMonths.reduce((s,m)=>s+m.perfScore,0)/eligibleMonths.length):null;
-    const collabTotal=monthly.reduce((s,m)=>s+(m.collabTotal||0),0);
-    const collabDone=monthly.reduce((s,m)=>s+(m.collabDone||0),0);
-    return{...emp,total,done,completedLate,over,collabTotal,collabDone,eligibleMonths:eligibleMonths.length,score:avgScore,rate:total?Math.round(done/total*100):0};
-  }).filter(e=>e.total>0).sort((a,b)=>{
-    const aHas=a.score!==null,bHas=b.score!==null;
-    if(aHas!==bHas)return aHas?-1:1;
-    if(aHas&&bHas&&b.score!==a.score)return b.score-a.score;
-    return b.rate-a.rate;
-  }),[computed,employees,rankYear]);
-  const lateReasonStats=useMemo(()=>{const lt=computed.filter(t=>t.late_reason);const total=lt.length;return LATE_REASONS.map(r=>({...r,count:lt.filter(t=>t.late_reason===r.value).length,pct:total?Math.round(lt.filter(t=>t.late_reason===r.value).length/total*100):0})).filter(r=>r.count>0).sort((a,b)=>b.count-a.count);},[computed]);
-  const overloadedEmps=useMemo(()=>(employees||[]).map(emp=>{const active=computed.filter(t=>t.eid===emp.id&&!isCompletedStatus(t.status));return{...emp,activeCount:active.length};}).filter(e=>e.activeCount>=overloadThreshold),[employees,computed,overloadThreshold]);
-  const notifications=useMemo(()=>computed.filter(t=>t.status==="overdue"||t.status==="nearly_due").sort((a,b)=>(STATUS_ORDER[a.status]??9)-(STATUS_ORDER[b.status]??9)),[computed]);
-  const unratedTasks=useMemo(()=>computed.filter(t=>t.status==="completed"&&!t.rating&&t.created_by_id===currentUser?.id),[computed,currentUser]);
-  const suspiciousTasks=useMemo(()=>canCreate?computed.filter(t=>t.suspicious_completion&&!t.rating):[],[computed,canCreate]);
-  // ── Việc mới giao / việc trễ hạn của TÔI (người được giao) — dùng cho popup khi đăng nhập ──
-  const seenKey=currentUser?`qlcv_seen_${currentUser.username}`:null;
-  const getSeenIds=()=>{if(!seenKey)return[];try{return JSON.parse(localStorage.getItem(seenKey)||"[]");}catch{return[];}};
-  const markSeen=(id)=>{if(!seenKey)return;const s=new Set(getSeenIds());s.add(id);localStorage.setItem(seenKey,JSON.stringify([...s]));};
-  const myAssignedTasks=useMemo(()=>currentUser?.employee_id?computed.filter(t=>t.eid===currentUser.employee_id&&!t.deleted):[],[computed,currentUser]);
-  const myNewTasks=useMemo(()=>{const seen=new Set(getSeenIds());return myAssignedTasks.filter(t=>!seen.has(t.id));},[myAssignedTasks,currentUser]);
-  const myOverdueTasks=useMemo(()=>myAssignedTasks.filter(t=>t.status==="overdue"),[myAssignedTasks]);
-  const myNewTaskIds=useMemo(()=>new Set(myNewTasks.map(t=>t.id)),[myNewTasks]);
   // ── Các bước "Nhiệm vụ khác" đang chờ Tổ trưởng/Tổ phó duyệt ──
   const myPendingApprovals=useMemo(()=>{
     const myEid=currentUser?.employee_id;
@@ -359,7 +180,6 @@ export default function App() {
     return out;
   },[otherTasks,currentUser]);
   useEffect(()=>{if(modal&&seenKey){markSeen(modal.id);}},[modal]);
-  const [loginNotifShown,setLoginNotifShown]=useState(false);
   const [showLoginPopup,setShowLoginPopup]=useState(false);
   useEffect(()=>{
     if(!currentUser||loading||loginNotifShown)return;
@@ -368,11 +188,7 @@ export default function App() {
   },[currentUser,loading,loginNotifShown,myNewTasks.length,myOverdueTasks.length,myPendingApprovals.length]);
   const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length+suspiciousTasks.length+myPendingApprovals.length;
   const activityLog=useMemo(()=>{if(!canSeeAll)return[];const logs=[];(tasks||[]).forEach(t=>{parseJSON(t.history,[]).forEach((h,i)=>{logs.push({id:t.id+"_"+i,task:t.title,action:h.action,by:h.by,at:h.at});});});return logs.sort((a,b)=>{const pa=a.at.split(" ");const pb=b.at.split(" ");const da=pa[1]?pa[1].split("/").reverse().join("")+pa[0]:"";const db=pb[1]?pb[1].split("/").reverse().join("")+pb[0]:"";return db.localeCompare(da);}).slice(0,200);},[tasks,canSeeAll]);
-  const myTrend=useMemo(()=>{if(!currentUser?.employee_id)return[];const months=[];for(let i=5;i>=0;i--){const d=new Date(today.getFullYear(),today.getMonth()-i,1);const m=d.getMonth(),y=d.getFullYear();const mt=computed.filter(t=>{const td=new Date(t.deadline);return td.getFullYear()===y&&td.getMonth()===m&&(t.eid===currentUser.employee_id||parseJSON(t.collab_eids,[]).includes(currentUser.employee_id));});months.push({name:`T${m+1}`,"Hoàn thành":mt.filter(t=>isCompletedStatus(t.status)).length,"Tổng":mt.length});}return months;},[computed,currentUser]);
-  const myTasks=useMemo(()=>{if(!currentUser?.employee_id)return null;const my=computed.filter(t=>t.eid===currentUser.employee_id||parseJSON(t.collab_eids,[]).includes(currentUser.employee_id));const done=my.filter(t=>isCompletedStatus(t.status)).length,over=my.filter(t=>t.status==="overdue").length,completedLate=my.filter(t=>t.status==="completed_late").length,nd=my.filter(t=>t.status==="nearly_due").length,active=my.filter(t=>!isCompletedStatus(t.status));return{total:my.length,done,over,completedLate,nd,rate:my.length?Math.round(done/my.length*100):0,pending:active.sort((a,b)=>(STATUS_ORDER[a.status]??9)-(STATUS_ORDER[b.status]??9)).slice(0,3)};},[computed,currentUser]);
   useEffect(()=>{setPage(1);},[fStatus,fDept,fEid,search,fSort]);
-  const ROLE_RANK={"Trưởng phòng":0,"TP. HCTH":0,"Phó trưởng phòng":1,"Phó phòng":1,"Chuyên viên":2,"Nhân viên":3};
-  const deptEmps=dept=>(employees||[]).filter(e=>e.dept===dept).sort((a,b)=>{const ra=ROLE_RANK[a.role]??2,rb=ROLE_RANK[b.role]??2;if(ra!==rb)return ra-rb;const fa=(a.name||"").trim().split(" ").pop();const fb=(b.name||"").trim().split(" ").pop();const c=fa.localeCompare(fb,"vi");return c!==0?c:(a.name||"").localeCompare(b.name||"","vi");});
   const emptyTaskData=()=>{const dept=availableDepts[0];const first=(employees||[]).find(e=>e.dept===dept);return{title:"",description:"",dept,eid:first?.id||"",prio:"medium",deadline:addDays(today,7),attachments:"[]",progress:0,collab_eids:"[]",collab_note:""};};
   const [rateReminderModal,setRateReminderModal]=useState(false);
   const openCreateTask=()=>{if(unratedTasks.length>0){setRateReminderModal(true);return;}setTaskForm({data:emptyTaskData(),editId:null});};
@@ -382,9 +198,6 @@ export default function App() {
   const changeTaskDept=v=>{const f=(employees||[]).find(e=>e.dept===v);setTaskForm(tf=>({...tf,data:{...tf.data,dept:v,eid:f?f.id:""}}));};
   const toggleCollab=empId=>{const cur=parseJSON(taskForm.data.collab_eids,[]);const next=cur.includes(empId)?cur.filter(i=>i!==empId):[...cur,empId];setTaskForm(f=>({...f,data:{...f.data,collab_eids:JSON.stringify(next)}}));};
   const submitTask=async()=>{const{data,editId}=taskForm;if(!data.title||!data.deadline)return;if(editId)await updateTask(editId,data,"Cập nhật nhiệm vụ");else{const created=await addTask(data);if(created&&pendingDocLink){await supabase.from("documents").update({task_id:created.id}).eq("id",pendingDocLink);showToast("Đã liên kết nhiệm vụ với văn bản");}}setPendingDocLink(null);setTaskForm(null);};
-  const openCreateEmp=dept=>setEmpForm({data:{name:"",dept:dept||"HCTH",role:"Nhân viên"},editId:null});
-  const openEditEmp=emp=>setEmpForm({data:{name:emp.name,dept:emp.dept,role:emp.role},editId:emp.id});
-  const submitEmp=async()=>{const{data,editId}=empForm;if(!data.name.trim())return;if(editId)await updateEmployee(editId,data);else await addEmployee(data);setEmpForm(null);};
   const exportCSV=()=>{const rows=computed.filter(t=>(exStatus==="all"||t.status===exStatus)&&(exDept==="all"||t.dept===exDept));const header=["Tiêu đề","Phòng ban","Nhân viên","Ưu tiên","Hạn chót","Tiến độ","Trạng thái","Đánh giá","Nguyên nhân trễ","Định kỳ","Ngày tạo"];const lines=rows.map(t=>{const emp=getEmp(t.eid);return[`"${(t.title||"").replace(/"/g,'""')}"`,t.dept,`"${emp?.name||""}"`,PRIO[t.prio]?.label,t.deadline,`${t.progress||0}%`,STATUS[t.status]?.label,t.rating?RATING[t.rating]?.label:"",t.late_reason?LATE_REASONS.find(r=>r.value===t.late_reason)?.label:"",t.template_id?"Có":"",t.created||""].join(",");});const csv="\uFEFF"+[header.join(","),...lines].join("\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));const a=document.createElement("a");a.href=url;a.download=`bao-cao-${todayStr}.csv`;a.click();URL.revokeObjectURL(url);setExModal(false);};
   const exportPDF=()=>{const rows=computed.filter(t=>(exStatus==="all"||t.status===exStatus)&&(exDept==="all"||t.dept===exDept));const total=rows.length,done=rows.filter(t=>t.status==="completed").length,over=rows.filter(t=>t.status==="overdue").length,nd=rows.filter(t=>t.status==="nearly_due").length;const rows_html=rows.map(t=>{const emp=getEmp(t.eid);const sc=STATUS[t.status];return`<tr><td>${t.title||""}</td><td>${t.dept}</td><td>${emp?.name||"–"}</td><td>${PRIO[t.prio]?.label||""}</td><td style="color:${t.status==="overdue"?"#b91c1c":"inherit"}">${t.deadline}</td><td>${t.progress||0}%</td><td style="color:${sc?.col}">${sc?.label||""}</td><td>${t.rating?RATING[t.rating]?.label:"–"}</td></tr>`;}).join("");const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Báo cáo nhiệm vụ</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{color:#1e1b4b;font-size:20px;margin-bottom:4px}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}.stats{display:flex;gap:16px;margin-bottom:20px}.stat{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:12px 20px;text-align:center}.stat .val{font-size:26px;font-weight:700;color:#4338ca}.stat .lbl{font-size:12px;color:#6b7280;margin-top:2px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#f1f5f9;padding:8px 10px;text-align:left;border:1px solid #e5e7eb;font-size:12px;color:#374151}td{padding:7px 10px;border:1px solid #e5e7eb}tr:nth-child(even){background:#fafafa}@media print{body{padding:0}button{display:none}}</style></head><body><h1>📋 Báo cáo Nhiệm vụ</h1><div class="meta">Xuất ngày: ${new Date().toLocaleDateString("vi-VN")} · Bộ lọc: ${exStatus==="all"?"Tất cả":STATUS[exStatus]?.label} · Phòng: ${exDept==="all"?"Tất cả":exDept}</div><div class="stats"><div class="stat"><div class="val">${total}</div><div class="lbl">Tổng</div></div><div class="stat"><div class="val" style="color:#15803d">${done}</div><div class="lbl">Hoàn thành</div></div><div class="stat"><div class="val" style="color:#b91c1c">${over}</div><div class="lbl">Quá hạn</div></div><div class="stat"><div class="val" style="color:#92400e">${nd}</div><div class="lbl">Sắp hết hạn</div></div><div class="stat"><div class="val" style="color:#4338ca">${total?Math.round(done/total*100):0}%</div><div class="lbl">Tỷ lệ HT</div></div></div><table><thead><tr><th>Tiêu đề</th><th>Phòng</th><th>Nhân viên</th><th>Ưu tiên</th><th>Hạn chót</th><th>Tiến độ</th><th>Trạng thái</th><th>Đánh giá</th></tr></thead><tbody>${rows_html}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`;const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}setExModal(false);};
 
@@ -499,6 +312,7 @@ export default function App() {
 
         <div style={{flex:1,overflowY:"auto",padding:isMobile?12:20,paddingBottom:isMobile?"72px":20}}>
         <Suspense fallback={<div style={{padding:40,textAlign:"center",color:"#9ca3af",fontSize:13}}>Đang tải…</div>}>
+        <ErrorBoundary key={view} label={navItems.find(n=>n.id===view)?.label||"màn hình này"}>
 
           {/* DASHBOARD */}
           {view==="dashboard"&&(
@@ -507,6 +321,7 @@ export default function App() {
               execDeptSummary={execDeptSummary} stats={stats} deptChart={deptChart}
               myTasks={myTasks} myTrend={myTrend}
               computed={computed} overloadedEmps={overloadedEmps}
+              dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo}
               overloadThreshold={overloadThreshold} setOverloadThreshold={setOverloadThreshold}
               overloadPopup={overloadPopup} setOverloadPopup={setOverloadPopup}
               recurringTemplates={recurringTemplates} setShowRecurring={setShowRecurring}
@@ -522,6 +337,7 @@ export default function App() {
             <TaskList
               isMobile={isMobile} inp={inp}
               search={search} setSearch={setSearch}
+              dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo}
               fStatus={fStatus} setFStatus={setFStatus}
               fDept={fDept} setFDept={setFDept}
               fEid={fEid} setFEid={setFEid}
@@ -635,6 +451,7 @@ export default function App() {
               </div>
             </div>
           )}
+        </ErrorBoundary>
         </Suspense>
       </div>
 
@@ -830,6 +647,7 @@ export default function App() {
       {empForm&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:isMobile?"12px 8px":16}}><div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:380,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}><div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>{empForm.editId?"Chỉnh sửa":"Thêm nhân viên"}</span><button onClick={()=>setEmpForm(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div><div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}><div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Họ và tên *</label><input value={empForm.data.name} onChange={e=>setEmpForm(f=>({...f,data:{...f.data,name:e.target.value}}))} placeholder="Nguyễn Văn A..." style={inp}/></div><div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Phòng ban</label><select value={empForm.data.dept} onChange={e=>setEmpForm(f=>({...f,data:{...f.data,dept:e.target.value}}))} style={inp}>{DEPTS.map(d=><option key={d} value={d}>Phòng {d}</option>)}</select></div><div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Chức vụ</label><select value={empForm.data.role} onChange={e=>setEmpForm(f=>({...f,data:{...f.data,role:e.target.value}}))} style={inp}>{ROLES_EMP.map(r=><option key={r} value={r}>{r}</option>)}</select></div></div><div style={{padding:"12px 18px",borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"flex-end",gap:8}}><button onClick={()=>setEmpForm(null)} style={{padding:"7px 16px",border:"1px solid #d1d5db",borderRadius:7,background:"none",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={submitEmp} disabled={saving} style={{padding:"7px 16px",background:"#0ea5e9",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:13}}>{empForm.editId?"Cập nhật":"Thêm"}</button></div></div></div>)}
 
       {/* Task detail */}
+      <ErrorBoundary key={modal?.id||"no-modal"} label="chi tiết nhiệm vụ">
       <TaskModal
         modal={modal} setModal={setModal}
         isMobile={isMobile} inp={inp}
@@ -849,6 +667,7 @@ export default function App() {
         setForwardModal={setForwardModal} setForwardEid={setForwardEid}
         loadComments={loadComments}
       />
+      </ErrorBoundary>
       {/* User modal */}
       {userModal&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:isMobile?"12px 8px":16}}><div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:560,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}><div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff"}}><span style={{fontWeight:600,fontSize:15}}>🔐 Quản lý tài khoản</span><button onClick={()=>setUserModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div><div style={{padding:18}}><div style={{background:"#f8fafc",borderRadius:10,padding:14,marginBottom:16}}><div style={{fontWeight:500,fontSize:13,marginBottom:10}}>{userEditId?"Chỉnh sửa":"Thêm tài khoản"}</div><div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}><div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Họ tên *</label><input value={userForm.full_name} onChange={e=>setUserForm(f=>({...f,full_name:e.target.value}))} placeholder="Nguyễn Văn A" style={inp}/></div><div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Tên đăng nhập *</label><input value={userForm.username} onChange={e=>setUserForm(f=>({...f,username:e.target.value}))} placeholder="nguyenvana" style={inp}/></div><div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Mật khẩu {userEditId?"(để trống nếu không đổi)":"*"}</label><input value={userForm.password} onChange={e=>setUserForm(f=>({...f,password:e.target.value}))} placeholder={userEditId?"Giữ nguyên...":"••••••"} style={inp}/></div><div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Vai trò</label><select value={userForm.role} onChange={e=>setUserForm(f=>({...f,role:e.target.value}))} style={inp}><option value="admin">Quản trị viên</option><option value="director">Ban Giám đốc</option><option value="manager_hcth">TP. HCTH</option><option value="manager">Trưởng phòng</option><option value="deputy_manager">Phó trưởng phòng</option><option value="staff">Nhân viên</option></select></div><div style={{gridColumn:"span 2"}}><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Liên kết nhân viên</label><select value={userForm.employee_id} onChange={e=>setUserForm(f=>({...f,employee_id:e.target.value}))} style={inp}><option value="">-- Không liên kết --</option>{(employees||[]).map(e=><option key={e.id} value={e.id}>{e.name} ({e.dept} - {e.role})</option>)}</select></div></div><div style={{display:"flex",gap:8,marginTop:10,justifyContent:"flex-end"}}>{userEditId&&<button onClick={()=>{setUserEditId(null);setUserForm({username:"",password:"",full_name:"",role:"staff",employee_id:""});}} style={{padding:"6px 14px",border:"1px solid #d1d5db",borderRadius:7,background:"none",cursor:"pointer",fontSize:12}}>Hủy</button>}<button onClick={submitUser} disabled={saving} style={{padding:"6px 14px",background:"#4f46e5",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:12}}>{userEditId?"Cập nhật":"Thêm"}</button></div></div><div style={{display:"flex",flexDirection:"column",gap:6}}>{users.map(u=>(<div key={u.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",border:"1px solid #e5e7eb",borderRadius:8}}><div><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}><span style={{fontWeight:500,fontSize:13}}>{u.full_name}</span><RoleBadge role={u.role}/></div><div style={{fontSize:12,color:"#9ca3af"}}>@{u.username}{u.employee_id&&` · ${getEmp(u.employee_id)?.name||""}`}</div></div><div style={{display:"flex",gap:6}}><button onClick={()=>resetUserPwd(u)} title="Đặt lại mật khẩu về abc123" style={{padding:"4px 10px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",cursor:"pointer",fontSize:12,color:"#92400e"}}>🔑</button><button onClick={()=>{setUserEditId(u.id);setUserForm({username:u.username,password:"",full_name:u.full_name,role:u.role,employee_id:u.employee_id||""});}} style={{padding:"4px 10px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:12}}>✏️</button>{u.id!=="admin001"&&<button onClick={()=>deleteUser(u.id)} style={{padding:"4px 10px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:12,color:"#dc2626"}}>🗑️</button>}</div></div>))}</div></div></div></div>)}
 

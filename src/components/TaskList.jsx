@@ -5,6 +5,7 @@ import { RatingBadge, Chip, PChip } from "./ui";
 export default function TaskList({
   isMobile, inp,
   search, setSearch,
+  dateFrom, setDateFrom, dateTo, setDateTo,
   fStatus, setFStatus,
   fDept, setFDept,
   fEid, setFEid,
@@ -37,6 +38,14 @@ export default function TaskList({
           <option value="urgency">⚡ Ưu tiên</option><option value="deadline_asc">📅 Hạn gần nhất</option><option value="deadline_desc">📅 Hạn xa nhất</option><option value="newest">🆕 Mới nhất</option>
         </select>
         <span style={{ fontSize: 12, color: "#9ca3af" }}>{filtered.length}</span>
+      </div>
+      <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 12px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>📅 Hạn chót:</span>
+        <span style={{ fontSize: 12, color: "#6b7280" }}>Từ ngày</span>
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...inp, width: "auto" }} />
+        <span style={{ fontSize: 12, color: "#6b7280" }}>Đến ngày</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...inp, width: "auto" }} />
+        {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>✕ Bỏ lọc ngày</button>}
       </div>
 
       {isMobile ? (

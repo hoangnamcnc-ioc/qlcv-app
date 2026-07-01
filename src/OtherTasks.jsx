@@ -197,10 +197,13 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
   const [form,setForm]=useState(null);
   const [detail,setDetail]=useState(null);
   const [saving,setSaving]=useState(false);
+  const [dateFrom,setDateFrom]=useState(""); const [dateTo,setDateTo]=useState("");
 
   const canManage=["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role);
 
   const taskStatus=(t)=>{const steps=parseJSON(t.steps,[]);if(steps.length===0)return"pending";const done=steps.filter(s=>s.status==="done").length;if(countOverdueSteps(steps)>0)return"overdue";if(done===steps.length)return"done";return"doing";};
+
+  const filteredTasks=useMemo(()=>tasks.filter(t=>{if(dateFrom&&(!t.created||t.created<dateFrom))return false;if(dateTo&&(!t.created||t.created>dateTo))return false;return true;}),[tasks,dateFrom,dateTo]);
 
   useEffect(()=>{
     if(tasksData){setLoading(false);return;} // đã có dữ liệu từ App.jsx
@@ -232,12 +235,20 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
 
   return (<div style={{display:"flex",flexDirection:"column",gap:14}}>
     <div style={{display:"flex",justifyContent:"flex-end"}}>{canManage&&<button onClick={openCreate} style={{background:"#059669",color:"#fff",border:"none",borderRadius:8,padding:isMobile?"6px 12px":"7px 16px",fontSize:isMobile?12:13,cursor:"pointer",fontWeight:500}}>+ Nhiệm vụ khác</button>}</div>
+    <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 12px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+      <span style={{fontSize:12,color:"#6b7280",fontWeight:500}}>📅 Ngày tạo:</span>
+      <span style={{fontSize:12,color:"#6b7280"}}>Từ ngày</span>
+      <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
+      <span style={{fontSize:12,color:"#6b7280"}}>Đến ngày</span>
+      <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
+      {(dateFrom||dateTo)&&<button onClick={()=>{setDateFrom("");setDateTo("");}} style={{padding:"5px 10px",border:"1px solid #d1d5db",borderRadius:7,background:"#f9fafb",cursor:"pointer",fontSize:12,color:"#6b7280"}}>✕ Bỏ lọc ngày</button>}
+    </div>
 
-    {loading?(<div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>Đang tải…</div>):tasks.length===0?(
-      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:40,textAlign:"center",color:"#9ca3af"}}><div style={{fontSize:40,marginBottom:8}}>📌</div><div style={{fontSize:14,marginBottom:4}}>Chưa có nhiệm vụ nào</div>{canManage&&<div style={{fontSize:12}}>Bấm "+ Nhiệm vụ khác" ở góc trên để tạo mới</div>}</div>
+    {loading?(<div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>Đang tải…</div>):filteredTasks.length===0?(
+      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:40,textAlign:"center",color:"#9ca3af"}}><div style={{fontSize:40,marginBottom:8}}>📌</div><div style={{fontSize:14,marginBottom:4}}>{tasks.length===0?"Chưa có nhiệm vụ nào":"Không có nhiệm vụ trong khoảng thời gian này"}</div>{canManage&&tasks.length===0&&<div style={{fontSize:12}}>Bấm "+ Nhiệm vụ khác" ở góc trên để tạo mới</div>}</div>
     ):(
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(2,1fr)",gap:12}}>
-        {tasks.map(t=>{
+        {filteredTasks.map(t=>{
           const steps=parseJSON(t.steps,[]);
           const team=parseJSON(t.team,[]);
           const doneSteps=steps.filter(s=>s.status==="done").length;

@@ -288,6 +288,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
   const [projDetail,setProjDetail]=useState(null);
   const [showReport,setShowReport]=useState(false);
   const [statusFilter,setStatusFilter]=useState(null);
+  const [dateFrom,setDateFrom]=useState(""); const [dateTo,setDateTo]=useState("");
   const [saving,setSaving]=useState(false);
   const [loading,setLoading]=useState(true);
 
@@ -298,7 +299,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
   const invStats=useMemo(()=>({budget:projects.reduce((s,p)=>s+(Number(p.total_budget)||0),0),spent:projects.reduce((s,p)=>s+(Number(p.spent)||0),0)}),[projects]);
   const projStatus=(p)=>{const steps=parseJSON(p.steps,[]);if(steps.length===0)return"pending";const done=steps.filter(s=>s.status==="done").length;if(countOverdueSteps(steps)>0)return"overdue";if(done===steps.length)return"done";return"doing";};
   const statusCounts=useMemo(()=>{let done=0,doing=0,overdue=0;projects.forEach(p=>{const st=projStatus(p);if(st==="done")done++;else if(st==="overdue")overdue++;else doing++;});return{done,doing,overdue};},[projects]);
-  const filteredProjects=useMemo(()=>statusFilter?projects.filter(p=>projStatus(p)===statusFilter):projects,[projects,statusFilter]);
+  const filteredProjects=useMemo(()=>projects.filter(p=>{if(statusFilter&&projStatus(p)!==statusFilter)return false;if(dateFrom&&(!p.deadline||p.deadline<dateFrom))return false;if(dateTo&&(!p.deadline||p.deadline>dateTo))return false;return true;}),[projects,statusFilter,dateFrom,dateTo]);
   const reportRows=useMemo(()=>projects.map(p=>{const steps=parseJSON(p.steps,[]);const done=steps.filter(s=>s.status==="done").length;const doing=steps.filter(s=>s.status==="doing").length;const pct=steps.length?Math.round(done/steps.length*100):0;const overdue=countOverdueSteps(steps);const budget=Number(p.total_budget)||0;const spent=Number(p.spent)||0;const ld=(users||[]).find(u=>u.id===p.leader_id);const members=parseJSON(p.member_eids,[]).length;const ratedSteps=steps.filter(s=>s.status==="done"&&s.quality);const avgStepQ=ratedSteps.length?Math.round(ratedSteps.reduce((a,s)=>a+s.quality,0)/ratedSteps.length*10)/10:null;return{id:p.id,name:p.name,dept:p.dept,fund:p.fund_source,leader:ld?ld.full_name:"—",lead:getEmp(p.lead_eid)?.name||"—",members,total:steps.length,done,doing,pct,overdue,budget,spent,remain:budget-spent,avgStepQ,projQ:p.quality_rating||null,on_time:p.quality_on_time,on_budget:p.quality_on_budget};}),[projects,users]);
   const reportChart=useMemo(()=>reportRows.map(r=>({name:r.name.length>14?r.name.slice(0,14)+"…":r.name,"Tiến độ":r.pct,"Trễ hạn":r.overdue})),[reportRows]);
   const statusPie=useMemo(()=>{let pending=0,doing=0,done=0,skipped=0;projects.forEach(p=>parseJSON(p.steps,[]).forEach(s=>{if(s.status==="done")done++;else if(s.status==="doing")doing++;else if(s.status==="skipped")skipped++;else pending++;}));return[{name:"Hoàn thành",value:done,fill:"#16a34a"},{name:"Đang làm",value:doing,fill:"#3b82f6"},{name:"Chưa làm",value:pending,fill:"#94a3b8"},{name:"Bỏ qua",value:skipped,fill:"#d1d5db"}].filter(x=>x.value>0);},[projects]);
@@ -316,6 +317,14 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
 
   return (<div style={{display:"flex",flexDirection:"column",gap:14}}>
     <div style={{display:"flex",justifyContent:"flex-end",gap:8}}><button onClick={()=>setShowReport(true)} style={{background:"#fff",color:"#1d4ed8",border:"1px solid #bfdbfe",borderRadius:8,padding:isMobile?"6px 12px":"7px 16px",fontSize:isMobile?12:13,cursor:"pointer",fontWeight:500}}>📊 Báo cáo</button>{canManageInvest&&<button onClick={openCreate} style={{background:"#059669",color:"#fff",border:"none",borderRadius:8,padding:isMobile?"6px 12px":"7px 16px",fontSize:isMobile?12:13,cursor:"pointer",fontWeight:500}}>+ Nhiệm vụ ngân sách</button>}</div>
+    <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 12px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+      <span style={{fontSize:12,color:"#6b7280",fontWeight:500}}>📅 Hạn hoàn thành:</span>
+      <span style={{fontSize:12,color:"#6b7280"}}>Từ ngày</span>
+      <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
+      <span style={{fontSize:12,color:"#6b7280"}}>Đến ngày</span>
+      <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
+      {(dateFrom||dateTo)&&<button onClick={()=>{setDateFrom("");setDateTo("");}} style={{padding:"5px 10px",border:"1px solid #d1d5db",borderRadius:7,background:"#f9fafb",cursor:"pointer",fontSize:12,color:"#6b7280"}}>✕ Bỏ lọc ngày</button>}
+    </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:10}}>
       <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:14}}><div style={{fontSize:11,color:"#6b7280"}}>Số dự án</div><div style={{fontSize:22,fontWeight:700,color:"#059669"}}>{projects.length}</div></div>
       <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:14}}><div style={{fontSize:11,color:"#6b7280"}}>Tổng mức ĐT</div><div style={{fontSize:16,fontWeight:700,color:"#1e40af"}}>{fmtMoney(invStats.budget)}</div></div>
