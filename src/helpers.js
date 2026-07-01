@@ -13,3 +13,10 @@ export const parseJSON = (v, d = []) => { try { return JSON.parse(v || JSON.stri
 export const hashPwd = async (pwd) => { const enc = new TextEncoder().encode(pwd); const buf = await crypto.subtle.digest("SHA-256", enc); return "h$" + Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join(""); };
 export const isHashed = (s) => typeof s === "string" && s.startsWith("h$");
 export const getFileIcon = n => { const e = n.split(".").pop().toLowerCase(); if (["jpg","jpeg","png","gif"].includes(e)) return "🖼️"; if (e === "pdf") return "📄"; if (["doc","docx"].includes(e)) return "📝"; if (["xls","xlsx"].includes(e)) return "📊"; return "📎"; };
+// Supabase Storage từ chối key chứa dấu tiếng Việt/ký tự đặc biệt ("InvalidKey").
+// Chỉ dùng để đặt tên file lưu trữ — tên hiển thị cho người dùng vẫn giữ nguyên (file.name gốc).
+export const sanitizeFileName = n => n
+  .normalize("NFD").replace(/[̀-ͯ]/g, "") // bỏ dấu (á,à,ả...)
+  .replace(/[đĐ]/g, m => m === "đ" ? "d" : "D")      // NFD không tách được đ/Đ
+  .replace(/[^a-zA-Z0-9._-]/g, "_")                  // ký tự lạ khác -> _
+  .replace(/_+/g, "_");

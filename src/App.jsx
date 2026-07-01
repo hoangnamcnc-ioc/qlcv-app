@@ -9,7 +9,7 @@ const DutySchedule = lazy(()=>import("./DutySchedule"));
 const Feedback = lazy(()=>import("./Feedback"));
 const Documents = lazy(()=>import("./Documents"));
 import { DEPTS, DEPT_COLOR, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
-import { addDays, today, todayStr, nowStr, getNextDate, isCompletedLateByDate, getStatus, isCompletedStatus, isLateStatus, parseJSON, hashPwd, getFileIcon } from "./helpers";
+import { addDays, today, todayStr, nowStr, getNextDate, isCompletedLateByDate, getStatus, isCompletedStatus, isLateStatus, parseJSON, hashPwd, getFileIcon, sanitizeFileName } from "./helpers";
 import { ProgressBar, RoleBadge, RatingBadge, Chip, PChip } from "./components/ui";
 import ErrorBoundary from "./components/ErrorBoundary";
 import useTasks from "./hooks/useTasks";
@@ -118,7 +118,7 @@ export default function App() {
 
   const loadComments=async id=>{setCommentLoading(true);const{data}=await supabase.from("comments").select("*").eq("task_id",id).order("created_at");setComments(p=>({...p,[id]:data||[]}));setCommentLoading(false);};
   const addComment=async id=>{if(!commentText.trim()&&commentFiles.length===0)return;const c={id:`c${Date.now()}`,task_id:id,user_name:currentUser.full_name,content:commentText.trim(),attachments:JSON.stringify(commentFiles),created_at:nowStr()};await supabase.from("comments").insert(c);setComments(p=>({...p,[id]:[...(p[id]||[]),c]}));const task=tasks.find(t=>t.id===id);if(task){const h=parseJSON(task.history,[]);h.push({action:`Bình luận: "${commentText.trim()||"(đính kèm file)"}"`,by:currentUser.full_name,at:nowStr()});await supabase.from("tasks").update({history:JSON.stringify(h)}).eq("id",id);setTasks(p=>p.map(t=>t.id===id?{...t,history:JSON.stringify(h)}:t));}setCommentText("");setCommentFiles([]);};
-  const uploadFiles=async(files,existing=[])=>{setUploadingFiles(true);const results=[...existing];for(const file of files){const fn=`${Date.now()}_${file.name.replace(/\s/g,"_")}`;const{error}=await supabase.storage.from("attachments").upload(fn,file);if(!error){const{data:{publicUrl}}=supabase.storage.from("attachments").getPublicUrl(fn);results.push({name:file.name,url:publicUrl});}else showToast(`Lỗi upload: ${file.name}`,"error");}setUploadingFiles(false);return results;};
+  const uploadFiles=async(files,existing=[])=>{setUploadingFiles(true);const results=[...existing];for(const file of files){const fn=`${Date.now()}_${sanitizeFileName(file.name)}`;const{error}=await supabase.storage.from("attachments").upload(fn,file);if(!error){const{data:{publicUrl}}=supabase.storage.from("attachments").getPublicUrl(fn);results.push({name:file.name,url:publicUrl});}else{console.error("Lỗi upload:",file.name,error);showToast(`Lỗi upload "${file.name}": ${error.message||"không rõ nguyên nhân"}`,"error");}}setUploadingFiles(false);return results;};
   // ── Nhân viên & tài khoản đăng nhập ──
   const {
     addEmployee, updateEmployee, deleteEmployee,
