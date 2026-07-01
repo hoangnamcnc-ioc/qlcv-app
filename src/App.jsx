@@ -4,6 +4,7 @@ import LOGO from "./logo.jpg";
 // Code-split: các view ít dùng chỉ tải khi mở (giảm dung lượng tải lần đầu)
 const Investment = lazy(()=>import("./Investment"));
 const OtherTasks = lazy(()=>import("./OtherTasks"));
+const HelpGuide = lazy(()=>import("./HelpGuide"));
 const DutySchedule = lazy(()=>import("./DutySchedule"));
 const Feedback = lazy(()=>import("./Feedback"));
 const Documents = lazy(()=>import("./Documents"));
@@ -81,6 +82,7 @@ export default function App() {
   // ── Ghi chú hoàn thành ──
   const [completionNoteModal,setCompletionNoteModal]=useState(null);
   const [completionNote,setCompletionNote]=useState("");
+  const [completionFiles,setCompletionFiles]=useState([]);
 
   const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),3000);};
 
@@ -183,14 +185,14 @@ export default function App() {
     }
     if(t.completion_requested){showToast("Nhiệm vụ đang chờ duyệt hoàn thành","error");return;}
     if(st==="overdue"&&!t.late_reason){showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi yêu cầu hoàn thành.","error");setModal({...t,status:"overdue"});return;}
-    setCompletionNoteModal(t);setCompletionNote("");
+    setCompletionNoteModal(t);setCompletionNote("");setCompletionFiles(parseJSON(t.attachments,[]));
   };
   const confirmCompletion=async(task)=>{
     if(!completionNote||completionNote.trim().length<20){showToast("Vui lòng mô tả kết quả (ít nhất 20 ký tự)","error");return;}
     const suspicious=isSuspiciousCompletion(task);
-    await updateTask(task.id,{completion_requested:true,requested_by:currentUser.full_name,requested_at:nowStr(),progress:100,completion_note:completionNote.trim(),suspicious_completion:suspicious},`Yêu cầu duyệt hoàn thành: "${completionNote.trim().slice(0,50)}"`);
+    await updateTask(task.id,{completion_requested:true,requested_by:currentUser.full_name,requested_at:nowStr(),progress:100,completion_note:completionNote.trim(),suspicious_completion:suspicious,attachments:JSON.stringify(completionFiles)},`Yêu cầu duyệt hoàn thành: "${completionNote.trim().slice(0,50)}"`);
     showToast(suspicious?"⚠️ Yêu cầu hoàn thành đột ngột — trưởng phòng sẽ thấy cảnh báo":"Đã gửi yêu cầu duyệt hoàn thành","success");
-    setCompletionNoteModal(null);setCompletionNote("");
+    setCompletionNoteModal(null);setCompletionNote("");setCompletionFiles([]);
   };
   // ── Duyệt yêu cầu hoàn thành + đánh giá (TP/PP/BGĐ) ──
   const [approveModal,setApproveModal]=useState(null); // task đang chờ duyệt
@@ -387,7 +389,7 @@ export default function App() {
   const exportPDF=()=>{const rows=computed.filter(t=>(exStatus==="all"||t.status===exStatus)&&(exDept==="all"||t.dept===exDept));const total=rows.length,done=rows.filter(t=>t.status==="completed").length,over=rows.filter(t=>t.status==="overdue").length,nd=rows.filter(t=>t.status==="nearly_due").length;const rows_html=rows.map(t=>{const emp=getEmp(t.eid);const sc=STATUS[t.status];return`<tr><td>${t.title||""}</td><td>${t.dept}</td><td>${emp?.name||"–"}</td><td>${PRIO[t.prio]?.label||""}</td><td style="color:${t.status==="overdue"?"#b91c1c":"inherit"}">${t.deadline}</td><td>${t.progress||0}%</td><td style="color:${sc?.col}">${sc?.label||""}</td><td>${t.rating?RATING[t.rating]?.label:"–"}</td></tr>`;}).join("");const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Báo cáo nhiệm vụ</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{color:#1e1b4b;font-size:20px;margin-bottom:4px}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}.stats{display:flex;gap:16px;margin-bottom:20px}.stat{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:12px 20px;text-align:center}.stat .val{font-size:26px;font-weight:700;color:#4338ca}.stat .lbl{font-size:12px;color:#6b7280;margin-top:2px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#f1f5f9;padding:8px 10px;text-align:left;border:1px solid #e5e7eb;font-size:12px;color:#374151}td{padding:7px 10px;border:1px solid #e5e7eb}tr:nth-child(even){background:#fafafa}@media print{body{padding:0}button{display:none}}</style></head><body><h1>📋 Báo cáo Nhiệm vụ</h1><div class="meta">Xuất ngày: ${new Date().toLocaleDateString("vi-VN")} · Bộ lọc: ${exStatus==="all"?"Tất cả":STATUS[exStatus]?.label} · Phòng: ${exDept==="all"?"Tất cả":exDept}</div><div class="stats"><div class="stat"><div class="val">${total}</div><div class="lbl">Tổng</div></div><div class="stat"><div class="val" style="color:#15803d">${done}</div><div class="lbl">Hoàn thành</div></div><div class="stat"><div class="val" style="color:#b91c1c">${over}</div><div class="lbl">Quá hạn</div></div><div class="stat"><div class="val" style="color:#92400e">${nd}</div><div class="lbl">Sắp hết hạn</div></div><div class="stat"><div class="val" style="color:#4338ca">${total?Math.round(done/total*100):0}%</div><div class="lbl">Tỷ lệ HT</div></div></div><table><thead><tr><th>Tiêu đề</th><th>Phòng</th><th>Nhân viên</th><th>Ưu tiên</th><th>Hạn chót</th><th>Tiến độ</th><th>Trạng thái</th><th>Đánh giá</th></tr></thead><tbody>${rows_html}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`;const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}setExModal(false);};
 
   const inp={padding:"7px 10px",border:"1px solid #d1d5db",borderRadius:7,fontSize:13,background:"#fff",color:"#111",width:"100%",boxSizing:"border-box"};
-  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"othertasks",icon:"📌",label:"Nhiệm vụ khác"},{id:"calendar",icon:"🗓️",label:"Lịch trực"},{id:"documents",icon:"📁",label:"Văn bản"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
+  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"othertasks",icon:"📌",label:"Nhiệm vụ khác"},{id:"calendar",icon:"🗓️",label:"Lịch trực"},{id:"documents",icon:"📁",label:"Văn bản"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
 
   if(!currentUser)return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f0f4ff",fontFamily:"system-ui,sans-serif",padding:16}}>
@@ -536,7 +538,7 @@ export default function App() {
               quickProgress={quickProgress} setQuickProgress={setQuickProgress}
               updateTask={updateTask}
               myNewTaskIds={myNewTaskIds}
-              onCompleteRequest={t=>{setCompletionNoteModal(t);setCompletionNote("");}}
+              onCompleteRequest={t=>{setCompletionNoteModal(t);setCompletionNote("");setCompletionFiles(parseJSON(t.attachments,[]));}}
               openApproveModal={openApproveModal} rejectCompletionRequest={rejectCompletionRequest}
             />
           )}
@@ -602,6 +604,9 @@ export default function App() {
           )}
           {view==="feedback"&&(
             <Feedback currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director"].includes(currentUser?.role)}/>
+          )}
+          {view==="help"&&(
+            <HelpGuide isMobile={isMobile}/>
           )}
           {view==="documents"&&(
             <Documents currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role)} tasks={tasks} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} onOpenTask={(t)=>{setView("tasks");setModal(t);loadComments(t.id);}} onCreateTask={openCreateTaskFromDoc}/>
@@ -674,6 +679,14 @@ export default function App() {
                 <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Mô tả kết quả công việc <span style={{color:"#dc2626"}}>*</span></label>
                 <textarea value={completionNote} onChange={e=>setCompletionNote(e.target.value)} placeholder="Mô tả những gì đã hoàn thành, kết quả đạt được... (ít nhất 20 ký tự)" rows={4} style={{width:"100%",padding:"8px 10px",border:"1px solid #d1d5db",borderRadius:8,fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit"}}/>
                 <div style={{fontSize:11,color:completionNote.length<20?"#dc2626":"#15803d",marginTop:4}}>{completionNote.length}/20 ký tự tối thiểu</div>
+              </div>
+              <div>
+                <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>📎 File minh chứng (không bắt buộc)</label>
+                <label style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",border:"1.5px dashed #d1d5db",borderRadius:8,cursor:"pointer",background:"#f9fafb",fontSize:13,color:"#6b7280"}}>
+                  <span>🗂️</span><span>{uploadingFiles?"Đang upload...":"Chọn file… (chọn được nhiều file cùng lúc)"}</span>
+                  <input type="file" multiple style={{display:"none"}} disabled={uploadingFiles} onChange={async e=>{const files=Array.from(e.target.files);if(!files.length)return;const up=await uploadFiles(files,completionFiles);setCompletionFiles(up);e.target.value="";}}/>
+                </label>
+                {completionFiles.length>0&&<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:4}}>{completionFiles.map((f,i)=>(<div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:"#f1f5f9",borderRadius:6,fontSize:12}}><span>{getFileIcon(f.name)} {f.name}</span><button onClick={()=>setCompletionFiles(p=>p.filter((_,idx)=>idx!==i))} style={{background:"none",border:"none",cursor:"pointer",color:"#dc2626",fontSize:14}}>✕</button></div>))}</div>}
               </div>
               <div style={{display:"flex",gap:8}}>
                 <button onClick={()=>setCompletionNoteModal(null)} style={{flex:1,padding:10,border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>Hủy</button>
