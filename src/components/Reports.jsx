@@ -10,8 +10,10 @@ export default function Reports({
   repStats, repTasks, repDeptData, repEmpData, repMonthTrend,
   leaderboard,
   lateReasonStats,
+  getEmp, setModal, loadComments,
 }) {
   const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm
+  const [lateReasonDetail, setLateReasonDetail] = useState(null); // nguyên nhân đang xem danh sách nhiệm vụ
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", gap: 8, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 8 }}>
@@ -200,7 +202,7 @@ export default function Reports({
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12 }}>Phân bố nguyên nhân</div>
             {lateReasonStats.length === 0 ? <div style={{ textAlign: "center", color: "#9ca3af", padding: 24 }}>Chưa có dữ liệu</div> : (
-              <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={lateReasonStats.map(r => ({ name: r.label, value: r.count }))} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`} labelLine={false} style={{ fontSize: 10 }}>{lateReasonStats.map((_, i) => <Cell key={i} fill={["#6366f1","#f59e0b","#10b981","#ef4444","#8b5cf6"][i % 5]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer>
+              <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={lateReasonStats.map(r => ({ name: r.label, value: r.count }))} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`} labelLine={false} style={{ fontSize: 10, cursor: "pointer" }} onClick={(_, i) => setLateReasonDetail(lateReasonStats[i])}>{lateReasonStats.map((_, i) => <Cell key={i} fill={["#6366f1","#f59e0b","#10b981","#ef4444","#8b5cf6"][i % 5]} style={{ cursor: "pointer" }} onClick={() => setLateReasonDetail(lateReasonStats[i])} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer>
             )}
           </div>
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>
@@ -208,8 +210,8 @@ export default function Reports({
             {lateReasonStats.length === 0 ? <div style={{ textAlign: "center", color: "#9ca3af", padding: 24 }}>Chưa có dữ liệu</div> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {lateReasonStats.map((r, i) => (
-                  <div key={r.value}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 13 }}><span>{r.label}</span><span style={{ fontWeight: 600, color: "#4f46e5" }}>{r.count} ({r.pct}%)</span></div>
+                  <div key={r.value} onClick={() => setLateReasonDetail(r)} style={{ cursor: "pointer", padding: 6, margin: -6, borderRadius: 8 }} onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 13 }}><span>{r.label} <span style={{ color: "#9ca3af", fontSize: 11 }}>(bấm để xem việc)</span></span><span style={{ fontWeight: 600, color: "#4f46e5" }}>{r.count} ({r.pct}%)</span></div>
                     <div style={{ height: 8, background: "#e5e7eb", borderRadius: 8, overflow: "hidden" }}><div style={{ height: "100%", width: r.pct + "%", background: ["#6366f1","#f59e0b","#10b981","#ef4444","#8b5cf6"][i % 5], borderRadius: 8 }} /></div>
                   </div>
                 ))}
@@ -256,6 +258,35 @@ export default function Reports({
           </div>
         );
       })()}
+
+      {/* MODAL: Danh sách nhiệm vụ theo nguyên nhân trễ */}
+      {lateReasonDetail && (
+        <div onClick={() => setLateReasonDetail(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: isMobile ? "12px 8px" : 16 }}>
+          <div onClick={ev => ev.stopPropagation()} style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+            <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>{lateReasonDetail.label}</div>
+                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{lateReasonDetail.count} nhiệm vụ ({lateReasonDetail.pct}%)</div>
+              </div>
+              <button onClick={() => setLateReasonDetail(null)} style={{ background: "#f3f4f6", border: "none", cursor: "pointer", fontSize: 16, color: "#374151", width: 28, height: 28, borderRadius: "50%" }}>✕</button>
+            </div>
+            <div style={{ padding: "8px 12px 14px" }}>
+              {(lateReasonDetail.tasks || []).map(t => (
+                <div key={t.id} onClick={() => { setLateReasonDetail(null); setModal(t); loadComments(t.id); }} style={{ padding: "10px 12px", borderRadius: 8, cursor: "pointer", borderBottom: "1px solid #f3f4f6" }} onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 3 }}>{t.title}</div>
+                  <div style={{ fontSize: 11, color: "#6b7280", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ background: DEPT_COLOR[t.dept] + "22", color: DEPT_COLOR[t.dept], padding: "1px 7px", borderRadius: 7 }}>{t.dept}</span>
+                    <span>{getEmp?.(t.eid)?.name || "–"}</span>
+                    <span>📅 Hạn: {t.deadline}</span>
+                    {t.late_note && <span style={{ fontStyle: "italic" }}>"{t.late_note}"</span>}
+                  </div>
+                </div>
+              ))}
+              {(!lateReasonDetail.tasks || lateReasonDetail.tasks.length === 0) && <div style={{ textAlign: "center", color: "#9ca3af", padding: 24, fontSize: 13 }}>Không có nhiệm vụ</div>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

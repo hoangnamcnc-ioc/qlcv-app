@@ -386,6 +386,7 @@ export default function App() {
               repStats={repStats} repTasks={repTasks} repDeptData={repDeptData} repEmpData={repEmpData} repMonthTrend={repMonthTrend}
               leaderboard={leaderboard}
               lateReasonStats={lateReasonStats}
+              getEmp={getEmp} setModal={setModal} loadComments={loadComments}
             />
           )}
 
