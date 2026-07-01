@@ -118,8 +118,8 @@ export default function Dashboard({
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(6,minmax(0,1fr))", gap: isMobile ? 8 : 8 }}>
-        {[{label:"Tổng",val:stats.total,bg:"#eef2ff",col:"#4338ca",key:"total"},{label:"Trong hạn",val:stats.on_time,bg:"#dcfce7",col:"#15803d",key:"on_time"},{label:"Sắp hết hạn",val:stats.nearly_due,bg:"#fef9c3",col:"#92400e",key:"nearly_due"},{label:"Quá hạn",val:stats.overdue,bg:"#fee2e2",col:"#b91c1c",key:"overdue"},{label:"HT quá hạn",val:stats.completed_late,bg:"#fee2e2",col:"#991b1b",key:"completed_late"},{label:"Hoàn thành",val:stats.completed,bg:"#e0e7ff",col:"#4338ca",key:"completed"}].map(c => (
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(7,minmax(0,1fr))", gap: isMobile ? 8 : 8 }}>
+        {[{label:"Tổng",val:stats.total,bg:"#eef2ff",col:"#4338ca",key:"total"},{label:"Trong hạn",val:stats.on_time,bg:"#dcfce7",col:"#15803d",key:"on_time"},{label:"Sắp hết hạn",val:stats.nearly_due,bg:"#fef9c3",col:"#92400e",key:"nearly_due"},{label:"Quá hạn",val:stats.overdue,bg:"#fee2e2",col:"#b91c1c",key:"overdue"},{label:"Chờ duyệt",val:stats.pending_approval,bg:"#fef3c7",col:"#92400e",key:"pending_approval"},{label:"HT quá hạn",val:stats.completed_late,bg:"#fee2e2",col:"#991b1b",key:"completed_late"},{label:"Hoàn thành",val:stats.completed,bg:"#e0e7ff",col:"#4338ca",key:"completed"}].map(c => (
           <div key={c.label} onClick={() => setStatFilter(f => f === c.key ? null : c.key)} style={{ background: c.bg, borderRadius: 9, padding: isMobile ? 10 : "10px 12px", minHeight: isMobile ? 92 : 96, cursor: "pointer", border: "1.5px solid " + (statFilter === c.key ? c.col : "transparent"), transition: "border 0.15s", userSelect: "none", boxSizing: "border-box", overflow: "hidden" }}>
             <div style={{ fontSize: isMobile ? 22 : 24, lineHeight: 1.1, fontWeight: 700, color: c.col }}>{c.val}</div>
             <div style={{ fontSize: isMobile ? 11 : 12, color: c.col, opacity: 0.85, marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</div>
@@ -128,7 +128,7 @@ export default function Dashboard({
         ))}
         {statFilter && (() => {
           const list = statFilter === "total" ? computed : computed.filter(t => t.status === statFilter);
-          const label = { total:"Tất cả",on_time:"Trong hạn",nearly_due:"Sắp hết hạn",overdue:"Quá hạn",completed_late:"Hoàn thành quá hạn",completed:"Hoàn thành" }[statFilter];
+          const label = { total:"Tất cả",on_time:"Trong hạn",nearly_due:"Sắp hết hạn",overdue:"Quá hạn",pending_approval:"Chờ duyệt",completed_late:"Hoàn thành quá hạn",completed:"Hoàn thành" }[statFilter];
           return (
             <div style={{ gridColumn: "1 / -1", background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden", marginTop: 4 }}>
               <div style={{ padding: "10px 14px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -157,11 +157,11 @@ export default function Dashboard({
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
         <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 14 }}>
           <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>Theo phòng ban</div>
-          <ResponsiveContainer width="100%" height={160}><BarChart data={deptChart} barSize={10}><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} allowDecimals={false} /><Tooltip /><Bar dataKey="Trong hạn" fill="#16a34a" radius={[3,3,0,0]} /><Bar dataKey="Sắp hết hạn" fill="#ca8a04" radius={[3,3,0,0]} /><Bar dataKey="Quá hạn" fill="#dc2626" radius={[3,3,0,0]} /><Bar dataKey="HT quá hạn" fill="#991b1b" radius={[3,3,0,0]} /><Bar dataKey="Hoàn thành" fill="#6366f1" radius={[3,3,0,0]} /></BarChart></ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={160}><BarChart data={deptChart} barSize={10}><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} allowDecimals={false} /><Tooltip /><Bar dataKey="Trong hạn" fill="#16a34a" radius={[3,3,0,0]} /><Bar dataKey="Sắp hết hạn" fill="#ca8a04" radius={[3,3,0,0]} /><Bar dataKey="Quá hạn" fill="#dc2626" radius={[3,3,0,0]} /><Bar dataKey="Chờ duyệt" fill="#f59e0b" radius={[3,3,0,0]} /><Bar dataKey="HT quá hạn" fill="#991b1b" radius={[3,3,0,0]} /><Bar dataKey="Hoàn thành" fill="#6366f1" radius={[3,3,0,0]} /></BarChart></ResponsiveContainer>
         </div>
         <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 14 }}>
           <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>Tỷ lệ trạng thái</div>
-          <ResponsiveContainer width="100%" height={160}><PieChart><Pie data={[{name:"Trong hạn",value:stats.on_time},{name:"Sắp hết hạn",value:stats.nearly_due},{name:"Quá hạn",value:stats.overdue},{name:"HT quá hạn",value:stats.completed_late},{name:"Hoàn thành",value:stats.completed}]} cx="50%" cy="50%" outerRadius={65} dataKey="value" label={({name,value}) => value > 0 ? `${name}(${value})` : ""} labelLine={false} style={{ fontSize: 9 }}>{["#16a34a","#ca8a04","#dc2626","#991b1b","#6366f1"].map((c,i) => <Cell key={i} fill={c} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={160}><PieChart><Pie data={[{name:"Trong hạn",value:stats.on_time},{name:"Sắp hết hạn",value:stats.nearly_due},{name:"Quá hạn",value:stats.overdue},{name:"Chờ duyệt",value:stats.pending_approval},{name:"HT quá hạn",value:stats.completed_late},{name:"Hoàn thành",value:stats.completed}]} cx="50%" cy="50%" outerRadius={65} dataKey="value" label={({name,value}) => value > 0 ? `${name}(${value})` : ""} labelLine={false} style={{ fontSize: 9 }}>{["#16a34a","#ca8a04","#dc2626","#f59e0b","#991b1b","#6366f1"].map((c,i) => <Cell key={i} fill={c} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer>
         </div>
       </div>
 

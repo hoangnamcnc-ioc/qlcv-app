@@ -8,12 +8,13 @@ export default function TaskModal({
   isMobile, inp,
   currentUser,
   getEmp,
-  canEditTask, canDeleteTask, canRate, canForward, canSetLateReason,
+  canEditTask, canDeleteTask, canRate, canForward, canSetLateReason, canUpdateProgress,
   canCreate,
   comments, commentText, setCommentText, commentFiles, setCommentFiles, commentLoading,
   addComment, uploadFiles, uploadingFiles,
   updateTask,
   toggleDone,
+  openApproveModal, rejectCompletionRequest,
   rateTask, ratingNote, setRatingNote,
   setLateReasonFn, lateNote, setLateNote,
   openEditTask,
@@ -79,8 +80,24 @@ export default function TaskModal({
           )}
 
           <div style={{ marginBottom: 14 }}>
-            <ProgressBar value={modal.progress || 0} editable={!!(canCreate || currentUser.employee_id === modal.eid || parseJSON(modal.collab_eids, []).includes(currentUser.employee_id))} onChange={async v => { await updateTask(modal.id, { progress: v }, `Cập nhật tiến độ: ${v}%`); setModal(t => ({ ...t, progress: v })); }} />
+            <ProgressBar value={modal.progress || 0} editable={!modal.completed && !modal.completion_requested && !!(canCreate || currentUser.employee_id === modal.eid || parseJSON(modal.collab_eids, []).includes(currentUser.employee_id))} onChange={async v => { if (v === 100) { toggleDone(modal); return; } await updateTask(modal.id, { progress: v }, `Cập nhật tiến độ: ${v}%`); setModal(t => ({ ...t, progress: v })); }} />
           </div>
+
+          {modal.status === "pending_approval" && (
+            <div style={{ marginBottom: 14, padding: "12px 14px", background: "#fffbeb", borderRadius: 10, border: "2px solid #fbbf24" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#92400e", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>📨 Đang chờ duyệt hoàn thành</div>
+              <div style={{ fontSize: 12, color: "#92400e" }}>{modal.requested_by} yêu cầu duyệt lúc {modal.requested_at}</div>
+              {modal.completion_note && <div style={{ fontSize: 12, color: "#78350f", marginTop: 6, fontStyle: "italic", background: "#fef3c7", padding: "6px 10px", borderRadius: 6 }}>"{modal.completion_note}"</div>}
+              {canEditTask(modal) ? (
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button onClick={() => { openApproveModal(modal); setModal(null); }} style={{ flex: 1, padding: "8px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>✅ Duyệt & đánh giá</button>
+                  <button onClick={() => { rejectCompletionRequest(modal); setModal(null); }} style={{ flex: 1, padding: "8px", border: "1px solid #fca5a5", borderRadius: 8, background: "#fff0f0", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>↩ Từ chối</button>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>Chờ Trưởng phòng/Phó phòng/Ban Giám đốc duyệt</div>
+              )}
+            </div>
+          )}
 
           {modal.status === "completed" && !modal.rating && canRate(modal) && (
             <div style={{ marginBottom: 10, padding: "10px 14px", background: "linear-gradient(135deg,#fef9c3,#fde68a)", borderRadius: 10, border: "2px solid #f59e0b", display: "flex", alignItems: "center", gap: 10 }}>
@@ -196,7 +213,8 @@ export default function TaskModal({
 
         <div style={{ padding: "12px 18px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", position: "sticky", bottom: 0, background: "#fff" }}>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => { toggleDone(modal); setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #d1d5db", borderRadius: 7, background: modal.completed ? "#f9fafb" : "#dcfce7", cursor: "pointer", fontSize: 12, color: modal.completed ? "#6b7280" : "#15803d" }}>{modal.completed ? "↩ Bỏ HT" : "✓ Hoàn thành"}</button>
+            {modal.completed && canEditTask(modal) && <button onClick={() => { toggleDone(modal); setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>↩ Bỏ HT</button>}
+            {!modal.completed && !modal.completion_requested && canUpdateProgress(modal) && <button onClick={() => { toggleDone(modal); setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #fbbf24", borderRadius: 7, background: "#fffbeb", cursor: "pointer", fontSize: 12, color: "#92400e", fontWeight: 600 }}>📨 Yêu cầu hoàn thành</button>}
             {canForward(modal) && <button onClick={() => { setForwardModal(modal); setForwardEid(""); setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #93c5fd", borderRadius: 7, background: "#eff6ff", cursor: "pointer", fontSize: 12, color: "#1d4ed8" }}>↪ Chuyển tiếp</button>}
             {canEditTask(modal) && <button onClick={() => { openEditTask(modal); setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12 }}>✏️</button>}
           </div>

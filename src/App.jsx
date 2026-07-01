@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import LOGO from "./logo.jpg";
 // Code-split: các view ít dùng chỉ tải khi mở (giảm dung lượng tải lần đầu)
 const Investment = lazy(()=>import("./Investment"));
+const OtherTasks = lazy(()=>import("./OtherTasks"));
 const DutySchedule = lazy(()=>import("./DutySchedule"));
 const Feedback = lazy(()=>import("./Feedback"));
 const Documents = lazy(()=>import("./Documents"));
@@ -34,6 +35,7 @@ export default function App() {
   const [loginError,setLoginError]=useState(""); const [loginLoading,setLoginLoading]=useState(false);
   const [view,setView]=useState("dashboard");
   const [tasks,setTasks]=useState(null); const [employees,setEmployees]=useState(null);
+  const [otherTasks,setOtherTasks]=useState([]);
   const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false);
   const [modal,setModal]=useState(null); const [taskForm,setTaskForm]=useState(null);
   const [empForm,setEmpForm]=useState(null); const [empDeptTab,setEmpDeptTab]=useState("HCTH");
@@ -127,9 +129,9 @@ export default function App() {
     (async()=>{
       setLoading(true);
       try{
-        const[{data:ed},{data:td},{data:ud},{data:rtd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title")]);
+        const[{data:ed},{data:td},{data:ud},{data:rtd},{data:otd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false})]);
         if(!ed||ed.length===0){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}else setEmployees(ed);
-        setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);
+        setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);
       }catch{showToast("Lỗi kết nối database","error");setEmployees(DEFAULT_EMPLOYEES);setTasks([]);}
       setLoading(false);
     })();
@@ -171,21 +173,41 @@ export default function App() {
     const hoursLeft=(dl-new Date())/3600000;
     return hoursLeft>=0&&hoursLeft<=24;
   };
+  // ── Nhân viên không tự hoàn thành được nữa: bấm "Yêu cầu hoàn thành" → chờ duyệt → TP/PP/BGĐ duyệt + đánh giá ──
   const toggleDone=t=>{
     const st=t.status||getStatus(t);
-    if(!t.completed){
-      if(st==="overdue"&&!t.late_reason){showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi hoàn thành.","error");setModal({...t,status:"overdue"});return;}
-      setCompletionNoteModal(t);setCompletionNote("");
-    }else{
-      updateTask(t.id,{completed:false,progress:t.progress>=100?90:t.progress,completed_at:null,rating:"",rating_note:"",rated_by:"",rated_at:"",completion_note:"",suspicious_completion:false},"Bỏ hoàn thành");
+    if(t.completed){
+      if(!canEditTask(t)){showToast("Chỉ Trưởng phòng/Phó phòng/Ban Giám đốc mới được bỏ hoàn thành","error");return;}
+      updateTask(t.id,{completed:false,completion_requested:false,progress:t.progress>=100?90:t.progress,completed_at:null,rating:"",rating_note:"",rated_by:"",rated_at:"",completion_note:"",suspicious_completion:false},"Bỏ hoàn thành");
+      return;
     }
+    if(t.completion_requested){showToast("Nhiệm vụ đang chờ duyệt hoàn thành","error");return;}
+    if(st==="overdue"&&!t.late_reason){showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi yêu cầu hoàn thành.","error");setModal({...t,status:"overdue"});return;}
+    setCompletionNoteModal(t);setCompletionNote("");
   };
   const confirmCompletion=async(task)=>{
     if(!completionNote||completionNote.trim().length<20){showToast("Vui lòng mô tả kết quả (ít nhất 20 ký tự)","error");return;}
     const suspicious=isSuspiciousCompletion(task);
-    await updateTask(task.id,{completed:true,progress:100,completed_at:task.completed_at||new Date().toISOString(),completion_note:completionNote.trim(),suspicious_completion:suspicious},`Hoàn thành: "${completionNote.trim().slice(0,50)}"`);
-    if(suspicious)showToast("⚠️ Hoàn thành đột ngột — trưởng phòng sẽ thấy cảnh báo","error");
+    await updateTask(task.id,{completion_requested:true,requested_by:currentUser.full_name,requested_at:nowStr(),progress:100,completion_note:completionNote.trim(),suspicious_completion:suspicious},`Yêu cầu duyệt hoàn thành: "${completionNote.trim().slice(0,50)}"`);
+    showToast(suspicious?"⚠️ Yêu cầu hoàn thành đột ngột — trưởng phòng sẽ thấy cảnh báo":"Đã gửi yêu cầu duyệt hoàn thành","success");
     setCompletionNoteModal(null);setCompletionNote("");
+  };
+  // ── Duyệt yêu cầu hoàn thành + đánh giá (TP/PP/BGĐ) ──
+  const [approveModal,setApproveModal]=useState(null); // task đang chờ duyệt
+  const [approveRating,setApproveRating]=useState("");
+  const [approveNote,setApproveNote]=useState("");
+  const openApproveModal=t=>{setApproveModal(t);setApproveRating("");setApproveNote("");};
+  const confirmApproveCompletion=async()=>{
+    if(!approveRating){showToast("Vui lòng chọn mức đánh giá","error");return;}
+    const task=approveModal;
+    await updateTask(task.id,{completed:true,completion_requested:false,completed_at:task.completed_at||new Date().toISOString(),rating:approveRating,rating_note:approveNote,rated_by:currentUser.full_name,rated_at:nowStr()},`Duyệt hoàn thành & đánh giá: ${RATING[approveRating]?.label}`);
+    showToast("Đã duyệt hoàn thành nhiệm vụ");
+    setApproveModal(null);setApproveRating("");setApproveNote("");
+  };
+  const rejectCompletionRequest=async(task)=>{
+    if(!window.confirm("Từ chối yêu cầu hoàn thành và trả nhiệm vụ về cho người thực hiện làm lại?"))return;
+    await updateTask(task.id,{completion_requested:false},"Từ chối yêu cầu hoàn thành, yêu cầu làm lại");
+    showToast("Đã từ chối, nhiệm vụ trở lại trạng thái thực hiện");
   };
   const rateTask=async(id,rating)=>{const up={rating,rating_note:ratingNote,rated_by:currentUser.full_name,rated_at:nowStr()};await updateTask(id,up,`Đánh giá: ${RATING[rating]?.label}`);setModal(m=>m?{...m,...up}:m);setRatingNote("");};
   const setLateReasonFn=async(id,reason)=>{const up={late_reason:reason,late_note:lateNote};await updateTask(id,up,`Nguyên nhân trễ: ${LATE_REASONS.find(r=>r.value===reason)?.label||reason}`);setModal(m=>m?{...m,...up}:m);setLateNote("");};
@@ -198,12 +220,13 @@ export default function App() {
   const submitTemplate=async()=>{const{data,editId}=templateForm;if(!data.title||!data.eid)return;setSaving(true);if(editId){await supabase.from("recurring_templates").update(data).eq("id",editId);setRecurringTemplates(p=>p.map(t=>t.id===editId?{...t,...data}:t));}else{const nt={...data,id:`rt${Date.now()}`,created_by:currentUser.full_name,last_created:""};await supabase.from("recurring_templates").insert(nt);setRecurringTemplates(p=>[...p,nt]);}showToast("Đã lưu mẫu định kỳ");setTemplateForm(null);setSaving(false);};
   const deleteTemplate=async id=>{await supabase.from("recurring_templates").delete().eq("id",id);setRecurringTemplates(p=>p.filter(t=>t.id!==id));};
   const toggleTemplate=async(id,active)=>{await supabase.from("recurring_templates").update({active}).eq("id",id);setRecurringTemplates(p=>p.map(t=>t.id===id?{...t,active}:t));showToast(active?"Đã kích hoạt":"Đã tạm dừng");};
+  const getEmp=id=>(employees||[]).find(e=>e.id===id);
 
   const visibleTasks=useMemo(()=>(tasks||[]).filter(t=>!t.deleted&&canSeeTask(t)),[tasks,canSeeTask]);
   const trashedTasks=useMemo(()=>(tasks||[]).filter(t=>t.deleted&&canSeeTask(t)),[tasks,canSeeTask]);
   const computed=useMemo(()=>visibleTasks.map(t=>({...t,status:getStatus(t)})),[visibleTasks]);
-  const stats=useMemo(()=>computed.reduce((a,t)=>{a.total+=1;a[t.status]=(a[t.status]||0)+1;return a;},{total:0,on_time:0,nearly_due:0,overdue:0,completed_late:0,completed:0}),[computed]);
-  const deptChart=useMemo(()=>DEPTS.map(d=>{const dt=computed.filter(t=>t.dept===d);return{name:d,"Trong hạn":dt.filter(t=>t.status==="on_time").length,"Sắp hết hạn":dt.filter(t=>t.status==="nearly_due").length,"Quá hạn":dt.filter(t=>t.status==="overdue").length,"HT quá hạn":dt.filter(t=>t.status==="completed_late").length,"Hoàn thành":dt.filter(t=>t.status==="completed").length};}), [computed]);
+  const stats=useMemo(()=>computed.reduce((a,t)=>{a.total+=1;a[t.status]=(a[t.status]||0)+1;return a;},{total:0,on_time:0,nearly_due:0,overdue:0,pending_approval:0,completed_late:0,completed:0}),[computed]);
+  const deptChart=useMemo(()=>DEPTS.map(d=>{const dt=computed.filter(t=>t.dept===d);return{name:d,"Trong hạn":dt.filter(t=>t.status==="on_time").length,"Sắp hết hạn":dt.filter(t=>t.status==="nearly_due").length,"Quá hạn":dt.filter(t=>t.status==="overdue").length,"Chờ duyệt":dt.filter(t=>t.status==="pending_approval").length,"HT quá hạn":dt.filter(t=>t.status==="completed_late").length,"Hoàn thành":dt.filter(t=>t.status==="completed").length};}), [computed]);
   // ── Tổng hợp điều hành theo phòng ban (cho BGĐ) ──
   const execDeptSummary=useMemo(()=>DEPTS.map(d=>{
     const dt=computed.filter(t=>t.dept===d);
@@ -261,15 +284,15 @@ export default function App() {
     const collabTotal=collabTasks.length;
     let perfScore=0,breakdown=null;
     if(eligible){
-      // ① Điểm thời hạn (tối đa 60)
-      const timeliness=(onTime*60+completedLate*30)/resolved;
+      // ① Điểm thời hạn (tối đa 60) — chưa có việc nào đến hạn xử lý xong thì tạm tính 0, tránh chia cho 0
+      const timeliness=resolved>0?(onTime*60+completedLate*30)/resolved:0;
       // ② Điểm chất lượng (tối đa 40)
       const qualitySum=onTimeTasks.reduce((s,t)=>s+(RATING[t.rating]?RATING[t.rating].score:2),0);
-      const quality=qualitySum/(resolved*4)*40;
+      const quality=resolved>0?qualitySum/(resolved*4)*40:0;
       // ③ Phạt trễ/quá hạn
       const penalty=(over+completedLate)*LATE_COMPLETION_PENALTY;
       // ④ Thưởng khối lượng
-      const workloadBonus=Math.min((resolved-5)*1,10);
+      const workloadBonus=Math.max(0,Math.min((resolved-5)*1,10));
       // ⑤ Điểm phối hợp (×0.5 so với chủ trì)
       const collabBonus=collabTotal>0?Math.round((collabDone/collabTotal)*100*0.5*0.1):0; // tối đa ~5đ
       perfScore=Math.max(0,Math.min(100,Math.round(timeliness+quality-penalty+workloadBonus+collabBonus)));
@@ -317,21 +340,35 @@ export default function App() {
   const myNewTasks=useMemo(()=>{const seen=new Set(getSeenIds());return myAssignedTasks.filter(t=>!seen.has(t.id));},[myAssignedTasks,currentUser]);
   const myOverdueTasks=useMemo(()=>myAssignedTasks.filter(t=>t.status==="overdue"),[myAssignedTasks]);
   const myNewTaskIds=useMemo(()=>new Set(myNewTasks.map(t=>t.id)),[myNewTasks]);
+  // ── Các bước "Nhiệm vụ khác" đang chờ Tổ trưởng/Tổ phó duyệt ──
+  const myPendingApprovals=useMemo(()=>{
+    const myEid=currentUser?.employee_id;
+    if(!myEid)return[];
+    const isAdminLike=["admin","director"].includes(currentUser?.role);
+    const out=[];
+    (otherTasks||[]).forEach(ot=>{
+      const team=parseJSON(ot.team,[]);
+      const isLeaderOrDeputy=team.some(m=>m.eid===myEid&&(m.role==="leader"||m.role==="deputy"));
+      if(!isLeaderOrDeputy&&!isAdminLike)return;
+      parseJSON(ot.steps,[]).forEach((s,idx)=>{
+        if(s.status==="pending_approval")out.push({taskId:ot.id,taskName:ot.name,stepIdx:idx,content:s.content,requested_by:s.requested_by,requested_at:s.requested_at});
+      });
+    });
+    return out;
+  },[otherTasks,currentUser]);
   useEffect(()=>{if(modal&&seenKey){markSeen(modal.id);}},[modal]);
   const [loginNotifShown,setLoginNotifShown]=useState(false);
   const [showLoginPopup,setShowLoginPopup]=useState(false);
   useEffect(()=>{
     if(!currentUser||loading||loginNotifShown)return;
-    if(myNewTasks.length>0||myOverdueTasks.length>0)setShowLoginPopup(true);
+    if(myNewTasks.length>0||myOverdueTasks.length>0||myPendingApprovals.length>0)setShowLoginPopup(true);
     setLoginNotifShown(true);
-  },[currentUser,loading,loginNotifShown,myNewTasks.length,myOverdueTasks.length]);
-  const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length+suspiciousTasks.length;
+  },[currentUser,loading,loginNotifShown,myNewTasks.length,myOverdueTasks.length,myPendingApprovals.length]);
+  const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length+suspiciousTasks.length+myPendingApprovals.length;
   const activityLog=useMemo(()=>{if(!canSeeAll)return[];const logs=[];(tasks||[]).forEach(t=>{parseJSON(t.history,[]).forEach((h,i)=>{logs.push({id:t.id+"_"+i,task:t.title,action:h.action,by:h.by,at:h.at});});});return logs.sort((a,b)=>{const pa=a.at.split(" ");const pb=b.at.split(" ");const da=pa[1]?pa[1].split("/").reverse().join("")+pa[0]:"";const db=pb[1]?pb[1].split("/").reverse().join("")+pb[0]:"";return db.localeCompare(da);}).slice(0,200);},[tasks,canSeeAll]);
   const myTrend=useMemo(()=>{if(!currentUser?.employee_id)return[];const months=[];for(let i=5;i>=0;i--){const d=new Date(today.getFullYear(),today.getMonth()-i,1);const m=d.getMonth(),y=d.getFullYear();const mt=computed.filter(t=>{const td=new Date(t.deadline);return td.getFullYear()===y&&td.getMonth()===m&&(t.eid===currentUser.employee_id||parseJSON(t.collab_eids,[]).includes(currentUser.employee_id));});months.push({name:`T${m+1}`,"Hoàn thành":mt.filter(t=>isCompletedStatus(t.status)).length,"Tổng":mt.length});}return months;},[computed,currentUser]);
   const myTasks=useMemo(()=>{if(!currentUser?.employee_id)return null;const my=computed.filter(t=>t.eid===currentUser.employee_id||parseJSON(t.collab_eids,[]).includes(currentUser.employee_id));const done=my.filter(t=>isCompletedStatus(t.status)).length,over=my.filter(t=>t.status==="overdue").length,completedLate=my.filter(t=>t.status==="completed_late").length,nd=my.filter(t=>t.status==="nearly_due").length,active=my.filter(t=>!isCompletedStatus(t.status));return{total:my.length,done,over,completedLate,nd,rate:my.length?Math.round(done/my.length*100):0,pending:active.sort((a,b)=>(STATUS_ORDER[a.status]??9)-(STATUS_ORDER[b.status]??9)).slice(0,3)};},[computed,currentUser]);
   useEffect(()=>{setPage(1);},[fStatus,fDept,fEid,search,fSort]);
-
-  const getEmp=id=>(employees||[]).find(e=>e.id===id);
   const ROLE_RANK={"Trưởng phòng":0,"TP. HCTH":0,"Phó trưởng phòng":1,"Phó phòng":1,"Chuyên viên":2,"Nhân viên":3};
   const deptEmps=dept=>(employees||[]).filter(e=>e.dept===dept).sort((a,b)=>{const ra=ROLE_RANK[a.role]??2,rb=ROLE_RANK[b.role]??2;if(ra!==rb)return ra-rb;const fa=(a.name||"").trim().split(" ").pop();const fb=(b.name||"").trim().split(" ").pop();const c=fa.localeCompare(fb,"vi");return c!==0?c:(a.name||"").localeCompare(b.name||"","vi");});
   const emptyTaskData=()=>{const dept=availableDepts[0];const first=(employees||[]).find(e=>e.dept===dept);return{title:"",description:"",dept,eid:first?.id||"",prio:"medium",deadline:addDays(today,7),attachments:"[]",progress:0,collab_eids:"[]",collab_note:""};};
@@ -350,7 +387,7 @@ export default function App() {
   const exportPDF=()=>{const rows=computed.filter(t=>(exStatus==="all"||t.status===exStatus)&&(exDept==="all"||t.dept===exDept));const total=rows.length,done=rows.filter(t=>t.status==="completed").length,over=rows.filter(t=>t.status==="overdue").length,nd=rows.filter(t=>t.status==="nearly_due").length;const rows_html=rows.map(t=>{const emp=getEmp(t.eid);const sc=STATUS[t.status];return`<tr><td>${t.title||""}</td><td>${t.dept}</td><td>${emp?.name||"–"}</td><td>${PRIO[t.prio]?.label||""}</td><td style="color:${t.status==="overdue"?"#b91c1c":"inherit"}">${t.deadline}</td><td>${t.progress||0}%</td><td style="color:${sc?.col}">${sc?.label||""}</td><td>${t.rating?RATING[t.rating]?.label:"–"}</td></tr>`;}).join("");const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Báo cáo nhiệm vụ</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{color:#1e1b4b;font-size:20px;margin-bottom:4px}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}.stats{display:flex;gap:16px;margin-bottom:20px}.stat{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:12px 20px;text-align:center}.stat .val{font-size:26px;font-weight:700;color:#4338ca}.stat .lbl{font-size:12px;color:#6b7280;margin-top:2px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#f1f5f9;padding:8px 10px;text-align:left;border:1px solid #e5e7eb;font-size:12px;color:#374151}td{padding:7px 10px;border:1px solid #e5e7eb}tr:nth-child(even){background:#fafafa}@media print{body{padding:0}button{display:none}}</style></head><body><h1>📋 Báo cáo Nhiệm vụ</h1><div class="meta">Xuất ngày: ${new Date().toLocaleDateString("vi-VN")} · Bộ lọc: ${exStatus==="all"?"Tất cả":STATUS[exStatus]?.label} · Phòng: ${exDept==="all"?"Tất cả":exDept}</div><div class="stats"><div class="stat"><div class="val">${total}</div><div class="lbl">Tổng</div></div><div class="stat"><div class="val" style="color:#15803d">${done}</div><div class="lbl">Hoàn thành</div></div><div class="stat"><div class="val" style="color:#b91c1c">${over}</div><div class="lbl">Quá hạn</div></div><div class="stat"><div class="val" style="color:#92400e">${nd}</div><div class="lbl">Sắp hết hạn</div></div><div class="stat"><div class="val" style="color:#4338ca">${total?Math.round(done/total*100):0}%</div><div class="lbl">Tỷ lệ HT</div></div></div><table><thead><tr><th>Tiêu đề</th><th>Phòng</th><th>Nhân viên</th><th>Ưu tiên</th><th>Hạn chót</th><th>Tiến độ</th><th>Trạng thái</th><th>Đánh giá</th></tr></thead><tbody>${rows_html}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`;const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}setExModal(false);};
 
   const inp={padding:"7px 10px",border:"1px solid #d1d5db",borderRadius:7,fontSize:13,background:"#fff",color:"#111",width:"100%",boxSizing:"border-box"};
-  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"calendar",icon:"🗓️",label:"Lịch trực"},{id:"documents",icon:"📁",label:"Văn bản"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
+  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"othertasks",icon:"📌",label:"Nhiệm vụ khác"},{id:"calendar",icon:"🗓️",label:"Lịch trực"},{id:"documents",icon:"📁",label:"Văn bản"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
 
   if(!currentUser)return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f0f4ff",fontFamily:"system-ui,sans-serif",padding:16}}>
@@ -440,6 +477,7 @@ export default function App() {
               </button>
               {showNotif&&<div style={{position:"absolute",top:36,right:0,width:320,maxHeight:420,overflowY:"auto",background:"#fff",border:"1px solid #e5e7eb",borderRadius:12,boxShadow:"0 8px 24px rgba(0,0,0,0.15)",zIndex:100}}>
                 <div style={{padding:"10px 14px",borderBottom:"1px solid #e5e7eb",fontWeight:600,fontSize:13,display:"flex",justifyContent:"space-between"}}><span>🔔 Thông báo ({totalNotif})</span><button onClick={()=>setShowNotif(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#9ca3af"}}>✕</button></div>
+                {myPendingApprovals.length>0&&<div><div style={{padding:"8px 14px",background:"#fffbeb",fontSize:11,fontWeight:600,color:"#92400e",borderBottom:"1px solid #fde68a"}}>📨 CHỜ DUYỆT HOÀN THÀNH ({myPendingApprovals.length})</div>{myPendingApprovals.map((a,i)=><div key={i} onClick={()=>{setView("othertasks");setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#fffef5"}} onMouseEnter={e=>e.currentTarget.style.background="#fffbeb"} onMouseLeave={e=>e.currentTarget.style.background="#fffef5"}><span style={{fontSize:18,flexShrink:0}}>📨</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{a.taskName}</div><div style={{fontSize:11,color:"#92400e"}}>Bước: {a.content} · {a.requested_by} yêu cầu duyệt</div></div></div>)}</div>}
                 {myNewTasks.length>0&&<div><div style={{padding:"8px 14px",background:"#eff6ff",fontSize:11,fontWeight:600,color:"#1d4ed8",borderBottom:"1px solid #bfdbfe"}}>📥 VIỆC MỚI GIAO ({myNewTasks.length})</div>{myNewTasks.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#f8fafc"}} onMouseEnter={e=>e.currentTarget.style.background="#eff6ff"} onMouseLeave={e=>e.currentTarget.style.background="#f8fafc"}><span style={{fontSize:18,flexShrink:0}}>📥</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#1d4ed8"}}>{t.dept} · Hạn: {t.deadline}</div></div></div>)}</div>}
                 {unratedTasks.length>0&&<div><div style={{padding:"8px 14px",background:"#fffbeb",fontSize:11,fontWeight:600,color:"#92400e",borderBottom:"1px solid #fde68a"}}>⭐ CẦN ĐÁNH GIÁ ({unratedTasks.length})</div>{unratedTasks.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#fffef0"}} onMouseEnter={e=>e.currentTarget.style.background="#fef9c3"} onMouseLeave={e=>e.currentTarget.style.background="#fffef0"}><span style={{fontSize:18,flexShrink:0}}>⭐</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#92400e"}}>Hoàn thành — chờ đánh giá · {t.dept}</div></div></div>)}</div>}
                 {suspiciousTasks.length>0&&<div><div style={{padding:"8px 14px",background:"#fff7ed",fontSize:11,fontWeight:600,color:"#c2410c",borderBottom:"1px solid #fed7aa"}}>🚨 HOÀN THÀNH ĐỘT NGỘT — CẦN KIỂM TRA ({suspiciousTasks.length})</div>{suspiciousTasks.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#fff7ed"}} onMouseEnter={e=>e.currentTarget.style.background="#ffedd5"} onMouseLeave={e=>e.currentTarget.style.background="#fff7ed"}><span style={{fontSize:18,flexShrink:0}}>🚨</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#c2410c"}}>{getEmp(t.eid)?.name||"–"} · {t.dept} · Tiến độ thấp → hoàn thành sát deadline</div></div></div>)}</div>}
@@ -499,6 +537,7 @@ export default function App() {
               updateTask={updateTask}
               myNewTaskIds={myNewTaskIds}
               onCompleteRequest={t=>{setCompletionNoteModal(t);setCompletionNote("");}}
+              openApproveModal={openApproveModal} rejectCompletionRequest={rejectCompletionRequest}
             />
           )}
 
@@ -558,6 +597,9 @@ export default function App() {
           {view==="investment"&&(
             <Investment currentUser={currentUser} employees={employees} users={users} getEmp={getEmp} isMobile={isMobile} inp={inp} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} showToast={showToast}/>
           )}
+          {view==="othertasks"&&(
+            <OtherTasks currentUser={currentUser} employees={employees} getEmp={getEmp} isMobile={isMobile} inp={inp} showToast={showToast} tasksData={otherTasks} setTasksData={setOtherTasks}/>
+          )}
           {view==="feedback"&&(
             <Feedback currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director"].includes(currentUser?.role)}/>
           )}
@@ -600,9 +642,13 @@ export default function App() {
             <div style={{fontSize:12,fontWeight:700,color:"#b91c1c",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>🔴 Việc đang trễ hạn ({myOverdueTasks.length})</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>{myOverdueTasks.map(t=><div key={t.id} onClick={()=>{setShowLoginPopup(false);setModal(t);loadComments(t.id);}} style={{padding:"9px 12px",borderRadius:8,background:"#fef2f2",border:"1px solid #fecaca",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#fee2e2"} onMouseLeave={e=>e.currentTarget.style.background="#fef2f2"}><div style={{fontSize:13,fontWeight:500}}>{t.title}</div><div style={{fontSize:11,color:"#b91c1c",marginTop:1}}>Hạn: {t.deadline} · {t.dept}</div></div>)}</div>
           </div>}
-          {myNewTasks.length>0&&<div style={{marginBottom:6}}>
+          {myNewTasks.length>0&&<div style={{marginBottom:14}}>
             <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>📥 Việc mới được giao ({myNewTasks.length})</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>{myNewTasks.map(t=><div key={t.id} onClick={()=>{setShowLoginPopup(false);setModal(t);loadComments(t.id);}} style={{padding:"9px 12px",borderRadius:8,background:"#eff6ff",border:"1px solid #bfdbfe",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#dbeafe"} onMouseLeave={e=>e.currentTarget.style.background="#eff6ff"}><div style={{fontSize:13,fontWeight:500}}>{t.title}</div><div style={{fontSize:11,color:"#1d4ed8",marginTop:1}}>{STATUS[t.status]?.label} · Hạn: {t.deadline} · {t.dept}</div></div>)}</div>
+          </div>}
+          {myPendingApprovals.length>0&&<div style={{marginBottom:6}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#92400e",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>📨 Bước chờ bạn duyệt hoàn thành ({myPendingApprovals.length})</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>{myPendingApprovals.map((a,i)=><div key={i} onClick={()=>{setShowLoginPopup(false);setView("othertasks");}} style={{padding:"9px 12px",borderRadius:8,background:"#fffbeb",border:"1px solid #fde68a",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#fef3c7"} onMouseLeave={e=>e.currentTarget.style.background="#fffbeb"}><div style={{fontSize:13,fontWeight:500}}>{a.taskName}</div><div style={{fontSize:11,color:"#92400e",marginTop:1}}>Bước: {a.content} · {a.requested_by} yêu cầu duyệt</div></div>)}</div>
           </div>}
         </div>
         <div style={{padding:"12px 20px 18px"}}><button onClick={()=>setShowLoginPopup(false)} style={{width:"100%",padding:"10px",border:"none",borderRadius:8,background:"#4f46e5",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:600}}>Đã xem, đóng lại</button></div>
@@ -613,9 +659,10 @@ export default function App() {
         <div onClick={()=>setCompletionNoteModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:460,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
             <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-              <div><div style={{fontWeight:700,fontSize:15}}>✅ Xác nhận hoàn thành</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{completionNoteModal.title}</div></div>
+              <div><div style={{fontWeight:700,fontSize:15}}>📨 Yêu cầu duyệt hoàn thành</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{completionNoteModal.title}</div></div>
               <button onClick={()=>setCompletionNoteModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
             </div>
+            <div style={{margin:"12px 20px 0",padding:"10px 14px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,color:"#1d4ed8"}}>Yêu cầu sẽ được gửi tới Trưởng phòng/Phó phòng/Ban Giám đốc để duyệt và đánh giá. Nhiệm vụ chỉ chính thức "Hoàn thành" sau khi được duyệt.</div>
             {isSuspiciousCompletion(completionNoteModal)&&(
               <div style={{margin:"12px 20px 0",padding:"10px 14px",background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,fontSize:13,color:"#c2410c",display:"flex",gap:8,alignItems:"flex-start"}}>
                 <span style={{fontSize:18,flexShrink:0}}>🚨</span>
@@ -630,8 +677,39 @@ export default function App() {
               </div>
               <div style={{display:"flex",gap:8}}>
                 <button onClick={()=>setCompletionNoteModal(null)} style={{flex:1,padding:10,border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>Hủy</button>
-                <button onClick={()=>confirmCompletion(completionNoteModal)} disabled={completionNote.trim().length<20} style={{flex:2,padding:10,border:"none",borderRadius:8,background:completionNote.trim().length>=20?"#16a34a":"#d1d5db",color:"#fff",cursor:completionNote.trim().length>=20?"pointer":"not-allowed",fontSize:13,fontWeight:600}}>Xác nhận hoàn thành</button>
+                <button onClick={()=>confirmCompletion(completionNoteModal)} disabled={completionNote.trim().length<20} style={{flex:2,padding:10,border:"none",borderRadius:8,background:completionNote.trim().length>=20?"#16a34a":"#d1d5db",color:"#fff",cursor:completionNote.trim().length>=20?"pointer":"not-allowed",fontSize:13,fontWeight:600}}>Gửi yêu cầu duyệt</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── DUYỆT HOÀN THÀNH & ĐÁNH GIÁ (TP/PP/BGĐ) ── */}
+      {approveModal&&(
+        <div onClick={()=>setApproveModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:440,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+            <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div><div style={{fontWeight:700,fontSize:15}}>✅ Duyệt hoàn thành & đánh giá</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{approveModal.title}</div></div>
+              <button onClick={()=>setApproveModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
+            </div>
+            <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+              <div style={{padding:"10px 14px",background:"#f8fafc",borderRadius:8,fontSize:12,color:"#374151"}}>
+                <div style={{marginBottom:4}}><b>{approveModal.requested_by}</b> yêu cầu lúc {approveModal.requested_at}</div>
+                {approveModal.completion_note&&<div style={{fontStyle:"italic",color:"#6b7280"}}>"{approveModal.completion_note}"</div>}
+              </div>
+              <div>
+                <div style={{fontSize:12,color:"#6b7280",marginBottom:8,fontWeight:500}}>Đánh giá kết quả <span style={{color:"#dc2626"}}>*</span></div>
+                <div style={{display:"flex",gap:8}}>
+                  {Object.entries(RATING).map(([key,r])=><button key={key} onClick={()=>setApproveRating(key)} style={{flex:1,padding:"8px 4px",border:"2px solid "+(approveRating===key?r.col:"#e5e7eb"),borderRadius:8,background:approveRating===key?r.bg:"#fff",cursor:"pointer",fontSize:12,fontWeight:approveRating===key?700:400,color:approveRating===key?r.col:"#6b7280",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:17}}>{r.icon}</span>{r.label}</button>)}
+                </div>
+              </div>
+              <div>
+                <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Nhận xét (không bắt buộc)</label>
+                <input value={approveNote} onChange={e=>setApproveNote(e.target.value)} placeholder="Nhận xét về kết quả công việc..." style={inp}/>
+              </div>
+            </div>
+            <div style={{padding:"0 20px 18px",display:"flex",gap:8}}>
+              <button onClick={()=>setApproveModal(null)} style={{flex:1,padding:10,border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>Hủy</button>
+              <button onClick={confirmApproveCompletion} disabled={!approveRating} style={{flex:2,padding:10,border:"none",borderRadius:8,background:approveRating?"#16a34a":"#d1d5db",color:"#fff",cursor:approveRating?"pointer":"not-allowed",fontSize:13,fontWeight:600}}>Xác nhận duyệt hoàn thành</button>
             </div>
           </div>
         </div>
@@ -744,12 +822,13 @@ export default function App() {
         isMobile={isMobile} inp={inp}
         currentUser={currentUser}
         getEmp={getEmp}
-        canEditTask={canEditTask} canDeleteTask={canDeleteTask} canRate={canRate} canForward={canForward} canSetLateReason={canSetLateReason}
+        canEditTask={canEditTask} canDeleteTask={canDeleteTask} canRate={canRate} canForward={canForward} canSetLateReason={canSetLateReason} canUpdateProgress={canUpdateProgress}
         canCreate={canCreate}
         comments={comments} commentText={commentText} setCommentText={setCommentText} commentFiles={commentFiles} setCommentFiles={setCommentFiles} commentLoading={commentLoading}
         addComment={addComment} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles}
         updateTask={updateTask}
         toggleDone={toggleDone}
+        openApproveModal={openApproveModal} rejectCompletionRequest={rejectCompletionRequest}
         rateTask={rateTask} ratingNote={ratingNote} setRatingNote={setRatingNote}
         setLateReasonFn={setLateReasonFn} lateNote={lateNote} setLateNote={setLateNote}
         openEditTask={openEditTask}
@@ -761,7 +840,7 @@ export default function App() {
       {userModal&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:isMobile?"12px 8px":16}}><div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:560,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}><div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff"}}><span style={{fontWeight:600,fontSize:15}}>🔐 Quản lý tài khoản</span><button onClick={()=>setUserModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div><div style={{padding:18}}><div style={{background:"#f8fafc",borderRadius:10,padding:14,marginBottom:16}}><div style={{fontWeight:500,fontSize:13,marginBottom:10}}>{userEditId?"Chỉnh sửa":"Thêm tài khoản"}</div><div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}><div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Họ tên *</label><input value={userForm.full_name} onChange={e=>setUserForm(f=>({...f,full_name:e.target.value}))} placeholder="Nguyễn Văn A" style={inp}/></div><div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Tên đăng nhập *</label><input value={userForm.username} onChange={e=>setUserForm(f=>({...f,username:e.target.value}))} placeholder="nguyenvana" style={inp}/></div><div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Mật khẩu {userEditId?"(để trống nếu không đổi)":"*"}</label><input value={userForm.password} onChange={e=>setUserForm(f=>({...f,password:e.target.value}))} placeholder={userEditId?"Giữ nguyên...":"••••••"} style={inp}/></div><div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Vai trò</label><select value={userForm.role} onChange={e=>setUserForm(f=>({...f,role:e.target.value}))} style={inp}><option value="admin">Quản trị viên</option><option value="director">Ban Giám đốc</option><option value="manager_hcth">TP. HCTH</option><option value="manager">Trưởng phòng</option><option value="deputy_manager">Phó trưởng phòng</option><option value="staff">Nhân viên</option></select></div><div style={{gridColumn:"span 2"}}><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Liên kết nhân viên</label><select value={userForm.employee_id} onChange={e=>setUserForm(f=>({...f,employee_id:e.target.value}))} style={inp}><option value="">-- Không liên kết --</option>{(employees||[]).map(e=><option key={e.id} value={e.id}>{e.name} ({e.dept} - {e.role})</option>)}</select></div></div><div style={{display:"flex",gap:8,marginTop:10,justifyContent:"flex-end"}}>{userEditId&&<button onClick={()=>{setUserEditId(null);setUserForm({username:"",password:"",full_name:"",role:"staff",employee_id:""});}} style={{padding:"6px 14px",border:"1px solid #d1d5db",borderRadius:7,background:"none",cursor:"pointer",fontSize:12}}>Hủy</button>}<button onClick={submitUser} disabled={saving} style={{padding:"6px 14px",background:"#4f46e5",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:12}}>{userEditId?"Cập nhật":"Thêm"}</button></div></div><div style={{display:"flex",flexDirection:"column",gap:6}}>{users.map(u=>(<div key={u.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",border:"1px solid #e5e7eb",borderRadius:8}}><div><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}><span style={{fontWeight:500,fontSize:13}}>{u.full_name}</span><RoleBadge role={u.role}/></div><div style={{fontSize:12,color:"#9ca3af"}}>@{u.username}{u.employee_id&&` · ${getEmp(u.employee_id)?.name||""}`}</div></div><div style={{display:"flex",gap:6}}><button onClick={()=>resetUserPwd(u)} title="Đặt lại mật khẩu về abc123" style={{padding:"4px 10px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",cursor:"pointer",fontSize:12,color:"#92400e"}}>🔑</button><button onClick={()=>{setUserEditId(u.id);setUserForm({username:u.username,password:"",full_name:u.full_name,role:u.role,employee_id:u.employee_id||""});}} style={{padding:"4px 10px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:12}}>✏️</button>{u.id!=="admin001"&&<button onClick={()=>deleteUser(u.id)} style={{padding:"4px 10px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:12,color:"#dc2626"}}>🗑️</button>}</div></div>))}</div></div></div></div>)}
 
       {/* Export */}
-      {exModal&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:isMobile?"12px 8px":16}}><div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:380,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}><div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>📤 Xuất báo cáo</span><button onClick={()=>setExModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div><div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}><div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Trạng thái</label><select value={exStatus} onChange={e=>setExStatus(e.target.value)} style={inp}><option value="all">Tất cả</option><option value="on_time">Trong hạn</option><option value="nearly_due">Sắp hết hạn</option><option value="overdue">Quá hạn</option><option value="completed_late">HT quá hạn</option><option value="completed">Hoàn thành</option></select></div><div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Phòng ban</label><select value={exDept} onChange={e=>setExDept(e.target.value)} style={inp}><option value="all">Tất cả</option>{DEPTS.map(d=><option key={d} value={d}>Phòng {d}</option>)}</select></div><div style={{background:"#f9fafb",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#6b7280"}}>Sẽ xuất <strong style={{color:"#111"}}>{computed.filter(t=>(exStatus==="all"||t.status===exStatus)&&(exDept==="all"||t.dept===exDept)).length}</strong> nhiệm vụ</div></div><div style={{padding:"12px 18px",borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"flex-end",gap:8}}><button onClick={()=>setExModal(false)} style={{padding:"7px 16px",border:"1px solid #d1d5db",borderRadius:7,background:"none",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={exportPDF} style={{padding:"7px 16px",background:"#dc2626",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:13}}>📄 PDF</button><button onClick={exportCSV} style={{padding:"7px 16px",background:"#4f46e5",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:13}}>⬇️ CSV</button></div></div></div>)}
+      {exModal&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:isMobile?"12px 8px":16}}><div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:380,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}><div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>📤 Xuất báo cáo</span><button onClick={()=>setExModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div><div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}><div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Trạng thái</label><select value={exStatus} onChange={e=>setExStatus(e.target.value)} style={inp}><option value="all">Tất cả</option><option value="on_time">Trong hạn</option><option value="nearly_due">Sắp hết hạn</option><option value="overdue">Quá hạn</option><option value="pending_approval">Chờ duyệt</option><option value="completed_late">HT quá hạn</option><option value="completed">Hoàn thành</option></select></div><div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Phòng ban</label><select value={exDept} onChange={e=>setExDept(e.target.value)} style={inp}><option value="all">Tất cả</option>{DEPTS.map(d=><option key={d} value={d}>Phòng {d}</option>)}</select></div><div style={{background:"#f9fafb",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#6b7280"}}>Sẽ xuất <strong style={{color:"#111"}}>{computed.filter(t=>(exStatus==="all"||t.status===exStatus)&&(exDept==="all"||t.dept===exDept)).length}</strong> nhiệm vụ</div></div><div style={{padding:"12px 18px",borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"flex-end",gap:8}}><button onClick={()=>setExModal(false)} style={{padding:"7px 16px",border:"1px solid #d1d5db",borderRadius:7,background:"none",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={exportPDF} style={{padding:"7px 16px",background:"#dc2626",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:13}}>📄 PDF</button><button onClick={exportCSV} style={{padding:"7px 16px",background:"#4f46e5",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:13}}>⬇️ CSV</button></div></div></div>)}
       {/* Chuyển tiếp nhiệm vụ */}
       {forwardModal&&(<div onClick={()=>setForwardModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:110,padding:16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:440,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}><div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>↪ Chuyển tiếp nhiệm vụ</span><button onClick={()=>setForwardModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#9ca3af"}}>✕</button></div><div style={{padding:18}}><div style={{fontSize:13,color:"#374151",marginBottom:6,fontWeight:500}}>{forwardModal.title}</div><div style={{fontSize:12,color:"#6b7280",marginBottom:16,padding:"8px 12px",background:"#eff6ff",borderRadius:8,lineHeight:1.5}}>Bạn sẽ trở thành <b>người phụ trách</b>, nhân viên được chọn là <b>người thực hiện</b>. Nhiệm vụ không bị nhân đôi.</div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:6}}>Chọn nhân viên thực hiện *</label><select value={forwardEid} onChange={e=>setForwardEid(e.target.value)} style={inp}><option value="">— Chọn nhân viên —</option>{(employees||[]).filter(e=>e.dept===forwardModal.dept&&e.id!==forwardModal.eid).map(e=><option key={e.id} value={e.id}>{e.name} ({e.role})</option>)}</select></div><div style={{padding:"0 18px 18px",display:"flex",gap:10}}><button onClick={()=>setForwardModal(null)} style={{flex:1,padding:"10px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:14}}>Hủy</button><button onClick={forwardTask} disabled={!forwardEid||saving} style={{flex:1,padding:"10px",border:"none",borderRadius:8,background:!forwardEid||saving?"#cbd5e1":"#2563eb",color:"#fff",cursor:!forwardEid||saving?"not-allowed":"pointer",fontSize:14,fontWeight:600}}>{saving?"Đang chuyển…":"Chuyển tiếp"}</button></div></div></div>)}
       {/* Thùng rác */}

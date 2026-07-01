@@ -9,7 +9,7 @@ const todayStr=today.toISOString().split("T")[0];
 const parseJSON=(v,d=[])=>{try{return JSON.parse(v||JSON.stringify(d));}catch{return d;}};
 
 // ───── ĐẦU TƯ: Quy trình & trạng thái ─────
-const INV_STEP_STATUS = {pending:{label:"Chưa làm",bg:"#f1f5f9",col:"#64748b"},doing:{label:"Đang làm",bg:"#dbeafe",col:"#1d4ed8"},done:{label:"Hoàn thành",bg:"#dcfce7",col:"#15803d"},skipped:{label:"Bỏ qua",bg:"#f3f4f6",col:"#9ca3af"}};
+const INV_STEP_STATUS = {pending:{label:"Chưa làm",bg:"#f1f5f9",col:"#64748b"},doing:{label:"Đang làm",bg:"#dbeafe",col:"#1d4ed8"},pending_approval:{label:"Chờ duyệt",bg:"#fef3c7",col:"#92400e"},done:{label:"Hoàn thành (đã đánh giá)",bg:"#dcfce7",col:"#15803d"},skipped:{label:"Bỏ qua",bg:"#f3f4f6",col:"#9ca3af"}};
 const STEP_QUALITY = {1:{label:"Đạt",bg:"#f0fdf4",col:"#15803d",star:"★"},2:{label:"Tốt",bg:"#eff6ff",col:"#1d4ed8",star:"★★"},3:{label:"Xuất sắc",bg:"#fef9c3",col:"#92400e",star:"★★★"}};
 const PROJ_QUALITY_LABELS = ["","Kém","Trung bình","Đạt","Tốt","Xuất sắc"];
 const isStepOverdue=s=>{if(!s.end||s.status==="done"||s.status==="skipped")return false;const d=new Date(s.end);d.setHours(0,0,0,0);return d<today;};
@@ -55,19 +55,28 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
   const canEditProject=isBGD||isProjLead; // Sửa dự án + thêm bước
   const canDeleteProject=isCreator; // Chỉ người tạo được xóa
   const canEditStep=(s)=>isBGD||isProjLead||(myEid&&s.lead_eid===myEid); // Sửa bước: BGĐ, PT chính, hoặc chủ trì bước đó
+  // Duyệt hoàn thành bước: chỉ BGĐ hoặc Trưởng/Phó phòng đúng đơn vị của dự án — không phải người chủ trì tự duyệt
+  const myDept=getEmp(myEid)?.dept;
+  const isDeptManager=["manager","deputy_manager","manager_hcth"].includes(currentUser?.role)&&myDept===proj.dept;
+  const canApproveStep=isBGD||isDeptManager;
   const setStepStatus=(idx,status)=>{
-    if(status==="done"){setStepQualityPopup({idx,quality:1,note:""});return;}
+    if(status==="done"){
+      // Không tự hoàn thành: chuyển sang chờ duyệt, TP/PP/BGĐ sẽ duyệt + đánh giá
+      onUpdateSteps(proj,steps.map((s,i)=>i===idx?{...s,status:"pending_approval",requested_by:currentUser.full_name,requested_at:new Date().toLocaleDateString("vi-VN")}:s));
+      return;
+    }
     onUpdateSteps(proj,steps.map((s,i)=>i===idx?{...s,status}:s));
   };
+  const rejectStepRequest=async(idx)=>{const ns=steps.map((s,i)=>i===idx?{...s,status:"doing"}:s);await onUpdateSteps(proj,ns);};
   const [openComment,setOpenComment]=React.useState(null);
   const [cmtText,setCmtText]=React.useState("");
   const [cmtFiles,setCmtFiles]=React.useState([]);
-  // ── Đánh giá chất lượng bước ──
+  // ── Đánh giá chất lượng bước (khi duyệt) ──
   const [stepQualityPopup,setStepQualityPopup]=React.useState(null); // {idx, quality:1-3, note:""}
   const confirmStepDone=async(idx)=>{
     const q=stepQualityPopup;
     if(!q)return;
-    const ns=steps.map((s,i)=>i===idx?{...s,status:"done",quality:q.quality,quality_note:q.note,quality_at:new Date().toLocaleDateString("vi-VN")}:s);
+    const ns=steps.map((s,i)=>i===idx?{...s,status:"done",quality:q.quality,quality_note:q.note,quality_at:new Date().toLocaleDateString("vi-VN"),approved_by:currentUser.full_name,approved_at:new Date().toLocaleDateString("vi-VN")}:s);
     await onUpdateSteps(proj,ns);
     setStepQualityPopup(null);
   };
@@ -117,7 +126,8 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
                   {(s.collab_eids||[]).length>0&&<div style={{fontSize:13,color:"#15803d",marginTop:3}}>👥 TV phối hợp: {(s.collab_eids||[]).map(id=>getEmp(id)?.name).filter(Boolean).join(", ")}</div>}
                   {(s.start||s.end)&&<div style={{fontSize:13,color:"#6b7280",marginTop:3}}>📅 {s.start||"?"} → {s.end||"?"}</div>}
                   {s.note&&<div style={{fontSize:13,color:"#475569",marginTop:3,fontStyle:"italic"}}>{s.note}</div>}
-                  {s.status==="done"&&s.quality_note&&<div style={{fontSize:12,color:"#15803d",marginTop:3,background:"#f0fdf4",padding:"4px 10px",borderRadius:6}}>✅ Đánh giá: {s.quality_note}</div>}
+                  {s.status==="pending_approval"&&s.requested_by&&<div style={{fontSize:12,color:"#92400e",marginTop:3,background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>📨 {s.requested_by} yêu cầu duyệt · {s.requested_at}</div>}
+                  {s.status==="done"&&s.quality_note&&<div style={{fontSize:12,color:"#15803d",marginTop:3,background:"#f0fdf4",padding:"4px 10px",borderRadius:6}}>✅ Đánh giá: {s.quality_note}{s.approved_by&&<span style={{opacity:0.7}}> — duyệt bởi {s.approved_by} · {s.approved_at}</span>}</div>}
                   {(s.attachments||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{(s.attachments||[]).map((f,fi)=><a key={fi} href={f.url} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flexShrink:0}}>
@@ -126,12 +136,17 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
                   {isStepOverdue(s)&&<span style={{fontSize:12,background:"#fee2e2",color:"#b91c1c",padding:"3px 8px",borderRadius:8,fontWeight:600}}>⚠ Trễ hạn</span>}
                 </div>
               </div>
-              {canEditStep(s)&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
-                {Object.entries(INV_STEP_STATUS).map(([k,v])=><button key={k} onClick={()=>setStepStatus(idx,k)} style={{padding:"3px 8px",border:"1px solid "+(s.status===k?v.col:"#e5e7eb"),borderRadius:6,background:s.status===k?v.bg:"#fff",color:s.status===k?v.col:"#9ca3af",cursor:"pointer",fontSize:12.5,fontWeight:s.status===k?600:400}}>{v.label}</button>)}
-                <button onClick={()=>openEditStep(s,idx)} style={{padding:"3px 8px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:12.5,marginLeft:"auto"}}>✏️ Sửa</button>
+              <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+                {canEditStep(s)&&s.status!=="done"&&s.status!=="pending_approval"&&["pending","doing","skipped"].map(k=>{const v=INV_STEP_STATUS[k];return(<button key={k} onClick={()=>setStepStatus(idx,k)} style={{padding:"3px 8px",border:"1px solid "+(s.status===k?v.col:"#e5e7eb"),borderRadius:6,background:s.status===k?v.bg:"#fff",color:s.status===k?v.col:"#9ca3af",cursor:"pointer",fontSize:12.5,fontWeight:s.status===k?600:400}}>{v.label}</button>);})}
+                {canEditStep(s)&&(s.status==="pending"||s.status==="doing")&&<button onClick={()=>setStepStatus(idx,"done")} style={{padding:"3px 10px",border:"1px solid #fbbf24",borderRadius:6,background:"#fffbeb",color:"#92400e",cursor:"pointer",fontSize:12.5,fontWeight:600}}>📨 Yêu cầu hoàn thành</button>}
+                {s.status==="pending_approval"&&canApproveStep&&<>
+                  <button onClick={()=>setStepQualityPopup({idx,quality:1,note:""})} style={{padding:"3px 10px",border:"1px solid #16a34a",borderRadius:6,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:12.5,fontWeight:600}}>✅ Duyệt & đánh giá</button>
+                  <button onClick={()=>rejectStepRequest(idx)} style={{padding:"3px 10px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",color:"#dc2626",cursor:"pointer",fontSize:12.5}}>↩ Từ chối, làm lại</button>
+                </>}
+                {canEditStep(s)&&<button onClick={()=>openEditStep(s,idx)} style={{padding:"3px 8px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:12.5,marginLeft:"auto"}}>✏️ Sửa</button>}
                 {canEditProject&&<button onClick={()=>insertStepAfter(idx)} style={{padding:"3px 8px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:12.5,color:"#1d4ed8"}}>⤵ Chèn dưới</button>}
                 {canEditProject&&<button onClick={()=>deleteStep(idx)} style={{padding:"3px 8px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:11,color:"#dc2626"}}>🗑️</button>}
-              </div>}
+              </div>
               <div style={{marginTop:8,borderTop:"1px solid #f3f4f6",paddingTop:8}}>
                 <button onClick={()=>{setOpenComment(openComment===idx?null:idx);setCmtText("");setCmtFiles([]);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#4f46e5",padding:0,display:"flex",alignItems:"center",gap:4}}>💬 Trao đổi{(s.comments||[]).length>0&&<span style={{background:"#eef2ff",color:"#4338ca",fontSize:10,padding:"1px 7px",borderRadius:10,fontWeight:600}}>{(s.comments||[]).length}</span>}{openComment===idx?" ▲":" ▼"}</button>
                 {openComment===idx&&<div style={{marginTop:8}}>
@@ -181,7 +196,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
     {/* ── Popup đánh giá chất lượng bước ── */}
     {stepQualityPopup&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:80,padding:16}}>
       <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:380,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
-        <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb"}}><div style={{fontWeight:600,fontSize:15}}>✅ Hoàn thành bước</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{steps[stepQualityPopup.idx]?.content}</div></div>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb"}}><div style={{fontWeight:600,fontSize:15}}>✅ Duyệt hoàn thành bước</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{steps[stepQualityPopup.idx]?.content}</div></div>
         <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
           <div>
             <div style={{fontSize:12,color:"#6b7280",marginBottom:8,fontWeight:500}}>Chất lượng kết quả đầu ra</div>
