@@ -24,15 +24,24 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
     setLoading(false);
   })(); }, []);
 
-  const openCreate = () => setForm({ channel: "phone", content: "", eid: myEid || "", difficulty: "medium", created: todayStr });
+  const openCreate = () => setForm({ channel: "phone", content: "", result: "", eid: myEid || "", difficulty: "medium", created: todayStr });
+  const openEdit = (c) => setForm({ ...c });
 
   const saveCase = async () => {
     if (!form.content.trim() || !form.eid) { showToast && showToast("Nhập nội dung và chọn người xử lý", "error"); return; }
+    if (!form.result.trim()) { showToast && showToast("Nhập kết quả giải quyết", "error"); return; }
     setSaving(true);
-    const c = { id: `sc${Date.now()}`, channel: form.channel, content: form.content.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr, created_by: currentUser.full_name };
-    const { error } = await supabase.from("support_cases").insert(c);
-    if (!error) { setCases(p => [c, ...p]); showToast && showToast("Đã ghi nhận trường hợp hỗ trợ"); setForm(null); }
-    else showToast && showToast("Lỗi: " + (error.message || ""), "error");
+    if (form.id) {
+      const upd = { channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr };
+      const { error } = await supabase.from("support_cases").update(upd).eq("id", form.id);
+      if (!error) { setCases(p => p.map(x => x.id === form.id ? { ...x, ...upd } : x)); showToast && showToast("Đã cập nhật"); setForm(null); }
+      else showToast && showToast("Lỗi: " + (error.message || ""), "error");
+    } else {
+      const c = { id: `sc${Date.now()}`, channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr, created_by: currentUser.full_name };
+      const { error } = await supabase.from("support_cases").insert(c);
+      if (!error) { setCases(p => [c, ...p]); showToast && showToast("Đã ghi nhận trường hợp hỗ trợ"); setForm(null); }
+      else showToast && showToast("Lỗi: " + (error.message || ""), "error");
+    }
     setSaving(false);
   };
 
@@ -101,12 +110,18 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
               <span style={{ fontSize: 20, flexShrink: 0 }}>{SUPPORT_CHANNELS[c.channel]?.icon}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, lineHeight: 1.4 }}>{c.content}</div>
+                {c.result ? (
+                  <div style={{ fontSize: 12.5, lineHeight: 1.4, marginTop: 4, color: "#15803d", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "5px 8px" }}>✅ Kết quả: {c.result}</div>
+                ) : (
+                  <div style={{ fontSize: 11.5, marginTop: 4, color: "#b91c1c" }}>⚠️ Thiếu nội dung kết quả giải quyết</div>
+                )}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 5, alignItems: "center" }}>
                   <span style={{ background: DEPT_COLOR[emp?.dept] + "22", color: DEPT_COLOR[emp?.dept], fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>{emp?.name || "–"}</span>
                   <span style={{ background: SUPPORT_DIFFICULTY[c.difficulty]?.icon ? "#f1f5f9" : "transparent", fontSize: 11, padding: "2px 7px", borderRadius: 8, color: "#475569" }}>{SUPPORT_DIFFICULTY[c.difficulty]?.icon} {SUPPORT_DIFFICULTY[c.difficulty]?.label} ({SUPPORT_DIFFICULTY[c.difficulty]?.weight} việc)</span>
                   <span style={{ fontSize: 11, color: "#9ca3af" }}>📅 {c.created}</span>
                 </div>
               </div>
+              {(canManage || c.eid === myEid) && <button onClick={() => openEdit(c)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#6b7280", flexShrink: 0 }}>✏️</button>}
               {canDelete && <button onClick={() => deleteCase(c.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#dc2626", flexShrink: 0 }}>🗑️</button>}
             </div>
           );
@@ -116,7 +131,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
 
     {form && (<div onClick={() => setForm(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: isMobile ? "12px 8px" : 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontWeight: 600, fontSize: 15 }}>🎧 Ghi nhận hỗ trợ người dùng và xử lý PAHT</span><button onClick={() => setForm(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#9ca3af" }}>✕</button></div>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontWeight: 600, fontSize: 15 }}>🎧 {form.id ? "Sửa" : "Ghi nhận"} hỗ trợ người dùng và xử lý PAHT</span><button onClick={() => setForm(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#9ca3af" }}>✕</button></div>
         <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Kênh tiếp nhận</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -126,6 +141,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
             </div>
           </div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Nội dung hỗ trợ *</label><textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={3} placeholder="VD: Hướng dẫn khôi phục mật khẩu đăng nhập hệ thống..." style={{ ...inp, resize: "vertical" }} /></div>
+          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Kết quả giải quyết *</label><textarea value={form.result} onChange={e => setForm(f => ({ ...f, result: e.target.value }))} rows={3} placeholder="VD: Đã hướng dẫn người dùng đặt lại mật khẩu qua email, xác nhận đăng nhập thành công..." style={{ ...inp, resize: "vertical" }} /></div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Người xử lý</label><select value={form.eid} onChange={e => setForm(f => ({ ...f, eid: e.target.value }))} style={inp}><option value="">— Chọn —</option>{(employees || []).map(e => <option key={e.id} value={e.id}>{e.name} ({e.dept})</option>)}</select></div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Độ khó</label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -138,7 +154,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
         </div>
         <div style={{ padding: "0 18px 18px", display: "flex", gap: 10 }}>
           <button onClick={() => setForm(null)} style={{ flex: 1, padding: "9px", border: "1px solid #d1d5db", borderRadius: 8, background: "#f9fafb", cursor: "pointer", fontSize: 13 }}>Hủy</button>
-          <button disabled={saving} onClick={saveCase} style={{ flex: 2, padding: "9px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>{saving ? "Đang lưu…" : "Lưu"}</button>
+          <button disabled={saving} onClick={saveCase} style={{ flex: 2, padding: "9px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>{saving ? "Đang lưu…" : form.id ? "Cập nhật" : "Lưu"}</button>
         </div>
       </div>
     </div>)}
