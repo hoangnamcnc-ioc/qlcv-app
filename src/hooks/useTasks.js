@@ -123,10 +123,10 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const suspiciousTasks = useMemo(() => canCreate ? computedAll.filter(t => t.suspicious_completion && !t.rating) : [], [computedAll, canCreate]);
 
   const seenKey = currentUser ? `qlcv_seen_${currentUser.username}` : null;
-  const getSeenIds = () => { if (!seenKey) return []; try { return JSON.parse(localStorage.getItem(seenKey) || "[]"); } catch { return []; } };
-  const markSeen = (id) => { if (!seenKey) return; const s = new Set(getSeenIds()); s.add(id); localStorage.setItem(seenKey, JSON.stringify([...s])); };
+  const markSeen = () => {}; // giữ để tương thích chữ ký gọi cũ; trạng thái xem nay lưu ở viewed_at trên server
   const myAssignedTasks = useMemo(() => currentUser?.employee_id ? computedAll.filter(t => t.eid === currentUser.employee_id && !t.deleted) : [], [computedAll, currentUser]);
-  const myNewTasks = useMemo(() => { const seen = new Set(getSeenIds()); return myAssignedTasks.filter(t => !seen.has(t.id)); }, [myAssignedTasks, currentUser]);
+  // "Chưa xem" dựa trên viewed_at lưu ở server (không phải localStorage) để đúng trên mọi thiết bị
+  const myNewTasks = useMemo(() => myAssignedTasks.filter(t => !t.viewed_at && !t.completed), [myAssignedTasks]);
   const myOverdueTasks = useMemo(() => myAssignedTasks.filter(t => t.status === "overdue"), [myAssignedTasks]);
   const myNewTaskIds = useMemo(() => new Set(myNewTasks.map(t => t.id)), [myNewTasks]);
 

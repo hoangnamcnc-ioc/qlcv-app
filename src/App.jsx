@@ -475,7 +475,7 @@ export default function App() {
             <div style={{display:"flex",flexDirection:"column",gap:6}}>{myOverdueTasks.map(t=><div key={t.id} onClick={()=>{setShowLoginPopup(false);setModal(t);loadComments(t.id);}} style={{padding:"9px 12px",borderRadius:8,background:"#fef2f2",border:"1px solid #fecaca",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#fee2e2"} onMouseLeave={e=>e.currentTarget.style.background="#fef2f2"}><div style={{fontSize:13,fontWeight:500}}>{t.title}</div><div style={{fontSize:11,color:"#b91c1c",marginTop:1}}>Hạn: {t.deadline} · {t.dept}</div></div>)}</div>
           </div>}
           {myNewTasks.length>0&&<div style={{marginBottom:14}}>
-            <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>📥 Việc mới được giao ({myNewTasks.length})</div>
+            <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>📥 Việc chưa xem ({myNewTasks.length})</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>{myNewTasks.map(t=><div key={t.id} onClick={()=>{setShowLoginPopup(false);setModal(t);loadComments(t.id);}} style={{padding:"9px 12px",borderRadius:8,background:"#eff6ff",border:"1px solid #bfdbfe",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#dbeafe"} onMouseLeave={e=>e.currentTarget.style.background="#eff6ff"}><div style={{fontSize:13,fontWeight:500}}>{t.title}</div><div style={{fontSize:11,color:"#1d4ed8",marginTop:1}}>{STATUS[t.status]?.label} · Hạn: {t.deadline} · {t.dept}</div></div>)}</div>
           </div>}
           {myPendingApprovals.length>0&&<div style={{marginBottom:6}}>
