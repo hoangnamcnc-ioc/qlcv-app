@@ -65,6 +65,7 @@ export default function App() {
   const [overloadPopup,setOverloadPopup]=useState(null);
   const [linkInput,setLinkInput]=useState({name:"",url:""});
   const [recurringTemplates,setRecurringTemplates]=useState([]);
+  const [projectsForScoring,setProjectsForScoring]=useState([]); // chỉ để tính điểm hiệu suất từ nhiệm vụ ngân sách đã nghiệm thu, không phải state đầy đủ của trang Investment
   const [showRecurring,setShowRecurring]=useState(false); const [templateForm,setTemplateForm]=useState(null);
   const recurringChecked=useRef(false);
   const [loginNotifShown,setLoginNotifShown]=useState(false);
@@ -91,9 +92,9 @@ export default function App() {
     (async()=>{
       setLoading(true);
       try{
-        const[{data:ed},{data:td},{data:ud},{data:rtd},{data:otd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false})]);
+        const[{data:ed},{data:td},{data:ud},{data:rtd},{data:otd},{data:pjd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false}),supabase.from("projects").select("id,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time")]);
         if(!ed||ed.length===0){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}else setEmployees(ed);
-        setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);
+        setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);setProjectsForScoring(pjd||[]);
       }catch{showToast("Lỗi kết nối database","error");setEmployees(DEFAULT_EMPLOYEES);setTasks([]);}
       setLoading(false);
     })();
@@ -157,7 +158,7 @@ export default function App() {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks,
-  } = useReports({ computed, employees, currentUser, overloadThreshold });
+  } = useReports({ computed, employees, currentUser, overloadThreshold, projects: projectsForScoring });
 
   const calTasks=useMemo(()=>computed.filter(t=>{const d=new Date(t.deadline);return d.getFullYear()===calYear&&d.getMonth()===calMonth;}),[computed,calYear,calMonth]);
   const calTasksByDay=useMemo(()=>{const m={};calTasks.forEach(t=>{const day=new Date(t.deadline).getDate();if(!m[day])m[day]=[];m[day].push(t);});return m;},[calTasks]);

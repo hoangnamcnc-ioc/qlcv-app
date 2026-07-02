@@ -5,8 +5,29 @@ import { isCompletedStatus, parseJSON } from "../helpers";
 // Toàn bộ logic tính hiệu suất/báo cáo: tổng hợp theo phòng ban, công thức điểm hiệu suất tháng,
 // bảng xếp hạng năm, thống kê nguyên nhân trễ, cảnh báo quá tải, tiến bộ cá nhân.
 // Tách khỏi App.jsx vì đây là cụm thuật toán riêng biệt, cần dễ soát lỗi độc lập (từng có bug NaN/điểm âm).
-export default function useReports({ computed, employees, currentUser, overloadThreshold }) {
+// Quy đổi 1-5 sao nghiệm thu dự án ngân sách sang thang đánh giá RATING (4 mức) dùng chung với nhiệm vụ thường
+const projRatingKey = (stars) => stars >= 5 ? "xuat_sac" : stars === 4 ? "tot" : stars >= 2 ? "tb" : "kem";
+
+export default function useReports({ computed, employees, currentUser, overloadThreshold, projects }) {
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
+
+  // ── Nhiệm vụ ngân sách đã nghiệm thu (có quality_rating) → quy thành "việc hoàn thành" cho phụ trách chính
+  // VÀ từng người chủ trì bước, để không thiệt thòi so với người chỉ làm nhiệm vụ thường ──
+  const projPseudoTasks = useMemo(() => {
+    const out = [];
+    for (const p of (projects || [])) {
+      if (!p.quality_rating || !p.quality_rated_at) continue;
+      const participants = new Set();
+      if (p.lead_eid) participants.add(p.lead_eid);
+      for (const s of parseJSON(p.steps, [])) if (s.lead_eid) participants.add(s.lead_eid);
+      const status = p.quality_on_time === false ? "completed_late" : "completed";
+      const rating = projRatingKey(p.quality_rating);
+      for (const eid of participants) {
+        out.push({ id: `proj_${p.id}_${eid}`, eid, deadline: p.quality_rated_at, status, rating, collab_eids: "[]", suspicious_completion: false });
+      }
+    }
+    return out;
+  }, [projects]);
 
   const [repMonth, setRepMonth] = useState(today.getMonth());
   const [repYear, setRepYear] = useState(today.getFullYear());
@@ -37,7 +58,7 @@ export default function useReports({ computed, employees, currentUser, overloadT
   const perfIndex = useMemo(() => {
     const byEid = new Map(), byCollab = new Map();
     const push = (map, key, t) => { let a = map.get(key); if (!a) { a = []; map.set(key, a); } a.push(t); };
-    for (const t of computed) {
+    for (const t of [...computed, ...projPseudoTasks]) {
       if (!t.deadline) continue;
       const d = new Date(t.deadline); if (isNaN(d)) continue;
       const ym = `${d.getFullYear()}|${d.getMonth()}`;
@@ -45,7 +66,7 @@ export default function useReports({ computed, employees, currentUser, overloadT
       for (const cid of parseJSON(t.collab_eids, [])) push(byCollab, `${cid}|${ym}`, t);
     }
     return { byEid, byCollab };
-  }, [computed]);
+  }, [computed, projPseudoTasks]);
 
   // ── Công thức tính điểm hiệu suất 1 THÁNG (dùng chung cho bảng "Hiệu suất tháng" và "Xếp hạng năm") ──
   const calcMonthPerf = (empId, year, month) => {
