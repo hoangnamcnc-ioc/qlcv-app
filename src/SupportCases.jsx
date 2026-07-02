@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import { DEPTS, DEPT_COLOR, SUPPORT_CHANNELS, SUPPORT_DIFFICULTY } from "./constants";
 import { todayStr } from "./helpers";
 
-// ───── Hỗ trợ người dùng nền tảng số dùng chung (điện thoại/Zalo/email) ─────
+// ───── Hỗ trợ người dùng và xử lý PAHT — nền tảng số dùng chung (điện thoại/Zalo/email/HT PAHT) ─────
 // Mỗi trường hợp ghi nhận xong là tính "hoàn thành" ngay (không có bước duyệt) — quy đổi thành điểm hiệu suất
 // theo trọng số độ khó trong useReports.js (Khó=1, Trung bình=1/2, Nhanh=1/4 nhiệm vụ).
 export default function SupportCases({ currentUser, employees, getEmp, isMobile, inp, showToast }) {
@@ -116,12 +116,12 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
 
     {form && (<div onClick={() => setForm(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: isMobile ? "12px 8px" : 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontWeight: 600, fontSize: 15 }}>🎧 Ghi nhận hỗ trợ người dùng</span><button onClick={() => setForm(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#9ca3af" }}>✕</button></div>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontWeight: 600, fontSize: 15 }}>🎧 Ghi nhận hỗ trợ người dùng và xử lý PAHT</span><button onClick={() => setForm(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#9ca3af" }}>✕</button></div>
         <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
-          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Kênh liên hệ</label>
-            <div style={{ display: "flex", gap: 8 }}>
+          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Kênh tiếp nhận</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {Object.entries(SUPPORT_CHANNELS).map(([k, v]) => (
-                <button key={k} onClick={() => setForm(f => ({ ...f, channel: k }))} style={{ flex: 1, padding: "8px 6px", border: "2px solid " + (form.channel === k ? "#059669" : "#e5e7eb"), borderRadius: 8, background: form.channel === k ? "#f0fdf4" : "#fff", cursor: "pointer", fontSize: 12.5 }}>{v.icon} {v.label}</button>
+                <button key={k} onClick={() => setForm(f => ({ ...f, channel: k }))} style={{ flex: "1 1 45%", padding: "8px 6px", border: "2px solid " + (form.channel === k ? "#059669" : "#e5e7eb"), borderRadius: 8, background: form.channel === k ? "#f0fdf4" : "#fff", cursor: "pointer", fontSize: 12.5 }}>{v.icon} {v.label}</button>
               ))}
             </div>
           </div>
