@@ -16,7 +16,7 @@ const isStepOverdue=s=>{if(!s.end||s.status==="done"||s.status==="skipped")retur
 const countOverdueSteps=stepsArr=>(stepsArr||[]).filter(isStepOverdue).length;
 const FUND_SOURCES = ["Vốn đầu tư công","Chi thường xuyên","Vốn sự nghiệp","Nguồn khác"];
 // Phân loại nhiệm vụ ngân sách: Chi Hoạt Động (vận hành thường xuyên) và Chi Mua Sắm (mua sắm tài sản/thiết bị/dịch vụ)
-const EXPENSE_TYPES = {operating:{label:"Chi Hoạt Động",icon:"🗂️"},procurement:{label:"Chi Mua Sắm",icon:"🛒"}};
+const EXPENSE_TYPES = {operating:{label:"Chi Hoạt Động",icon:"🗂️"},procurement:{label:"Chi Mua Sắm",icon:"🛒"},maintenance:{label:"Chi Bảo Dưỡng Sửa Chữa TSC",icon:"🔧"}};
 // 2 mẫu quy trình rút gọn theo giai đoạn chính (có thể sửa/thêm bước khi dùng)
 const INV_TEMPLATES = {
   dautu:{name:"Đầu tư công",steps:[
