@@ -15,7 +15,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const canDeleteTask = useMemo(() => (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (["manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; return false; }, [currentUser, userDept]);
   const canUpdateProgress = useMemo(() => (t) => canEditTask(t) || currentUser?.employee_id === t.eid || parseJSON(t.collab_eids, []).includes(currentUser?.employee_id), [canEditTask, currentUser]);
   const canRate = (t) => { const st = t.status || getStatus(t); if (st === "completed_late") return false; if (!t.completed && st !== "completed") return false; if (t.created_by_id) { if (currentUser.id === t.created_by_id) return true; if (t.forwarded_by && t.forwarded_by === currentUser.full_name) return true; return FULL_ACCESS.includes(currentUser.role) && false; } return canCreate; };
-  const canForward = (t) => { if (!currentUser) return false; if (t.completed || isCompletedStatus(t.status)) return false; return ["manager", "deputy_manager"].includes(currentUser.role) && t.dept === userDept; };
+  const canForward = (t) => { if (!currentUser) return false; if (t.completed || isCompletedStatus(t.status)) return false; return ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role) && t.dept === userDept; };
   const canSetLateReason = (t) => isLateStatus(t.status) && (currentUser?.employee_id === t.eid || parseJSON(t.collab_eids, []).includes(currentUser?.employee_id) || canCreate);
 
   // ── CRUD ──
