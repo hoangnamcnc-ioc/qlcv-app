@@ -179,7 +179,16 @@ export default function App() {
     });
     return out;
   },[otherTasks,currentUser]);
-  useEffect(()=>{if(modal&&seenKey){markSeen(modal.id);}},[modal]);
+  useEffect(()=>{
+    if(!modal||!seenKey)return;
+    markSeen(modal.id);
+    // Ghi nhận lần đầu người được giao (eid) mở xem nhiệm vụ, để BGĐ/Trưởng/Phó phòng biết trạng thái Đã xem/Chưa xem
+    if(!modal.viewed_at&&currentUser?.employee_id&&modal.eid===currentUser.employee_id){
+      const vt=nowStr();
+      updateTask(modal.id,{viewed_at:vt},null,{silent:true});
+      setModal(m=>m?{...m,viewed_at:vt}:m);
+    }
+  },[modal]);
   const [showLoginPopup,setShowLoginPopup]=useState(false);
   useEffect(()=>{
     if(!currentUser||loading||loginNotifShown)return;

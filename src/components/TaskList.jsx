@@ -69,6 +69,9 @@ export default function TaskList({
                   <span style={{ fontSize: 11, color: "#6b7280" }}>{getEmp(t.eid)?.name || "–"}</span>
                   <span style={{ fontSize: 11, color: t.status === "overdue" ? "#b91c1c" : "#6b7280", fontWeight: t.status === "overdue" ? 600 : 400 }}>📅 {t.deadline}</span>
                   {t.rating && <RatingBadge r={t.rating} />}
+                  {canEditTask(t) && !t.completed && (t.viewed_at
+                    ? <span title={`Đã xem lúc ${t.viewed_at}`} style={{ fontSize: 11, background: "#dcfce7", color: "#15803d", padding: "2px 7px", borderRadius: 8 }}>👁️ Đã xem</span>
+                    : <span style={{ fontSize: 11, background: "#fef2f2", color: "#b91c1c", padding: "2px 7px", borderRadius: 8 }}>🔴 Chưa xem</span>)}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ flex: 1, height: 5, background: "#e5e7eb", borderRadius: 5, overflow: "hidden" }}><div style={{ height: "100%", width: (t.progress || 0) + "%", background: t.progress === 100 ? "#16a34a" : t.progress >= 50 ? "#f59e0b" : "#6366f1", borderRadius: 5 }} /></div>
@@ -130,7 +133,12 @@ export default function TaskList({
                     </div>
                   </td>
                   <td style={{ padding: "9px 12px" }}><span style={{ background: DEPT_COLOR[t.dept] + "22", color: DEPT_COLOR[t.dept], fontSize: 11, padding: "2px 6px", borderRadius: 8 }}>{t.dept}</span></td>
-                  <td style={{ padding: "9px 12px", color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getEmp(t.eid)?.name || "–"}</td>
+                  <td style={{ padding: "9px 12px", color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{getEmp(t.eid)?.name || "–"}</div>
+                    {canEditTask(t) && !t.completed && (t.viewed_at
+                      ? <div title={`Đã xem lúc ${t.viewed_at}`} style={{ fontSize: 10, color: "#15803d", marginTop: 2 }}>👁️ Đã xem</div>
+                      : <div style={{ fontSize: 10, color: "#b91c1c", marginTop: 2 }}>🔴 Chưa xem</div>)}
+                  </td>
                   <td style={{ padding: "9px 12px", position: "relative" }}>
                     {quickProgress === t.id ? (
                       <div style={{ position: "absolute", top: 4, left: 0, zIndex: 20, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", display: "flex", flexWrap: "wrap", gap: 4, width: 200 }}>

@@ -44,7 +44,7 @@ export default function TaskModal({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13, marginBottom: 14 }}>
             {[
               ["Phòng ban", <span style={{ background: DEPT_COLOR[modal.dept] + "22", color: DEPT_COLOR[modal.dept], padding: "2px 7px", borderRadius: 8, fontSize: 12 }}>{modal.dept}</span>],
-              ["Giao cho", getEmp(modal.eid)?.name || "–"],
+              ["Giao cho", <div>{getEmp(modal.eid)?.name || "–"}{canEditTask(modal) && (modal.viewed_at ? <div title={`Đã xem lúc ${modal.viewed_at}`} style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>👁️ Đã xem lúc {modal.viewed_at}</div> : <div style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>🔴 Chưa xem</div>)}</div>],
               ["Ưu tiên", <PChip p={modal.prio} />],
               ["Hạn chót", <span style={{ color: modal.status === "overdue" ? "#b91c1c" : "#111", fontWeight: modal.status === "overdue" ? 600 : 400 }}>{modal.deadline}</span>],
               ["Trạng thái", <Chip s={modal.status} />],
