@@ -46,6 +46,6 @@ export default function useAuth({ showToast, onLogout }) {
   return {
     currentUser, setCurrentUser,
     loginForm, setLoginForm, loginError, loginLoading, handleLogin, handleLogout,
-    showChangePwd, setShowChangePwd, changePwdForm, setChangePwdForm, changePwdError, handleChangePwd,
+    showChangePwd, setShowChangePwd, changePwdForm, setChangePwdForm, changePwdError, setChangePwdError, handleChangePwd,
   };
 }

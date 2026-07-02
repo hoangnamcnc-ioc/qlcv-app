@@ -76,7 +76,7 @@ export default function App() {
   const {
     currentUser, setCurrentUser,
     loginForm, setLoginForm, loginError, loginLoading, handleLogin, handleLogout,
-    showChangePwd, setShowChangePwd, changePwdForm, setChangePwdForm, changePwdError, handleChangePwd,
+    showChangePwd, setShowChangePwd, changePwdForm, setChangePwdForm, changePwdError, setChangePwdError, handleChangePwd,
   } = useAuth({ showToast, onLogout: () => setLoginNotifShown(false) });
 
   const userDept=useMemo(()=>!currentUser||!employees?null:employees.find(e=>e.id===currentUser.employee_id)?.dept||null,[currentUser,employees]);
