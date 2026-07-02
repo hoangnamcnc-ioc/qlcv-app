@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import { DEPTS, DEPT_COLOR, SUPPORT_CHANNELS, SUPPORT_DIFFICULTY, SUPPORT_CATEGORIES } from "./constants";
 import { todayStr } from "./helpers";
 
-// ───── Hỗ trợ người dùng và xử lý PAHT — nền tảng số dùng chung (điện thoại/Zalo/email/HT PAHT) ─────
+// ───── Hỗ trợ người dùng/PAHT và vận hành DC — nền tảng số dùng chung (điện thoại/Zalo) ─────
 // Mỗi trường hợp ghi nhận xong là tính "hoàn thành" ngay (không có bước duyệt) — quy đổi thành điểm hiệu suất
 // theo trọng số độ khó trong useReports.js (Khó=1, Trung bình=1/2, Nhanh=1/4 nhiệm vụ).
 export default function SupportCases({ currentUser, employees, getEmp, isMobile, inp, showToast }) {
@@ -161,7 +161,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
               ))}
             </div>
           </div>
-          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Nội dung hỗ trợ *</label><textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={3} placeholder="VD: Hướng dẫn khôi phục mật khẩu đăng nhập hệ thống..." style={{ ...inp, resize: "vertical" }} /></div>
+          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Mô tả lỗi *</label><textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={3} placeholder="VD: Hướng dẫn khôi phục mật khẩu đăng nhập hệ thống..." style={{ ...inp, resize: "vertical" }} /></div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Kết quả giải quyết *</label><textarea value={form.result} onChange={e => setForm(f => ({ ...f, result: e.target.value }))} rows={3} placeholder="VD: Đã hướng dẫn người dùng đặt lại mật khẩu qua email, xác nhận đăng nhập thành công..." style={{ ...inp, resize: "vertical" }} /></div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Người xử lý</label><select value={form.eid} onChange={e => setForm(f => ({ ...f, eid: e.target.value }))} style={inp}><option value="">— Chọn —</option>{formEmployees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.dept})</option>)}</select></div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Độ khó</label>
