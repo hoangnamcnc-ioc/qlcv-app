@@ -18,6 +18,13 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
   const myEid = currentUser?.employee_id;
   const canManage = ["admin", "director", "manager_hcth", "manager", "deputy_manager"].includes(currentUser?.role);
 
+  // Người xử lý chỉ chọn trong phạm vi phòng ban phù hợp từng tab:
+  // "Xử lý lỗi TTDL" → chỉ HT-NTS ; "Hỗ trợ ND & PAHT" → HT-NTS + QL-KTDL
+  const catDepts = catTab === "datacenter" ? ["HT-NTS"] : ["HT-NTS", "QL-KTDL"];
+  const formDepts = form ? (form.category === "datacenter" ? ["HT-NTS"] : ["HT-NTS", "QL-KTDL"]) : [];
+  const catEmployees = useMemo(() => (employees || []).filter(e => catDepts.includes(e.dept)), [employees, catTab]);
+  const formEmployees = useMemo(() => (employees || []).filter(e => formDepts.includes(e.dept)), [employees, form?.category]);
+
   useEffect(() => { (async () => {
     setLoading(true);
     try { const { data } = await supabase.from("support_cases").select("*").order("created", { ascending: false }); setCases(data || []); }
@@ -25,7 +32,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
     setLoading(false);
   })(); }, []);
 
-  const openCreate = () => setForm({ category: catTab, channel: "phone", content: "", result: "", eid: myEid || "", difficulty: "medium", created: todayStr });
+  const openCreate = () => { const myEmp = (employees || []).find(e => e.id === myEid); setForm({ category: catTab, channel: "phone", content: "", result: "", eid: myEmp && catDepts.includes(myEmp.dept) ? myEid : "", difficulty: "medium", created: todayStr }); };
   const openEdit = (c) => setForm({ ...c });
 
   const saveCase = async () => {
@@ -70,7 +77,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
   return (<div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
     <div style={{ display: "flex", gap: 8, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 8 }}>
       {Object.entries(SUPPORT_CATEGORIES).map(([k, v]) => (
-        <button key={k} onClick={() => setCatTab(k)} style={{ flex: 1, padding: "9px 8px", border: "none", borderRadius: 7, background: catTab === k ? "#059669" : "transparent", color: catTab === k ? "#fff" : "#6b7280", cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: catTab === k ? 600 : 400 }}>{v.icon} {v.label}</button>
+        <button key={k} onClick={() => { setCatTab(k); setFEid("all"); }} style={{ flex: 1, padding: "9px 8px", border: "none", borderRadius: 7, background: catTab === k ? "#059669" : "transparent", color: catTab === k ? "#fff" : "#6b7280", cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: catTab === k ? 600 : 400 }}>{v.icon} {v.label}</button>
       ))}
     </div>
     <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -88,7 +95,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
       </select>
       <select value={fEid} onChange={e => setFEid(e.target.value)} style={{ ...inp, width: "auto" }}>
         <option value="all">Tất cả người xử lý</option>
-        {(employees || []).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+        {catEmployees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
       </select>
     </div>
 
@@ -143,7 +150,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Phân loại</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {Object.entries(SUPPORT_CATEGORIES).map(([k, v]) => (
-                <button key={k} onClick={() => setForm(f => ({ ...f, category: k }))} style={{ flex: "1 1 45%", padding: "8px 6px", border: "2px solid " + (form.category === k ? "#059669" : "#e5e7eb"), borderRadius: 8, background: form.category === k ? "#f0fdf4" : "#fff", cursor: "pointer", fontSize: 12.5 }}>{v.icon} {v.label}</button>
+                <button key={k} onClick={() => setForm(f => { const nextDepts = k === "datacenter" ? ["HT-NTS"] : ["HT-NTS", "QL-KTDL"]; const emp = (employees || []).find(e => e.id === f.eid); return { ...f, category: k, eid: emp && nextDepts.includes(emp.dept) ? f.eid : "" }; })} style={{ flex: "1 1 45%", padding: "8px 6px", border: "2px solid " + (form.category === k ? "#059669" : "#e5e7eb"), borderRadius: 8, background: form.category === k ? "#f0fdf4" : "#fff", cursor: "pointer", fontSize: 12.5 }}>{v.icon} {v.label}</button>
               ))}
             </div>
           </div>
@@ -156,7 +163,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
           </div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Nội dung hỗ trợ *</label><textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={3} placeholder="VD: Hướng dẫn khôi phục mật khẩu đăng nhập hệ thống..." style={{ ...inp, resize: "vertical" }} /></div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Kết quả giải quyết *</label><textarea value={form.result} onChange={e => setForm(f => ({ ...f, result: e.target.value }))} rows={3} placeholder="VD: Đã hướng dẫn người dùng đặt lại mật khẩu qua email, xác nhận đăng nhập thành công..." style={{ ...inp, resize: "vertical" }} /></div>
-          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Người xử lý</label><select value={form.eid} onChange={e => setForm(f => ({ ...f, eid: e.target.value }))} style={inp}><option value="">— Chọn —</option>{(employees || []).map(e => <option key={e.id} value={e.id}>{e.name} ({e.dept})</option>)}</select></div>
+          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Người xử lý</label><select value={form.eid} onChange={e => setForm(f => ({ ...f, eid: e.target.value }))} style={inp}><option value="">— Chọn —</option>{formEmployees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.dept})</option>)}</select></div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Độ khó</label>
             <div style={{ display: "flex", gap: 8 }}>
               {Object.entries(SUPPORT_DIFFICULTY).map(([k, v]) => (
