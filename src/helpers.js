@@ -4,8 +4,22 @@ export const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() 
 export const today = new Date(); today.setHours(0, 0, 0, 0);
 export const todayStr = today.toISOString().split("T")[0];
 export const nowStr = () => new Date().toLocaleString("vi-VN");
+// Parse chuỗi do nowStr() sinh ra, dạng "HH:mm:ss d/M/yyyy" — Date() gốc hiểu nhầm d/M thành M/d (lịch Mỹ) nên phải tự tách.
+export const parseNowStr = s => { if (!s || typeof s !== "string") return null; const [time, date] = s.split(" "); if (!time || !date) return null; const [h, mi, se] = time.split(":").map(Number); const [d, m, y] = date.split("/").map(Number); if (!d || !m || !y) return null; const dt = new Date(y, m - 1, d, h || 0, mi || 0, se || 0); return isNaN(dt) ? null : dt; };
 export const getNextDate = (from, freq) => { const d = new Date(from); if (freq === "monthly") d.setMonth(d.getMonth() + 1); else if (freq === "quarterly") d.setMonth(d.getMonth() + 3); else { const f = FREQUENCIES.find(x => x.value === freq); if (f) d.setDate(d.getDate() + f.days); } return d.toISOString().split("T")[0]; };
-export const isCompletedLateByDate = t => { if (!t?.deadline || !t?.completed_at) return false; const dl = new Date(t.deadline); const ca = new Date(t.completed_at); if (isNaN(dl) || isNaN(ca)) return false; dl.setHours(0, 0, 0, 0); ca.setHours(0, 0, 0, 0); return ca > dl; };
+// So sánh với thời điểm nhân viên YÊU CẦU duyệt (requested_at), không phải lúc người duyệt bấm duyệt (completed_at) —
+// tránh nhân viên bị tính "trễ" oan vì Trưởng/Phó phòng duyệt chậm. Việc không qua bước yêu cầu duyệt (vd. admin gán completed
+// trực tiếp) thì mới dùng completed_at làm mốc dự phòng.
+export const isCompletedLateByDate = t => {
+  if (!t?.deadline) return false;
+  const dl = new Date(t.deadline); if (isNaN(dl)) return false; dl.setHours(0, 0, 0, 0);
+  const fa = t.requested_at ? parseNowStr(t.requested_at) : (t.completed_at ? new Date(t.completed_at) : null);
+  if (!fa || isNaN(fa)) return false;
+  fa.setHours(0, 0, 0, 0);
+  return fa > dl;
+};
+// Số ngày một yêu cầu duyệt hoàn thành đang bị "ngâm" — để cảnh báo BGĐ/Trưởng phòng duyệt chậm, không đổ lỗi cho nhân viên
+export const pendingApprovalDays = t => { if (!t?.completion_requested || !t?.requested_at) return 0; const ra = parseNowStr(t.requested_at); if (!ra) return 0; ra.setHours(0, 0, 0, 0); return Math.max(0, Math.round((today - ra) / 86400000)); };
 export const getStatus = t => { const dl = new Date(t.deadline); dl.setHours(0, 0, 0, 0); const d = Math.ceil((dl - today) / 86400000); if (t.completed) { if (t.late_reason || isCompletedLateByDate(t)) return "completed_late"; return "completed"; } if (t.completion_requested) return "pending_approval"; if (d < 0) return "overdue"; if (d <= 3) return "nearly_due"; return "on_time"; };
 export const isCompletedStatus = s => s === "completed" || s === "completed_late";
 export const isLateStatus = s => s === "overdue" || s === "completed_late";

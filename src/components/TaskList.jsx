@@ -1,6 +1,15 @@
 import React from "react";
 import { DEPTS, DEPT_COLOR, RATING } from "../constants";
 import { RatingBadge, Chip, PChip } from "./ui";
+import { pendingApprovalDays } from "../helpers";
+
+// Cảnh báo khi 1 yêu cầu duyệt hoàn thành bị "ngâm" quá lâu — để BGĐ/Trưởng phòng biết ai đang duyệt chậm,
+// không đổ lỗi trễ hạn lên nhân viên đã yêu cầu duyệt đúng hạn.
+const PendingApprovalWarning = ({ t }) => {
+  const days = pendingApprovalDays(t);
+  if (t.status !== "pending_approval" || days < 2) return null;
+  return <span title={`Đã yêu cầu duyệt ${days} ngày, chưa được xử lý`} style={{ background: "#fef2f2", color: "#b91c1c", fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 8, border: "1px solid #fecaca" }}>⏳ Chờ duyệt {days} ngày</span>;
+};
 
 export default function TaskList({
   isMobile, inp,
@@ -64,6 +73,7 @@ export default function TaskList({
                   <Chip s={t.status} />
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 7, alignItems: "center" }}>
+                  <PendingApprovalWarning t={t} />
                   <span style={{ background: DEPT_COLOR[t.dept] + "22", color: DEPT_COLOR[t.dept], fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>{t.dept}</span>
                   <PChip p={t.prio} />
                   <span style={{ fontSize: 11, color: "#6b7280" }}>{getEmp(t.eid)?.name || "–"}</span>
@@ -172,7 +182,7 @@ export default function TaskList({
                       </span>
                     )}
                   </td>
-                  <td style={{ padding: "9px 12px" }}><Chip s={t.status} /></td>
+                  <td style={{ padding: "9px 12px" }}><Chip s={t.status} /><div style={{ marginTop: 3 }}><PendingApprovalWarning t={t} /></div></td>
                   <td style={{ padding: "9px 12px" }}>
                     <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
                       {t.completed && canEditTask(t) && <button onClick={() => toggleDone(t)} title="Bỏ hoàn thành" style={{ padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 5, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>↩</button>}
