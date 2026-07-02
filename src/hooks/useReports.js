@@ -7,23 +7,35 @@ import { isCompletedStatus, parseJSON } from "../helpers";
 // Tách khỏi App.jsx vì đây là cụm thuật toán riêng biệt, cần dễ soát lỗi độc lập (từng có bug NaN/điểm âm).
 // Quy đổi 1-5 sao nghiệm thu dự án ngân sách sang thang đánh giá RATING (4 mức) dùng chung với nhiệm vụ thường
 const projRatingKey = (stars) => stars >= 5 ? "xuat_sac" : stars === 4 ? "tot" : stars >= 2 ? "tb" : "kem";
+// Quy đổi 1-3 sao duyệt từng bước (STEP_QUALITY ở Investment.jsx) sang cùng thang RATING
+const stepRatingKey = (q) => q >= 3 ? "xuat_sac" : q === 2 ? "tot" : "tb";
+// So sánh ngày duyệt bước (quality_at, định dạng dd/mm/yyyy) với hạn bước (end, ISO) để biết có trễ không
+const isStepLate = (s) => {
+  if (!s.end || !s.quality_at) return false;
+  const [d, m, y] = s.quality_at.split("/");
+  if (!d || !m || !y) return false;
+  return new Date(y, m - 1, d) > new Date(s.end);
+};
 
 export default function useReports({ computed, employees, currentUser, overloadThreshold, projects }) {
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
-  // ── Nhiệm vụ ngân sách đã nghiệm thu (có quality_rating) → quy thành "việc hoàn thành" cho phụ trách chính
-  // VÀ từng người chủ trì bước, để không thiệt thòi so với người chỉ làm nhiệm vụ thường ──
+  // ── Nhiệm vụ ngân sách quy thành "việc hoàn thành" để không thiệt thòi so với người chỉ làm nhiệm vụ thường:
+  // (1) Mỗi BƯỚC đã duyệt+đánh giá tính 1 việc cho người chủ trì bước đó — không phải gộp cả dự án thành 1 việc,
+  //     để không bị vướng ràng buộc "từ 5 việc/tháng mới đủ điều kiện chấm điểm".
+  // (2) Khi cả dự án được BGĐ nghiệm thu (quality_rating), phụ trách chính được cộng thêm 1 việc đại diện quản lý tổng thể ──
   const projPseudoTasks = useMemo(() => {
     const out = [];
     for (const p of (projects || [])) {
-      if (!p.quality_rating || !p.quality_rated_at) continue;
-      const participants = new Set();
-      if (p.lead_eid) participants.add(p.lead_eid);
-      for (const s of parseJSON(p.steps, [])) if (s.lead_eid) participants.add(s.lead_eid);
-      const status = p.quality_on_time === false ? "completed_late" : "completed";
-      const rating = projRatingKey(p.quality_rating);
-      for (const eid of participants) {
-        out.push({ id: `proj_${p.id}_${eid}`, eid, deadline: p.quality_rated_at, status, rating, collab_eids: "[]", suspicious_completion: false });
+      for (const s of parseJSON(p.steps, [])) {
+        if (s.status !== "done" || !s.lead_eid || !s.quality) continue;
+        const deadline = s.end || p.quality_rated_at;
+        if (!deadline) continue;
+        out.push({ id: `projstep_${p.id}_${s.id}`, eid: s.lead_eid, deadline, status: isStepLate(s) ? "completed_late" : "completed", rating: stepRatingKey(s.quality), collab_eids: "[]", suspicious_completion: false });
+      }
+      if (p.quality_rating && p.quality_rated_at && p.lead_eid) {
+        const status = p.quality_on_time === false ? "completed_late" : "completed";
+        out.push({ id: `projlead_${p.id}`, eid: p.lead_eid, deadline: p.quality_rated_at, status, rating: projRatingKey(p.quality_rating), collab_eids: "[]", suspicious_completion: false });
       }
     }
     return out;
