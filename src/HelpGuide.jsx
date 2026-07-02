@@ -24,7 +24,8 @@ const SECTIONS = [
     body: [
       { h: "Đăng nhập" },
       { ol: ["Truy cập địa chỉ web phần mềm (do quản trị viên cung cấp).", "Nhập Tên đăng nhập và Mật khẩu.", "Bấm Đăng nhập."] },
-      { p: "Sau khi đăng nhập, nếu có việc mới giao hoặc việc đang trễ hạn, hệ thống hiện popup nhắc nhở ngay." },
+      { p: "Sau khi đăng nhập, nếu có việc đang trễ hạn, việc chưa xem hoặc bước chờ duyệt, hệ thống hiện popup nhắc nhở ngay — bấm vào từng việc trong popup để mở xem chi tiết." },
+      { note: "Trạng thái \"Đã xem/Chưa xem\" của việc được giao lưu trên máy chủ (không phải trên trình duyệt), nên đăng nhập ở thiết bị khác vẫn thấy đúng việc nào bạn đã mở xem." },
       { h: "Đổi mật khẩu" },
       { p: "Bấm biểu tượng 🔑 (góc trên) → nhập mật khẩu hiện tại và mật khẩu mới (tối thiểu 6 ký tự)." },
       { h: "Quên mật khẩu" },
@@ -79,16 +80,28 @@ const SECTIONS = [
       { p: "Có thể ↩ Từ chối để trả về trạng thái đang thực hiện nếu kết quả chưa đạt." },
       { note: "Nếu nhiệm vụ đã quá hạn, phải khai báo nguyên nhân trễ hạn trước khi gửi yêu cầu duyệt." },
       { h: "Chuyển tiếp & Xóa" },
-      { p: "Trưởng/Phó phòng có thể ↪ Chuyển tiếp nhiệm vụ cho người khác. Nhiệm vụ xóa sẽ vào Thùng rác, có thể khôi phục hoặc xóa vĩnh viễn." },
+      { p: "Trưởng/Phó phòng (kể cả TP.HCTH) có thể ↪ Chuyển tiếp nhiệm vụ cho người khác trong phòng mình. Nhiệm vụ xóa sẽ vào Thùng rác, có thể khôi phục hoặc xóa vĩnh viễn." },
+      { h: "Trạng thái Đã xem / Chưa xem" },
+      { p: "BGĐ, Trưởng phòng, Phó phòng thấy biểu tượng 👁️ Đã xem hoặc 🔴 Chưa xem cạnh tên người được giao — biết ngay nhân viên đã mở xem việc hay chưa, kể cả khi họ đăng nhập từ thiết bị khác." },
+      { h: "Cảnh báo duyệt chậm" },
+      { p: "Nếu 1 yêu cầu duyệt hoàn thành bị treo từ 2 ngày trở lên chưa được xử lý, danh sách hiển thị badge ⏳ Chờ duyệt N ngày để BGĐ/Trưởng phòng biết ai đang duyệt chậm." },
     ]
   },
   {
     icon: "💰", title: "6. Nhiệm vụ ngân sách",
     body: [
-      { p: "Quản lý dự án/gói việc liên quan ngân sách, đầu tư, mua sắm, đấu thầu theo từng bước quy trình." },
+      { p: "Quản lý dự án/gói việc liên quan ngân sách, đầu tư, mua sắm, sửa chữa theo từng bước quy trình." },
+      { h: "3 nhóm phân loại" },
+      { p: "Trang chia thành 3 tab, mỗi dự án thuộc đúng 1 nhóm (chọn ở trường Phân loại khi tạo/sửa dự án):" },
+      { ul: [
+        "🗂️ Chi Hoạt Động",
+        "🛒 Chi Mua Sắm",
+        "🔧 Chi Bảo Dưỡng Sửa Chữa TSC",
+      ]},
+      { note: "Chuyển 1 dự án sang tab khác: mở dự án → ✏️ Sửa dự án → đổi lại ô Phân loại → Lưu." },
       { h: "Tạo dự án" },
       { ul: [
-        "Tên dự án, Lãnh đạo phụ trách, Nguồn vốn, Tổng mức đầu tư/Đã chi.",
+        "Tên dự án, Phân loại, Lãnh đạo phụ trách, Nguồn vốn, Tổng mức đầu tư/Đã chi.",
         "Chọn mẫu quy trình có sẵn (Đầu tư công, 03 báo giá, Chỉ định thầu, Chào hàng cạnh tranh, Đấu thầu rộng rãi, Nghiệm thu–thanh toán…) hoặc tự tạo bước.",
         "Gán Phụ trách chính và Thành viên dự án.",
       ]},
@@ -99,8 +112,9 @@ const SECTIONS = [
         "Ban Giám đốc hoặc Trưởng/Phó phòng đúng đơn vị dự án (không phải người chủ trì) bấm ✅ Duyệt & đánh giá, chọn mức chất lượng (★ Đạt/★★ Tốt/★★★ Xuất sắc).",
         "Bước chuyển Hoàn thành (đã đánh giá), hiển thị người duyệt và ngày duyệt.",
       ]},
+      { note: "Mỗi bước đã duyệt tính là 1 việc hoàn thành cho người chủ trì bước đó trong Báo cáo hiệu suất — không cần chờ cả dự án xong mới được cộng điểm." },
       { h: "Nghiệm thu tổng thể" },
-      { p: "Khi tất cả bước hoàn thành, Ban Giám đốc thấy banner 📋 Nghiệm thu để đánh giá tổng thể: 1–5 sao, đúng tiến độ/trong ngân sách, nhận xét kết luận." },
+      { p: "Khi tất cả bước hoàn thành, Ban Giám đốc thấy banner 📋 Nghiệm thu để đánh giá tổng thể: 1–5 sao, đúng tiến độ/trong ngân sách, nhận xét kết luận. Phụ trách chính được cộng thêm 1 việc riêng vào tháng nghiệm thu." },
     ]
   },
   {
@@ -148,6 +162,8 @@ const SECTIONS = [
         "Thưởng phối hợp: cộng thêm khi hỗ trợ hoàn thành việc của người khác.",
       ]},
       { p: "Chỉ nhân viên có từ 5 việc trở lên trong tháng mới được tính điểm." },
+      { note: "Việc \"trễ hạn\" được tính theo lúc bạn bấm Yêu cầu hoàn thành, không phải lúc người duyệt bấm duyệt — nếu bạn yêu cầu duyệt đúng hạn thì dù người duyệt xử lý chậm bao lâu, bạn vẫn không bị tính trễ." },
+      { p: "Nhiệm vụ ngân sách cũng được cộng vào điểm hiệu suất: mỗi bước dự án đã duyệt+chấm chất lượng tính là 1 việc cho người chủ trì bước; khi cả dự án được BGĐ nghiệm thu (1–5 sao), phụ trách chính được cộng thêm 1 việc riêng." },
       { note: "Bấm ℹ️ cạnh điểm số để xem chi tiết \"Vì sao điểm này?\"." },
       { p: "Xuất báo cáo ra PDF (để in) hoặc CSV (Excel)." },
     ]
@@ -198,6 +214,7 @@ const SECTIONS = [
       { ul: [
         "Cần từ 5 việc trở lên trong tháng mới đủ điều kiện tính điểm.",
         "Điểm chỉ tính trên việc đã đến hạn xử lý — việc đang chờ duyệt hoặc chưa tới hạn chưa được tính vào tháng đó.",
+        "Nếu chỉ làm ít nhiệm vụ thường, hãy để ý các bước bạn chủ trì trong Nhiệm vụ ngân sách đã được duyệt+chấm chất lượng hay chưa — mỗi bước cũng tính là 1 việc, giúp bạn dễ đạt mốc 5 việc/tháng hơn.",
       ]},
       { h: "Cần hỗ trợ thêm?" },
       { p: "Liên hệ Quản trị viên hệ thống hoặc gửi phản hồi qua mục Góp ý." },
