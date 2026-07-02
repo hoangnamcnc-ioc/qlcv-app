@@ -15,3 +15,5 @@ export const STATUS = {on_time:{label:"Trong hạn",bg:"#dcfce7",col:"#15803d",d
 export const PRIO = {high:{label:"Cao",bg:"#fee2e2",col:"#b91c1c"},medium:{label:"Trung bình",bg:"#fef9c3",col:"#92400e"},low:{label:"Thấp",bg:"#f1f5f9",col:"#475569"}};
 export const STATUS_ORDER = {overdue:0,pending_approval:1,nearly_due:2,on_time:3,completed_late:4,completed:5};
 export const LATE_COMPLETION_PENALTY = 2;
+export const SUPPORT_CHANNELS = {phone:{label:"Điện thoại",icon:"📞"},zalo:{label:"Zalo",icon:"💬"},email:{label:"Email",icon:"📧"}};
+export const SUPPORT_DIFFICULTY = {hard:{label:"Khó",icon:"🔴",weight:1},medium:{label:"Trung bình",icon:"🟡",weight:0.5},easy:{label:"Nhanh",icon:"🟢",weight:0.25}};
