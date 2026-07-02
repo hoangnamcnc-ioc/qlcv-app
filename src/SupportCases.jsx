@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
-import { DEPTS, DEPT_COLOR, SUPPORT_CHANNELS, SUPPORT_DIFFICULTY } from "./constants";
+import { DEPTS, DEPT_COLOR, SUPPORT_CHANNELS, SUPPORT_DIFFICULTY, SUPPORT_CATEGORIES } from "./constants";
 import { todayStr } from "./helpers";
 
 // ───── Hỗ trợ người dùng và xử lý PAHT — nền tảng số dùng chung (điện thoại/Zalo/email/HT PAHT) ─────
@@ -11,6 +11,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(null);
+  const [catTab, setCatTab] = useState("support"); // "support" (Hỗ trợ ND & PAHT) | "datacenter" (Xử lý lỗi TTDL)
   const [dateFrom, setDateFrom] = useState(""); const [dateTo, setDateTo] = useState("");
   const [fEid, setFEid] = useState("all"); const [fChannel, setFChannel] = useState("all");
 
@@ -24,7 +25,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
     setLoading(false);
   })(); }, []);
 
-  const openCreate = () => setForm({ channel: "phone", content: "", result: "", eid: myEid || "", difficulty: "medium", created: todayStr });
+  const openCreate = () => setForm({ category: catTab, channel: "phone", content: "", result: "", eid: myEid || "", difficulty: "medium", created: todayStr });
   const openEdit = (c) => setForm({ ...c });
 
   const saveCase = async () => {
@@ -32,12 +33,12 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
     if (!form.result.trim()) { showToast && showToast("Nhập kết quả giải quyết", "error"); return; }
     setSaving(true);
     if (form.id) {
-      const upd = { channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr };
+      const upd = { category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr };
       const { error } = await supabase.from("support_cases").update(upd).eq("id", form.id);
       if (!error) { setCases(p => p.map(x => x.id === form.id ? { ...x, ...upd } : x)); showToast && showToast("Đã cập nhật"); setForm(null); }
       else showToast && showToast("Lỗi: " + (error.message || ""), "error");
     } else {
-      const c = { id: `sc${Date.now()}`, channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr, created_by: currentUser.full_name };
+      const c = { id: `sc${Date.now()}`, category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr, created_by: currentUser.full_name };
       const { error } = await supabase.from("support_cases").insert(c);
       if (!error) { setCases(p => [c, ...p]); showToast && showToast("Đã ghi nhận trường hợp hỗ trợ"); setForm(null); }
       else showToast && showToast("Lỗi: " + (error.message || ""), "error");
@@ -52,11 +53,12 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
   };
 
   const filtered = useMemo(() => cases.filter(c =>
+    (c.category || "support") === catTab &&
     (fEid === "all" || c.eid === fEid) &&
     (fChannel === "all" || c.channel === fChannel) &&
     (!dateFrom || c.created >= dateFrom) &&
     (!dateTo || c.created <= dateTo)
-  ), [cases, fEid, fChannel, dateFrom, dateTo]);
+  ), [cases, catTab, fEid, fChannel, dateFrom, dateTo]);
 
   const stats = useMemo(() => {
     const weight = c => SUPPORT_DIFFICULTY[c.difficulty]?.weight ?? 0.5;
@@ -66,8 +68,13 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
   }, [filtered]);
 
   return (<div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", gap: 8, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 8 }}>
+      {Object.entries(SUPPORT_CATEGORIES).map(([k, v]) => (
+        <button key={k} onClick={() => setCatTab(k)} style={{ flex: 1, padding: "9px 8px", border: "none", borderRadius: 7, background: catTab === k ? "#059669" : "transparent", color: catTab === k ? "#fff" : "#6b7280", cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: catTab === k ? 600 : 400 }}>{v.icon} {v.label}</button>
+      ))}
+    </div>
     <div style={{ display: "flex", justifyContent: "flex-end" }}>
-      <button onClick={openCreate} style={{ background: "#059669", color: "#fff", border: "none", borderRadius: 8, padding: isMobile ? "6px 12px" : "7px 16px", fontSize: isMobile ? 12 : 13, cursor: "pointer", fontWeight: 500 }}>+ Ghi nhận hỗ trợ</button>
+      <button onClick={openCreate} style={{ background: "#059669", color: "#fff", border: "none", borderRadius: 8, padding: isMobile ? "6px 12px" : "7px 16px", fontSize: isMobile ? 12 : 13, cursor: "pointer", fontWeight: 500 }}>+ Ghi nhận {SUPPORT_CATEGORIES[catTab]?.label.toLowerCase()}</button>
     </div>
 
     <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 12px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -97,8 +104,8 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
       <div style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>Đang tải…</div>
     ) : filtered.length === 0 ? (
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 40, textAlign: "center", color: "#9ca3af" }}>
-        <div style={{ fontSize: 40, marginBottom: 8 }}>🎧</div>
-        <div>Chưa có trường hợp hỗ trợ nào</div>
+        <div style={{ fontSize: 40, marginBottom: 8 }}>{SUPPORT_CATEGORIES[catTab]?.icon}</div>
+        <div>Chưa có trường hợp nào</div>
       </div>
     ) : (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -131,8 +138,15 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
 
     {form && (<div onClick={() => setForm(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: isMobile ? "12px 8px" : 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontWeight: 600, fontSize: 15 }}>🎧 {form.id ? "Sửa" : "Ghi nhận"} hỗ trợ người dùng và xử lý PAHT</span><button onClick={() => setForm(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#9ca3af" }}>✕</button></div>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontWeight: 600, fontSize: 15 }}>{SUPPORT_CATEGORIES[form.category]?.icon || "🎧"} {form.id ? "Sửa" : "Ghi nhận"} trường hợp</span><button onClick={() => setForm(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#9ca3af" }}>✕</button></div>
         <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Phân loại</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {Object.entries(SUPPORT_CATEGORIES).map(([k, v]) => (
+                <button key={k} onClick={() => setForm(f => ({ ...f, category: k }))} style={{ flex: "1 1 45%", padding: "8px 6px", border: "2px solid " + (form.category === k ? "#059669" : "#e5e7eb"), borderRadius: 8, background: form.category === k ? "#f0fdf4" : "#fff", cursor: "pointer", fontSize: 12.5 }}>{v.icon} {v.label}</button>
+              ))}
+            </div>
+          </div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Kênh tiếp nhận</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {Object.entries(SUPPORT_CHANNELS).map(([k, v]) => (
