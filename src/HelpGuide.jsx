@@ -118,7 +118,29 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "📌", title: "7. Nhiệm vụ khác",
+    icon: "🎧", title: "7. Hỗ trợ người dùng/PAHT và vận hành DC",
+    body: [
+      { p: "Ghi nhanh từng trường hợp hỗ trợ/xử lý sự cố — không qua bước duyệt, vì bản chất đã xử lý xong ngay khi ghi nhận." },
+      { h: "2 tab" },
+      { ul: [
+        "🎧 Hỗ trợ người dùng và xử lý PAHT — kênh: Điện thoại, Zalo, Email, Tiếp nhận qua HT PAHT. Người xử lý: nhân viên phòng HT-NTS và QL-KTDL.",
+        "🖧 Xử lý lỗi Trung tâm dữ liệu — kênh: Điện thoại, Zalo. Người xử lý: chỉ nhân viên phòng HT-NTS.",
+      ]},
+      { h: "Ghi nhận 1 trường hợp" },
+      { p: "Bấm + Ghi nhận, điền: Kênh tiếp nhận, Nội dung hỗ trợ/Mô tả lỗi, Kết quả giải quyết (bắt buộc), Người xử lý, Độ khó, Ngày xử lý." },
+      { note: "Kết quả giải quyết là bắt buộc — nếu thiếu, danh sách sẽ hiện cảnh báo \"⚠️ Thiếu nội dung kết quả giải quyết\" để dễ rà soát bổ sung." },
+      { h: "Tính điểm hiệu suất theo độ khó" },
+      { ul: [
+        "🔴 Khó = 1 việc",
+        "🟡 Trung bình = 1/2 việc",
+        "🟢 Nhanh = 1/4 việc",
+      ]},
+      { note: "Mỗi trường hợp cộng thẳng vào điểm hiệu suất tháng của người xử lý theo trọng số trên, tính vào tháng theo Ngày xử lý. Cần tải lại trang (F5) sau khi ghi nhận để mục Báo cáo cập nhật điểm mới." },
+      { p: "Có thể sửa ✏️ hoặc xóa 🗑️ một trường hợp — người xử lý tự sửa/xóa được trường hợp của mình, BGĐ/Trưởng/Phó phòng sửa/xóa được mọi trường hợp." },
+    ]
+  },
+  {
+    icon: "📌", title: "8. Nhiệm vụ khác",
     body: [
       { p: "Dành cho nhiệm vụ theo tổ công tác, thành viên từ nhiều phòng ban, không thuộc luồng ngân sách." },
       { ul: [
@@ -130,7 +152,7 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "🗓️", title: "8. Lịch trực",
+    icon: "🗓️", title: "9. Lịch trực",
     body: [
       { ul: [
         "📅 Nhiệm vụ: xem việc theo ngày dạng lịch tháng, bấm 1 ngày để xem chi tiết.",
@@ -139,7 +161,7 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "📁", title: "9. Văn bản",
+    icon: "📁", title: "10. Văn bản",
     body: [
       { p: "Quản lý văn bản đến/đi: số văn bản, trích yếu, nơi gửi/nhận, ngày văn bản, file đính kèm." },
       { ul: [
@@ -150,7 +172,7 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "📈", title: "10. Báo cáo",
+    icon: "📈", title: "11. Báo cáo",
     body: [
       { h: "Hiệu suất nhân viên & Bảng xếp hạng" },
       { p: "Điểm hiệu suất (0–100) gồm:" },
@@ -169,25 +191,25 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "👥", title: "11. Nhân viên",
+    icon: "👥", title: "12. Nhân viên",
     body: [
       { p: "Danh sách nhân viên theo phòng ban, số việc đang xử lý, số việc phối hợp. Thêm/sửa: họ tên, phòng ban, chức vụ." },
     ]
   },
   {
-    icon: "💡", title: "12. Góp ý",
+    icon: "💡", title: "13. Góp ý",
     body: [{ p: "Nơi gửi phản hồi, đề xuất cải tiến phần mềm hoặc quy trình làm việc trực tiếp trong ứng dụng." }]
   },
   {
-    icon: "📜", title: "13. Nhật ký",
+    icon: "📜", title: "14. Nhật ký",
     body: [{ p: "Chỉ hiển thị với Ban Giám đốc/Quản trị viên/TP.HCTH. Ghi lại lịch sử thao tác trên các nhiệm vụ." }]
   },
   {
-    icon: "🔐", title: "14. Bảo mật",
+    icon: "🔐", title: "15. Bảo mật",
     body: [{ p: "Chỉ hiển thị với Quản trị viên. Theo dõi lịch sử đăng nhập thành công/thất bại của toàn bộ tài khoản." }]
   },
   {
-    icon: "📑", title: "15. Bảng phân quyền tổng hợp",
+    icon: "📑", title: "16. Bảng phân quyền tổng hợp",
     body: [{ table: {
       head: ["Chức năng", "Nhân viên", "Trưởng/Phó phòng", "TP.HCTH/BGĐ/Admin"],
       rows: [
@@ -204,7 +226,7 @@ const SECTIONS = [
     }}]
   },
   {
-    icon: "❓", title: "16. Mẹo sử dụng & Câu hỏi thường gặp",
+    icon: "❓", title: "17. Mẹo sử dụng & Câu hỏi thường gặp",
     body: [
       { h: "Sử dụng trên điện thoại" },
       { ul: ["Menu chính cố định ở đáy màn hình, luôn hiển thị khi cuộn.", "Bấm Aa trên thanh tiêu đề để chỉnh cỡ chữ phù hợp."] },
@@ -215,6 +237,7 @@ const SECTIONS = [
         "Cần từ 5 việc trở lên trong tháng mới đủ điều kiện tính điểm.",
         "Điểm chỉ tính trên việc đã đến hạn xử lý — việc đang chờ duyệt hoặc chưa tới hạn chưa được tính vào tháng đó.",
         "Nếu chỉ làm ít nhiệm vụ thường, hãy để ý các bước bạn chủ trì trong Nhiệm vụ ngân sách đã được duyệt+chấm chất lượng hay chưa — mỗi bước cũng tính là 1 việc, giúp bạn dễ đạt mốc 5 việc/tháng hơn.",
+        "Các trường hợp đã ghi nhận ở mục Hỗ trợ người dùng/PAHT và vận hành DC cũng cộng điểm theo độ khó (Khó=1, Trung bình=1/2, Nhanh=1/4 việc) — nhớ tải lại trang sau khi ghi nhận để điểm cập nhật.",
       ]},
       { h: "Cần hỗ trợ thêm?" },
       { p: "Liên hệ Quản trị viên hệ thống hoặc gửi phản hồi qua mục Góp ý." },
