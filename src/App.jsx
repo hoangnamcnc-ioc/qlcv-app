@@ -223,6 +223,8 @@ export default function App() {
   // Gom "Nhiệm vụ / Ngân sách / Khác / Hỗ trợ ND" vào 1 mục cha "Công việc" có tab con bên trong,
   // giảm số mục menu chính. workSubviews giữ nguyên đúng các id view cũ để không phải sửa logic render bên dưới.
   const workSubviews=[{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"othertasks",icon:"📌",label:"Nhiệm vụ khác"},{id:"supportcases",icon:"🎧",label:"Hỗ trợ người dùng/PAHT và vận hành DC",shortLabel:"Hỗ trợ ND"}];
+  // "Nhiệm vụ định kỳ" là modal (không phải view riêng) nhưng vẫn hiện như 1 tab con trong "Công việc"
+  const workExtras=canCreate?[{id:"recurring",icon:"🔄",label:"Nhiệm vụ định kỳ",onClick:()=>setShowRecurring(true)}]:[];
   const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"work",icon:"💼",label:"Công việc"},{id:"calendar",icon:"🗓️",label:"Lịch trực"},{id:"documents",icon:"📁",label:"Văn bản"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
   const isWorkView=workSubviews.some(w=>w.id===view);
   const getViewMeta=id=>navItems.find(n=>n.id===id)||workSubviews.find(w=>w.id===id);
@@ -260,10 +262,9 @@ export default function App() {
             {navItems.map(n=>{const active=n.id==="work"?isWorkView:view===n.id;return(
             <div key={n.id}>
               <button onClick={()=>{if(n.id==="work")goToWork();else setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:active?"rgba(165,180,252,0.15)":"transparent",border:"none",cursor:"pointer",color:active?"#c7d2fe":"#94a3b8",textAlign:"left",fontSize:13}}><span>{n.icon}</span>{n.label}</button>
-              {n.id==="work"&&isWorkView&&<div style={{display:"flex",flexDirection:"column"}}>{workSubviews.map(w=><button key={w.id} onClick={()=>setView(w.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 14px 8px 34px",background:view===w.id?"rgba(165,180,252,0.1)":"transparent",border:"none",cursor:"pointer",color:view===w.id?"#c7d2fe":"#94a3b8",textAlign:"left",fontSize:12.5}}><span>{w.icon}</span>{w.label}</button>)}</div>}
+              {n.id==="work"&&isWorkView&&<div style={{display:"flex",flexDirection:"column"}}>{[...workSubviews,...workExtras].map(w=><button key={w.id} onClick={()=>w.onClick?w.onClick():setView(w.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 14px 8px 34px",background:view===w.id?"rgba(165,180,252,0.1)":"transparent",border:"none",cursor:"pointer",color:view===w.id?"#c7d2fe":"#94a3b8",textAlign:"left",fontSize:12.5}}><span>{w.icon}</span>{w.label}{w.id==="recurring"&&recurringTemplates.filter(t=>t.active).length>0&&<span style={{background:"#6366f1",color:"#fff",fontSize:10,padding:"1px 6px",borderRadius:10,marginLeft:"auto"}}>{recurringTemplates.filter(t=>t.active).length}</span>}</button>)}</div>}
             </div>
             );})}
-            {canCreate&&<button onClick={()=>setShowRecurring(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",color:"#94a3b8",textAlign:"left",fontSize:13}}>🔄 Nhiệm vụ định kỳ{recurringTemplates.filter(t=>t.active).length>0&&<span style={{background:"#6366f1",color:"#fff",fontSize:10,padding:"1px 6px",borderRadius:10,marginLeft:"auto"}}>{recurringTemplates.filter(t=>t.active).length}</span>}</button>}
             {isAdmin&&<button onClick={()=>setUserModal(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",color:"#94a3b8",textAlign:"left",fontSize:13}}>🔐 Tài khoản</button>}
           </nav>
           <div style={{padding:"10px 14px",borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
@@ -341,7 +342,7 @@ export default function App() {
 
         {isMobile&&isWorkView&&(
           <div style={{display:"flex",gap:6,overflowX:"auto",padding:"8px 12px",background:"#fff",borderBottom:"1px solid #e5e7eb",flexShrink:0}}>
-            {workSubviews.map(w=><button key={w.id} onClick={()=>setView(w.id)} style={{flex:"0 0 auto",padding:"6px 12px",borderRadius:20,border:"1px solid "+(view===w.id?"#4f46e5":"#e5e7eb"),background:view===w.id?"#4f46e5":"#fff",color:view===w.id?"#fff":"#374151",fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>{w.icon} {w.shortLabel||w.label}</button>)}
+            {[...workSubviews,...workExtras].map(w=><button key={w.id} onClick={()=>w.onClick?w.onClick():setView(w.id)} style={{flex:"0 0 auto",padding:"6px 12px",borderRadius:20,border:"1px solid "+(view===w.id?"#4f46e5":"#e5e7eb"),background:view===w.id?"#4f46e5":"#fff",color:view===w.id?"#fff":"#374151",fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>{w.icon} {w.shortLabel||w.label}</button>)}
           </div>
         )}
 
@@ -733,7 +734,6 @@ export default function App() {
         {navItems.map(n=>{const active=n.id==="work"?isWorkView:view===n.id;return(
         <button key={n.id} onClick={()=>{if(n.id==="work")goToWork();else setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{flex:"0 0 auto",minWidth:60,padding:"10px 8px",background:"transparent",border:"none",cursor:"pointer",color:active?"#c7d2fe":"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2,whiteSpace:"nowrap"}}><span style={{fontSize:18}}>{n.icon}</span><span style={{fontSize:9}}>{n.shortLabel||n.label}</span></button>
         );})}
-        {canCreate&&<button onClick={()=>setShowRecurring(true)} style={{flex:"0 0 auto",minWidth:60,padding:"10px 8px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2,whiteSpace:"nowrap"}}><span style={{fontSize:18}}>🔄</span><span style={{fontSize:9}}>Định kỳ</span></button>}
         {isAdmin&&<button onClick={()=>setUserModal(true)} style={{flex:"0 0 auto",minWidth:60,padding:"10px 8px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2,whiteSpace:"nowrap"}}><span style={{fontSize:18}}>🔐</span><span style={{fontSize:9}}>TK</span></button>}
       </div>
     )}
