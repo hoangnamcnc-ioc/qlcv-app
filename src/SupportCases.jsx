@@ -14,6 +14,9 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
   const [catTab, setCatTab] = useState("support"); // "support" (Hỗ trợ ND & PAHT) | "datacenter" (Xử lý lỗi TTDL)
   const [dateFrom, setDateFrom] = useState(""); const [dateTo, setDateTo] = useState("");
   const [fEid, setFEid] = useState("all"); const [fChannel, setFChannel] = useState("all");
+  const [showTrash, setShowTrash] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const myEid = currentUser?.employee_id;
   const canManage = ["admin", "director", "manager_hcth", "manager", "deputy_manager"].includes(currentUser?.role);
@@ -57,19 +60,57 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
     setSaving(false);
   };
 
+  // Xóa mềm — chuyển vào Thùng rác thay vì mất vĩnh viễn ngay, để Trưởng/Phó phòng/BGĐ còn rà soát lại được
   const deleteCase = async (id) => {
-    if (!window.confirm("Xóa trường hợp hỗ trợ này?")) return;
-    await supabase.from("support_cases").delete().eq("id", id);
-    setCases(p => p.filter(c => c.id !== id));
+    if (!window.confirm("Chuyển trường hợp này vào thùng rác?")) return;
+    const { error } = await supabase.from("support_cases").update({ deleted: true }).eq("id", id);
+    if (!error) setCases(p => p.map(x => x.id === id ? { ...x, deleted: true } : x));
+    else showToast && showToast("Lỗi: " + (error.message || ""), "error");
+  };
+  const restoreCase = async (id) => {
+    const { error } = await supabase.from("support_cases").update({ deleted: false }).eq("id", id);
+    if (!error) { setCases(p => p.map(x => x.id === id ? { ...x, deleted: false } : x)); showToast && showToast("Đã khôi phục"); }
+    else showToast && showToast("Lỗi: " + (error.message || ""), "error");
+  };
+  const purgeCase = async (id) => {
+    if (!window.confirm("Xóa VĨNH VIỄN trường hợp này? Không thể hoàn tác.")) return;
+    const { error } = await supabase.from("support_cases").delete().eq("id", id);
+    if (!error) setCases(p => p.filter(c => c.id !== id));
+    else showToast && showToast("Lỗi: " + (error.message || ""), "error");
+  };
+  // Xác nhận đã rà soát — cho Trưởng/Phó phòng/BGĐ kiểm soát các trường hợp tự ghi nhận, hạn chế lạm dụng
+  const verifyCase = async (c) => {
+    const upd = { verified_by: currentUser.full_name, verified_at: todayStr };
+    const { error } = await supabase.from("support_cases").update(upd).eq("id", c.id);
+    if (!error) { setCases(p => p.map(x => x.id === c.id ? { ...x, ...upd } : x)); showToast && showToast("Đã xác nhận"); }
+    else showToast && showToast("Lỗi: " + (error.message || ""), "error");
   };
 
   const filtered = useMemo(() => cases.filter(c =>
+    !!c.deleted === showTrash &&
     (c.category || "support") === catTab &&
     (fEid === "all" || c.eid === fEid) &&
     (fChannel === "all" || c.channel === fChannel) &&
     (!dateFrom || c.created >= dateFrom) &&
     (!dateTo || c.created <= dateTo)
-  ), [cases, catTab, fEid, fChannel, dateFrom, dateTo]);
+  ), [cases, showTrash, catTab, fEid, fChannel, dateFrom, dateTo]);
+
+  useEffect(() => { setPage(1); }, [showTrash, catTab, fEid, fChannel, dateFrom, dateTo]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paged = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
+
+  const exportCSV = () => {
+    const header = ["Ngày xử lý", "Phân loại", "Kênh", "Nội dung", "Kết quả giải quyết", "Người xử lý", "Phòng ban", "Độ khó", "Quy đổi việc", "Xác nhận"];
+    const rows = filtered.map(c => { const emp = getEmp(c.eid); return [
+      c.created, SUPPORT_CATEGORIES[c.category || "support"]?.label || "", SUPPORT_CHANNELS[c.channel]?.label || "",
+      `"${(c.content || "").replace(/"/g, '""')}"`, `"${(c.result || "").replace(/"/g, '""')}"`,
+      emp?.name || "", emp?.dept || "", SUPPORT_DIFFICULTY[c.difficulty]?.label || "", SUPPORT_DIFFICULTY[c.difficulty]?.weight ?? "",
+      c.verified_by ? `Đã xác nhận (${c.verified_by})` : "Chưa xác nhận",
+    ].join(","); });
+    const csv = "﻿" + [header.join(","), ...rows].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a"); a.href = url; a.download = `ho-tro-${SUPPORT_CATEGORIES[catTab]?.label || catTab}-${todayStr}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
 
   const stats = useMemo(() => {
     const weight = c => SUPPORT_DIFFICULTY[c.difficulty]?.weight ?? 0.5;
@@ -84,8 +125,10 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
         <button key={k} onClick={() => { setCatTab(k); setFEid("all"); setFChannel("all"); }} style={{ flex: 1, padding: "9px 8px", border: "none", borderRadius: 7, background: catTab === k ? "#059669" : "transparent", color: catTab === k ? "#fff" : "#6b7280", cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: catTab === k ? 600 : 400 }}>{v.icon} {v.label}</button>
       ))}
     </div>
-    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-      <button onClick={openCreate} style={{ background: "#059669", color: "#fff", border: "none", borderRadius: 8, padding: isMobile ? "6px 12px" : "7px 16px", fontSize: isMobile ? 12 : 13, cursor: "pointer", fontWeight: 500 }}>+ Ghi nhận {SUPPORT_CATEGORIES[catTab]?.label.toLowerCase()}</button>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <button onClick={exportCSV} style={{ background: "#fff", color: "#374151", border: "1px solid #d1d5db", borderRadius: 8, padding: isMobile ? "6px 12px" : "7px 16px", fontSize: isMobile ? 12 : 13, cursor: "pointer", fontWeight: 500 }}>📤 Xuất CSV</button>
+      {canManage && <button onClick={() => setShowTrash(v => !v)} style={{ background: showTrash ? "#fef2f2" : "#fff", color: showTrash ? "#dc2626" : "#374151", border: "1px solid " + (showTrash ? "#fecaca" : "#d1d5db"), borderRadius: 8, padding: isMobile ? "6px 12px" : "7px 16px", fontSize: isMobile ? 12 : 13, cursor: "pointer", fontWeight: 500 }}>🗑️ {showTrash ? "Đang xem thùng rác" : "Thùng rác"}</button>}
+      {!showTrash && <button onClick={openCreate} style={{ background: "#059669", color: "#fff", border: "none", borderRadius: 8, padding: isMobile ? "6px 12px" : "7px 16px", fontSize: isMobile ? 12 : 13, cursor: "pointer", fontWeight: 500 }}>+ Ghi nhận {SUPPORT_CATEGORIES[catTab]?.label.toLowerCase()}</button>}
     </div>
 
     <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 12px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -115,12 +158,12 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
       <div style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>Đang tải…</div>
     ) : filtered.length === 0 ? (
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 40, textAlign: "center", color: "#9ca3af" }}>
-        <div style={{ fontSize: 40, marginBottom: 8 }}>{SUPPORT_CATEGORIES[catTab]?.icon}</div>
-        <div>Chưa có trường hợp nào</div>
+        <div style={{ fontSize: 40, marginBottom: 8 }}>{showTrash ? "🗑️" : SUPPORT_CATEGORIES[catTab]?.icon}</div>
+        <div>{showTrash ? "Thùng rác trống" : "Chưa có trường hợp nào"}</div>
       </div>
     ) : (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {filtered.map(c => {
+        {paged.map(c => {
           const emp = getEmp(c.eid);
           const canDelete = canManage || c.eid === myEid;
           return (
@@ -137,13 +180,35 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
                   <span style={{ background: DEPT_COLOR[emp?.dept] + "22", color: DEPT_COLOR[emp?.dept], fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>{emp?.name || "–"}</span>
                   <span style={{ background: SUPPORT_DIFFICULTY[c.difficulty]?.icon ? "#f1f5f9" : "transparent", fontSize: 11, padding: "2px 7px", borderRadius: 8, color: "#475569" }}>{SUPPORT_DIFFICULTY[c.difficulty]?.icon} {SUPPORT_DIFFICULTY[c.difficulty]?.label} ({SUPPORT_DIFFICULTY[c.difficulty]?.weight} việc)</span>
                   <span style={{ fontSize: 11, color: "#9ca3af" }}>📅 {c.created}</span>
+                  {c.verified_by ? (
+                    <span title={`Xác nhận bởi ${c.verified_by} ngày ${c.verified_at}`} style={{ background: "#ecfdf5", color: "#059669", fontSize: 11, padding: "2px 7px", borderRadius: 8, border: "1px solid #a7f3d0" }}>✔️ Đã xác nhận</span>
+                  ) : canManage && !showTrash ? (
+                    <button onClick={() => verifyCase(c)} style={{ background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", fontSize: 11, padding: "2px 7px", borderRadius: 8, cursor: "pointer" }}>⏳ Xác nhận</button>
+                  ) : null}
                 </div>
               </div>
-              {(canManage || c.eid === myEid) && <button onClick={() => openEdit(c)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#6b7280", flexShrink: 0 }}>✏️</button>}
-              {canDelete && <button onClick={() => deleteCase(c.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#dc2626", flexShrink: 0 }}>🗑️</button>}
+              {showTrash ? (
+                <>
+                  {(canManage || c.eid === myEid) && <button onClick={() => restoreCase(c.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#15803d", flexShrink: 0 }} title="Khôi phục">↩️</button>}
+                  {canManage && <button onClick={() => purgeCase(c.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#dc2626", flexShrink: 0 }} title="Xóa vĩnh viễn">🗑️</button>}
+                </>
+              ) : (
+                <>
+                  {(canManage || c.eid === myEid) && <button onClick={() => openEdit(c)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#6b7280", flexShrink: 0 }}>✏️</button>}
+                  {canDelete && <button onClick={() => deleteCase(c.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#dc2626", flexShrink: 0 }}>🗑️</button>}
+                </>
+              )}
             </div>
           );
         })}
+      </div>
+    )}
+
+    {filtered.length > PAGE_SIZE && (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, padding: "6px 0" }}>
+        <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={{ padding: "6px 12px", border: "1px solid #d1d5db", borderRadius: 7, background: "#fff", cursor: page === 1 ? "default" : "pointer", opacity: page === 1 ? 0.5 : 1, fontSize: 13 }}>◀</button>
+        <span style={{ fontSize: 13, color: "#6b7280" }}>Trang {page}/{totalPages}</span>
+        <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} style={{ padding: "6px 12px", border: "1px solid #d1d5db", borderRadius: 7, background: "#fff", cursor: page === totalPages ? "default" : "pointer", opacity: page === totalPages ? 0.5 : 1, fontSize: 13 }}>▶</button>
       </div>
     )}
 
