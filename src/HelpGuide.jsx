@@ -30,12 +30,24 @@ const SECTIONS = [
       { p: "Bấm biểu tượng 🔑 (góc trên) → nhập mật khẩu hiện tại và mật khẩu mới (tối thiểu 6 ký tự)." },
       { h: "Quên mật khẩu" },
       { p: "Liên hệ Quản trị viên để được đặt lại mật khẩu về mặc định (abc123), sau đó tự đổi lại." },
+      { h: "Tự động đăng xuất khi không thao tác" },
+      { p: "Để bảo mật, nếu không thao tác gì (click, gõ phím, chạm, cuộn) trong 28 phút, hệ thống hiện popup cảnh báo đếm ngược 2 phút. Bấm \"Tiếp tục làm việc\" để ở lại phiên đăng nhập; nếu không phản hồi, hệ thống tự đăng xuất." },
     ]
   },
   {
     icon: "🖥️", title: "3. Giao diện chung",
     body: [
       { p: "Máy tính: menu dọc bên trái. Điện thoại: menu ngang cố định ở đáy màn hình, luôn hiển thị khi cuộn." },
+      { h: "Mục 💼 Công việc" },
+      { p: "Gom 4 mục liên quan công việc vào 1 chỗ để menu gọn hơn — bấm \"💼 Công việc\" sẽ mở thêm các tab con:" },
+      { ul: [
+        "📋 Nhiệm vụ",
+        "💰 Nhiệm vụ ngân sách",
+        "📌 Nhiệm vụ khác",
+        "🎧 Hỗ trợ người dùng/PAHT và vận hành DC",
+        "🔄 Nhiệm vụ định kỳ (mở bảng quản lý mẫu định kỳ)",
+      ]},
+      { note: "Máy tính: tab con hiện thụt lề ngay dưới \"Công việc\" trong menu trái. Điện thoại: hiện thành dải nút tròn ngay dưới thanh tiêu đề." },
       { table: {
         head: ["Biểu tượng", "Chức năng"],
         rows: [
@@ -115,6 +127,7 @@ const SECTIONS = [
       { note: "Mỗi bước đã duyệt tính là 1 việc hoàn thành cho người chủ trì bước đó trong Báo cáo hiệu suất — không cần chờ cả dự án xong mới được cộng điểm." },
       { h: "Nghiệm thu tổng thể" },
       { p: "Khi tất cả bước hoàn thành, Ban Giám đốc thấy banner 📋 Nghiệm thu để đánh giá tổng thể: 1–5 sao, đúng tiến độ/trong ngân sách, nhận xét kết luận. Phụ trách chính được cộng thêm 1 việc riêng vào tháng nghiệm thu." },
+      { note: "Điểm hiệu suất ở mục Báo cáo cập nhật ngay sau khi lưu/duyệt bước hay nghiệm thu, không cần tải lại trang. Danh sách dự án phân trang 20 mục/trang." },
     ]
   },
   {
@@ -135,8 +148,14 @@ const SECTIONS = [
         "🟡 Trung bình = 1/2 việc",
         "🟢 Nhanh = 1/4 việc",
       ]},
-      { note: "Mỗi trường hợp cộng thẳng vào điểm hiệu suất tháng của người xử lý theo trọng số trên, tính vào tháng theo Ngày xử lý. Cần tải lại trang (F5) sau khi ghi nhận để mục Báo cáo cập nhật điểm mới." },
-      { p: "Có thể sửa ✏️ hoặc xóa 🗑️ một trường hợp — người xử lý tự sửa/xóa được trường hợp của mình, BGĐ/Trưởng/Phó phòng sửa/xóa được mọi trường hợp." },
+      { note: "Mỗi trường hợp cộng thẳng vào điểm hiệu suất tháng của người xử lý theo trọng số trên, tính vào tháng theo Ngày xử lý — mục Báo cáo cập nhật điểm ngay, không cần tải lại trang." },
+      { h: "Sửa, xóa, xác nhận" },
+      { ul: [
+        "✏️ Sửa — người xử lý tự sửa được trường hợp của mình; BGĐ/Trưởng/Phó phòng sửa được mọi trường hợp.",
+        "🗑️ Xóa — chuyển vào Thùng rác (không mất ngay), có thể ↩️ khôi phục. Chỉ Admin/BGĐ mới xóa vĩnh viễn được từ Thùng rác.",
+        "⏳ Xác nhận — BGĐ/Trưởng/Phó phòng rà soát và xác nhận từng trường hợp (hiện badge ✔️ Đã xác nhận), giúp kiểm soát việc tự ghi nhận.",
+      ]},
+      { p: "Nút 🗑️ Thùng rác (chỉ BGĐ/Trưởng/Phó phòng thấy) để xem lại các trường hợp đã xóa. Nút 📤 Xuất CSV để xuất danh sách đang lọc ra file Excel. Danh sách phân trang 20 mục/trang." },
     ]
   },
   {
@@ -237,7 +256,7 @@ const SECTIONS = [
         "Cần từ 5 việc trở lên trong tháng mới đủ điều kiện tính điểm.",
         "Điểm chỉ tính trên việc đã đến hạn xử lý — việc đang chờ duyệt hoặc chưa tới hạn chưa được tính vào tháng đó.",
         "Nếu chỉ làm ít nhiệm vụ thường, hãy để ý các bước bạn chủ trì trong Nhiệm vụ ngân sách đã được duyệt+chấm chất lượng hay chưa — mỗi bước cũng tính là 1 việc, giúp bạn dễ đạt mốc 5 việc/tháng hơn.",
-        "Các trường hợp đã ghi nhận ở mục Hỗ trợ người dùng/PAHT và vận hành DC cũng cộng điểm theo độ khó (Khó=1, Trung bình=1/2, Nhanh=1/4 việc) — nhớ tải lại trang sau khi ghi nhận để điểm cập nhật.",
+        "Các trường hợp đã ghi nhận ở mục Hỗ trợ người dùng/PAHT và vận hành DC cũng cộng điểm theo độ khó (Khó=1, Trung bình=1/2, Nhanh=1/4 việc) — điểm cập nhật ngay, không cần tải lại trang.",
       ]},
       { h: "Cần hỗ trợ thêm?" },
       { p: "Liên hệ Quản trị viên hệ thống hoặc gửi phản hồi qua mục Góp ý." },
