@@ -72,7 +72,7 @@ export default function App() {
   const recurringChecked=useRef(false);
   const [loginNotifShown,setLoginNotifShown]=useState(false);
 
-  const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),3000);};
+  const showToast=(msg,type="success")=>{setToast({msg,type});if(type!=="error")setTimeout(()=>setToast(null),3000);};
 
   // ── Đăng nhập/đăng xuất, đổi mật khẩu ──
   const {
@@ -238,7 +238,7 @@ export default function App() {
         .qlcv-dark { filter: invert(1) hue-rotate(180deg); }
         .qlcv-dark img, .qlcv-dark svg { filter: invert(1) hue-rotate(180deg); }
       `}</style>
-      {toast&&<div style={{position:"fixed",top:16,right:16,zIndex:200,background:toast.type==="error"?"#fee2e2":"#dcfce7",color:toast.type==="error"?"#b91c1c":"#15803d",padding:"10px 18px",borderRadius:8,fontSize:13,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",maxWidth:320}}>{toast.msg}</div>}
+      {toast&&<div style={{position:"fixed",top:16,right:16,zIndex:200,background:toast.type==="error"?"#fee2e2":"#dcfce7",color:toast.type==="error"?"#b91c1c":"#15803d",padding:"10px 18px",borderRadius:8,fontSize:13,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",maxWidth:320,display:"flex",alignItems:"flex-start",gap:10}}><span style={{flex:1}}>{toast.msg}</span>{toast.type==="error"&&<button onClick={()=>setToast(null)} style={{background:"none",border:"none",cursor:"pointer",color:"#b91c1c",fontSize:16,lineHeight:1,flexShrink:0}}>✕</button>}</div>}
 
       {/* SIDEBAR */}
       {!isMobile&&(
