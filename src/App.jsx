@@ -88,6 +88,12 @@ export default function App() {
   const isAdmin=currentUser?.role==="admin";
   const availableDepts=useMemo(()=>canAssignAllDepts?DEPTS:userDept?[userDept]:DEPTS,[canAssignAllDepts,userDept]);
   const getEmp=id=>(employees||[]).find(e=>e.id===id);
+  // Nhiệm vụ ngân sách/Hỗ trợ ND ghi qua trang riêng (Investment/SupportCases) không tự cập nhật state điểm hiệu suất
+  // ở đây — gọi hàm này sau khi lưu/xóa để Báo cáo phản ánh ngay, không cần tải lại trang.
+  const refreshScoringData=async()=>{
+    const[{data:pjd},{data:scd}]=await Promise.all([supabase.from("projects").select("id,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time"),supabase.from("support_cases").select("id,eid,difficulty,created").eq("deleted",false)]);
+    setProjectsForScoring(pjd||[]);setSupportCasesForScoring(scd||[]);
+  };
 
   useEffect(()=>{
     if(!currentUser)return;
@@ -426,13 +432,13 @@ export default function App() {
             </div>
           )}
           {view==="investment"&&(
-            <Investment currentUser={currentUser} employees={employees} users={users} getEmp={getEmp} isMobile={isMobile} inp={inp} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} showToast={showToast}/>
+            <Investment currentUser={currentUser} employees={employees} users={users} getEmp={getEmp} isMobile={isMobile} inp={inp} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} showToast={showToast} onScoringChange={refreshScoringData}/>
           )}
           {view==="othertasks"&&(
             <OtherTasks currentUser={currentUser} employees={employees} getEmp={getEmp} isMobile={isMobile} inp={inp} showToast={showToast} tasksData={otherTasks} setTasksData={setOtherTasks}/>
           )}
           {view==="supportcases"&&(
-            <SupportCases currentUser={currentUser} employees={employees} getEmp={getEmp} isMobile={isMobile} inp={inp} showToast={showToast}/>
+            <SupportCases currentUser={currentUser} employees={employees} getEmp={getEmp} isMobile={isMobile} inp={inp} showToast={showToast} onScoringChange={refreshScoringData}/>
           )}
           {view==="feedback"&&(
             <Feedback currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director"].includes(currentUser?.role)}/>

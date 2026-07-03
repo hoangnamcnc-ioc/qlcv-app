@@ -6,7 +6,7 @@ import { todayStr } from "./helpers";
 // ───── Hỗ trợ người dùng/PAHT và vận hành DC — nền tảng số dùng chung (điện thoại/Zalo) ─────
 // Mỗi trường hợp ghi nhận xong là tính "hoàn thành" ngay (không có bước duyệt) — quy đổi thành điểm hiệu suất
 // theo trọng số độ khó trong useReports.js (Khó=1, Trung bình=1/2, Nhanh=1/4 nhiệm vụ).
-export default function SupportCases({ currentUser, employees, getEmp, isMobile, inp, showToast }) {
+export default function SupportCases({ currentUser, employees, getEmp, isMobile, inp, showToast, onScoringChange }) {
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,12 +49,12 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
     if (form.id) {
       const upd = { category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr };
       const { error } = await supabase.from("support_cases").update(upd).eq("id", form.id);
-      if (!error) { setCases(p => p.map(x => x.id === form.id ? { ...x, ...upd } : x)); showToast && showToast("Đã cập nhật"); setForm(null); }
+      if (!error) { setCases(p => p.map(x => x.id === form.id ? { ...x, ...upd } : x)); showToast && showToast("Đã cập nhật"); setForm(null); onScoringChange?.(); }
       else showToast && showToast("Lỗi: " + (error.message || ""), "error");
     } else {
       const c = { id: `sc${Date.now()}`, category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr, created_by: currentUser.full_name };
       const { error } = await supabase.from("support_cases").insert(c);
-      if (!error) { setCases(p => [c, ...p]); showToast && showToast("Đã ghi nhận trường hợp hỗ trợ"); setForm(null); }
+      if (!error) { setCases(p => [c, ...p]); showToast && showToast("Đã ghi nhận trường hợp hỗ trợ"); setForm(null); onScoringChange?.(); }
       else showToast && showToast("Lỗi: " + (error.message || ""), "error");
     }
     setSaving(false);
@@ -64,12 +64,12 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
   const deleteCase = async (id) => {
     if (!window.confirm("Chuyển trường hợp này vào thùng rác?")) return;
     const { error } = await supabase.from("support_cases").update({ deleted: true }).eq("id", id);
-    if (!error) setCases(p => p.map(x => x.id === id ? { ...x, deleted: true } : x));
+    if (!error) { setCases(p => p.map(x => x.id === id ? { ...x, deleted: true } : x)); onScoringChange?.(); }
     else showToast && showToast("Lỗi: " + (error.message || ""), "error");
   };
   const restoreCase = async (id) => {
     const { error } = await supabase.from("support_cases").update({ deleted: false }).eq("id", id);
-    if (!error) { setCases(p => p.map(x => x.id === id ? { ...x, deleted: false } : x)); showToast && showToast("Đã khôi phục"); }
+    if (!error) { setCases(p => p.map(x => x.id === id ? { ...x, deleted: false } : x)); showToast && showToast("Đã khôi phục"); onScoringChange?.(); }
     else showToast && showToast("Lỗi: " + (error.message || ""), "error");
   };
   const purgeCase = async (id) => {
