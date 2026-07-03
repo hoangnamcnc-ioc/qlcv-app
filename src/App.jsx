@@ -81,6 +81,37 @@ export default function App() {
     showChangePwd, setShowChangePwd, changePwdForm, setChangePwdForm, changePwdError, setChangePwdError, handleChangePwd,
   } = useAuth({ showToast, onLogout: () => setLoginNotifShown(false) });
 
+  // ── Tự động đăng xuất khi không thao tác lâu (bảo mật) ──
+  const IDLE_LIMIT_MS=30*60*1000; // 30 phút không thao tác
+  const IDLE_WARN_MS=2*60*1000;   // cảnh báo trước 2 phút
+  const [idleWarning,setIdleWarning]=useState(false);
+  const [idleSecondsLeft,setIdleSecondsLeft]=useState(0);
+  const idleWarningRef=useRef(false);
+  useEffect(()=>{idleWarningRef.current=idleWarning;},[idleWarning]);
+  const idleTimers=useRef({warn:null,logout:null,tick:null});
+  const clearIdleTimers=()=>{if(idleTimers.current.warn)clearTimeout(idleTimers.current.warn);if(idleTimers.current.logout)clearTimeout(idleTimers.current.logout);if(idleTimers.current.tick)clearInterval(idleTimers.current.tick);idleTimers.current={warn:null,logout:null,tick:null};};
+  const resetIdleTimer=()=>{
+    if(!currentUser)return;
+    clearIdleTimers();
+    setIdleWarning(false);
+    idleTimers.current.warn=setTimeout(()=>{
+      setIdleWarning(true);
+      let secs=Math.round(IDLE_WARN_MS/1000);
+      setIdleSecondsLeft(secs);
+      idleTimers.current.tick=setInterval(()=>{secs-=1;setIdleSecondsLeft(secs);},1000);
+      idleTimers.current.logout=setTimeout(()=>{clearInterval(idleTimers.current.tick);setIdleWarning(false);handleLogout();showToast("Đã tự động đăng xuất do không thao tác lâu","error");},IDLE_WARN_MS);
+    },IDLE_LIMIT_MS-IDLE_WARN_MS);
+  };
+  useEffect(()=>{
+    if(!currentUser){clearIdleTimers();setIdleWarning(false);return;}
+    resetIdleTimer();
+    const onActivity=()=>{if(!idleWarningRef.current)resetIdleTimer();};
+    const events=["mousedown","keydown","touchstart","scroll"];
+    events.forEach(e=>window.addEventListener(e,onActivity));
+    return()=>{events.forEach(e=>window.removeEventListener(e,onActivity));clearIdleTimers();};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[currentUser]);
+
   const userDept=useMemo(()=>!currentUser||!employees?null:employees.find(e=>e.id===currentUser.employee_id)?.dept||null,[currentUser,employees]);
   const canSeeAll=useMemo(()=>FULL_ACCESS.includes(currentUser?.role),[currentUser]);
   const canAssignAllDepts=useMemo(()=>["admin","director"].includes(currentUser?.role),[currentUser]);
@@ -253,6 +284,21 @@ export default function App() {
         .qlcv-dark img, .qlcv-dark svg { filter: invert(1) hue-rotate(180deg); }
       `}</style>
       {toast&&<div style={{position:"fixed",top:16,right:16,zIndex:200,background:toast.type==="error"?"#fee2e2":"#dcfce7",color:toast.type==="error"?"#b91c1c":"#15803d",padding:"10px 18px",borderRadius:8,fontSize:13,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",maxWidth:320,display:"flex",alignItems:"flex-start",gap:10}}><span style={{flex:1}}>{toast.msg}</span>{toast.type==="error"&&<button onClick={()=>setToast(null)} style={{background:"none",border:"none",cursor:"pointer",color:"#b91c1c",fontSize:16,lineHeight:1,flexShrink:0}}>✕</button>}</div>}
+
+      {/* Cảnh báo tự động đăng xuất do không thao tác */}
+      {idleWarning&&currentUser&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}}>
+          <div style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:380,padding:24,textAlign:"center",boxShadow:"0 12px 40px rgba(0,0,0,0.25)"}}>
+            <div style={{fontSize:36,marginBottom:10}}>⏳</div>
+            <div style={{fontWeight:700,fontSize:16,marginBottom:6}}>Bạn có còn ở đây không?</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:16}}>Do không thao tác, hệ thống sẽ tự động đăng xuất sau <b style={{color:"#dc2626"}}>{idleSecondsLeft}</b> giây để bảo mật tài khoản.</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={handleLogout} style={{flex:1,padding:"10px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>Đăng xuất ngay</button>
+              <button onClick={resetIdleTimer} style={{flex:1,padding:"10px",background:"#4f46e5",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Tiếp tục làm việc</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SIDEBAR */}
       {!isMobile&&(
