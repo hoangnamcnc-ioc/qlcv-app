@@ -1,7 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { DEPT_COLOR, RATING, LATE_REASONS } from "../constants";
 import { parseJSON, getFileIcon } from "../helpers";
 import { ProgressBar, RatingBadge, Chip, PChip } from "./ui";
+
+const IMG_EXT = ["jpg", "jpeg", "png", "gif", "webp"];
+const isImageFile = name => IMG_EXT.includes((name || "").split(".").pop().toLowerCase());
 
 export default function TaskModal({
   modal, setModal,
@@ -14,7 +17,7 @@ export default function TaskModal({
   addComment, uploadFiles, uploadingFiles,
   updateTask,
   toggleDone,
-  openApproveModal, rejectCompletionRequest,
+  openApproveModal, rejectCompletionRequest, remindApproval,
   rateTask, ratingNote, setRatingNote,
   setLateReasonFn, lateNote, setLateNote,
   openEditTask,
@@ -22,6 +25,7 @@ export default function TaskModal({
   setForwardModal, setForwardEid,
   loadComments,
 }) {
+  const [previewImg, setPreviewImg] = useState(null);
   if (!modal) return null;
 
 
@@ -88,13 +92,19 @@ export default function TaskModal({
               <div style={{ fontSize: 12, fontWeight: 700, color: "#92400e", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>📨 Đang chờ duyệt hoàn thành</div>
               <div style={{ fontSize: 12, color: "#92400e" }}>{modal.requested_by} yêu cầu duyệt lúc {modal.requested_at}</div>
               {modal.completion_note && <div style={{ fontSize: 12, color: "#78350f", marginTop: 6, fontStyle: "italic", background: "#fef3c7", padding: "6px 10px", borderRadius: 6 }}>"{modal.completion_note}"</div>}
+              {modal.reminder_at && <div style={{ fontSize: 11.5, color: "#92400e", marginTop: 6 }}>🔔 Đã nhắc duyệt lúc {modal.reminder_at}</div>}
               {canEditTask(modal) ? (
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button onClick={() => { openApproveModal(modal); setModal(null); }} style={{ flex: 1, padding: "8px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>✅ Duyệt & đánh giá</button>
                   <button onClick={() => { rejectCompletionRequest(modal); setModal(null); }} style={{ flex: 1, padding: "8px", border: "1px solid #fca5a5", borderRadius: 8, background: "#fff0f0", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>↩ Từ chối</button>
                 </div>
               ) : (
-                <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>Chờ Trưởng phòng/Phó phòng/Ban Giám đốc duyệt</div>
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 12, color: "#9ca3af" }}>Chờ Trưởng phòng/Phó phòng/Ban Giám đốc duyệt</div>
+                  {(currentUser?.employee_id === modal.eid || modal.requested_by === currentUser?.full_name) && (
+                    <button onClick={() => remindApproval(modal)} style={{ marginTop: 8, padding: "6px 12px", border: "1px solid #fbbf24", borderRadius: 7, background: "#fff", color: "#92400e", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>🔔 Nhắc duyệt</button>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -150,11 +160,19 @@ export default function TaskModal({
               <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 8 }}>📎 File đính kèm</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {parseJSON(modal.attachments, []).map((att, i) => (
-                  <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#f1f5f9", borderRadius: 8, textDecoration: "none", color: "#1e40af", fontSize: 13 }}>
-                    <span style={{ fontSize: 18 }}>{att.url && att.url.startsWith("http") && !att.url.includes("supabase") ? "🔗" : getFileIcon(att.name)}</span>
-                    <span style={{ flex: 1, whiteSpace: "normal", wordBreak: "break-word" }}>{att.name}</span>
-                    <span style={{ fontSize: 11, color: "#6b7280", flexShrink: 0 }}>{att.url && att.url.startsWith("http") && !att.url.includes("supabase") ? "↗" : "⬇"}</span>
-                  </a>
+                  isImageFile(att.name) ? (
+                    <div key={i} onClick={() => setPreviewImg(att)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#f1f5f9", borderRadius: 8, cursor: "pointer", color: "#1e40af", fontSize: 13 }}>
+                      <span style={{ fontSize: 18 }}>🖼️</span>
+                      <span style={{ flex: 1, whiteSpace: "normal", wordBreak: "break-word" }}>{att.name}</span>
+                      <span style={{ fontSize: 11, color: "#6b7280", flexShrink: 0 }}>👁️ Xem trước</span>
+                    </div>
+                  ) : (
+                    <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#f1f5f9", borderRadius: 8, textDecoration: "none", color: "#1e40af", fontSize: 13 }}>
+                      <span style={{ fontSize: 18 }}>{att.url && att.url.startsWith("http") && !att.url.includes("supabase") ? "🔗" : getFileIcon(att.name)}</span>
+                      <span style={{ flex: 1, whiteSpace: "normal", wordBreak: "break-word" }}>{att.name}</span>
+                      <span style={{ fontSize: 11, color: "#6b7280", flexShrink: 0 }}>{att.url && att.url.startsWith("http") && !att.url.includes("supabase") ? "↗" : "⬇"}</span>
+                    </a>
+                  )
                 ))}
               </div>
             </div>
@@ -221,6 +239,19 @@ export default function TaskModal({
           {canDeleteTask(modal) && <button onClick={() => { setDeleteConfirm(modal.id); setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #fca5a5", borderRadius: 7, background: "#fff0f0", cursor: "pointer", fontSize: 12, color: "#dc2626" }}>🗑️ Xóa</button>}
         </div>
       </div>
+
+      {previewImg && (
+        <div onClick={e => { e.stopPropagation(); setPreviewImg(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", width: "100%", maxWidth: 900, marginBottom: 10 }}>
+            <span style={{ color: "#fff", fontSize: 13 }}>{previewImg.name}</span>
+            <div style={{ display: "flex", gap: 12 }}>
+              <a href={previewImg.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: "#fff", fontSize: 13, textDecoration: "underline" }}>⬇ Tải về</a>
+              <button onClick={() => setPreviewImg(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#fff", lineHeight: 1 }}>✕</button>
+            </div>
+          </div>
+          <img src={previewImg.url} alt={previewImg.name} onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "80vh", borderRadius: 8, objectFit: "contain" }} />
+        </div>
+      )}
     </div>
   );
 }

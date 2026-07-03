@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { supabase } from "../supabase";
 import { DEPTS, FULL_ACCESS, RATING, LATE_REASONS, STATUS_ORDER } from "../constants";
-import { today, todayStr, nowStr, getStatus, isCompletedStatus, isLateStatus, parseJSON } from "../helpers";
+import { today, todayStr, nowStr, parseNowStr, getStatus, isCompletedStatus, isLateStatus, parseJSON } from "../helpers";
 
 const PAGE_SIZE = 20;
 
@@ -23,7 +23,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // LƯU Ý: progress===100 KHÔNG còn tự động suy ra completed:true — hoàn thành chỉ được đặt tường minh
   // qua confirmApproveCompletion (sau khi TP/PP/BGĐ duyệt), tránh việc "Yêu cầu hoàn thành" (cũng set progress:100)
   // vô tình bỏ qua bước duyệt.
-  const updateTask = async (id, updates, note, opts = {}) => { const task = tasks.find(t => t.id === id); if (updates.progress === 100 && task && getStatus(task) === "overdue" && !task.late_reason) { showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi hoàn thành.", "error"); setModal({ ...task, status: "overdue" }); return; } if (!opts.silent) setSaving(true); if (note && task) { const h = parseJSON(task.history, []); h.push({ action: note, by: currentUser.full_name, at: nowStr() }); updates.history = JSON.stringify(h); } if (updates.completed === false) updates.completed_at = null; const { error } = await supabase.from("tasks").update(updates).eq("id", id); if (!error) { setTasks(p => p.map(t => t.id === id ? { ...t, ...updates } : t)); if (!opts.silent) showToast("Đã cập nhật"); } else if (!opts.silent) showToast("Lỗi", "error"); if (!opts.silent) setSaving(false); };
+  const updateTask = async (id, updates, note, opts = {}) => { const task = tasks.find(t => t.id === id); if (updates.progress === 100 && task && getStatus(task) === "overdue" && !task.late_reason) { showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi hoàn thành.", "error"); setModal({ ...task, status: "overdue" }); return false; } if (!opts.silent) setSaving(true); if (note && task) { const h = parseJSON(task.history, []); h.push({ action: note, by: currentUser.full_name, at: nowStr() }); updates.history = JSON.stringify(h); } if (updates.completed === false) updates.completed_at = null; const { error } = await supabase.from("tasks").update(updates).eq("id", id); if (!error) { setTasks(p => p.map(t => t.id === id ? { ...t, ...updates } : t)); if (!opts.silent) showToast("Đã cập nhật"); } else if (!opts.silent) showToast("Lỗi: " + (error.message || ""), "error"); if (!opts.silent) setSaving(false); return !error; };
 
   const [forwardModal, setForwardModal] = useState(null);
   const [forwardEid, setForwardEid] = useState("");
@@ -69,6 +69,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const openApproveModal = t => { setApproveModal(t); setApproveRating(""); setApproveNote(""); };
   const confirmApproveCompletion = async () => {
     if (!approveRating) { showToast("Vui lòng chọn mức đánh giá", "error"); return; }
+    if (["tb", "kem"].includes(approveRating) && approveNote.trim().length < 10) { showToast("Đánh giá Trung bình/Kém cần ghi rõ nhận xét (ít nhất 10 ký tự) để nhân viên biết cần cải thiện gì", "error"); return; }
     const task = approveModal;
     await updateTask(task.id, { completed: true, completion_requested: false, completed_at: task.completed_at || new Date().toISOString(), rating: approveRating, rating_note: approveNote, rated_by: currentUser.full_name, rated_at: nowStr() }, `Duyệt hoàn thành & đánh giá: ${RATING[approveRating]?.label}`);
     showToast("Đã duyệt hoàn thành nhiệm vụ");
@@ -80,9 +81,19 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     showToast("Đã từ chối, nhiệm vụ trở lại trạng thái thực hiện");
   };
 
+  // ── Nhắc duyệt: người yêu cầu có thể nhắc nếu treo quá lâu, giới hạn 1 lần/4 giờ để tránh làm phiền ──
+  const REMINDER_COOLDOWN_MS = 4 * 3600 * 1000;
+  const remindApproval = async (task) => {
+    const last = task.reminder_at ? parseNowStr(task.reminder_at) : null;
+    if (last && (new Date() - last) < REMINDER_COOLDOWN_MS) { showToast("Bạn vừa nhắc gần đây, vui lòng đợi thêm trước khi nhắc lại", "error"); return; }
+    const ok = await updateTask(task.id, { reminder_at: nowStr() }, "Nhắc duyệt hoàn thành", { silent: true });
+    if (ok) showToast("Đã nhắc — nhiệm vụ sẽ nổi bật hơn trong thông báo của người duyệt");
+    else showToast("Lỗi khi gửi nhắc, vui lòng thử lại", "error");
+  };
+
   const [ratingNote, setRatingNote] = useState("");
   const [lateNote, setLateNote] = useState("");
-  const rateTask = async (id, rating) => { const up = { rating, rating_note: ratingNote, rated_by: currentUser.full_name, rated_at: nowStr() }; await updateTask(id, up, `Đánh giá: ${RATING[rating]?.label}`); setModal(m => m ? { ...m, ...up } : m); setRatingNote(""); };
+  const rateTask = async (id, rating) => { if (["tb", "kem"].includes(rating) && ratingNote.trim().length < 10) { showToast("Đánh giá Trung bình/Kém cần ghi rõ nhận xét (ít nhất 10 ký tự) để nhân viên biết cần cải thiện gì", "error"); return; } const up = { rating, rating_note: ratingNote, rated_by: currentUser.full_name, rated_at: nowStr() }; await updateTask(id, up, `Đánh giá: ${RATING[rating]?.label}`); setModal(m => m ? { ...m, ...up } : m); setRatingNote(""); };
   const setLateReasonFn = async (id, reason) => { const up = { late_reason: reason, late_note: lateNote }; await updateTask(id, up, `Nguyên nhân trễ: ${LATE_REASONS.find(r => r.value === reason)?.label || reason}`); setModal(m => m ? { ...m, ...up } : m); setLateNote(""); };
 
   // ── Danh sách phái sinh: hiển thị, lọc, phân trang ──
@@ -121,6 +132,8 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const notifications = useMemo(() => computedAll.filter(t => t.status === "overdue" || t.status === "nearly_due").sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)), [computedAll]);
   const unratedTasks = useMemo(() => computedAll.filter(t => t.status === "completed" && !t.rating && t.created_by_id === currentUser?.id), [computedAll, currentUser]);
   const suspiciousTasks = useMemo(() => canCreate ? computedAll.filter(t => t.suspicious_completion && !t.rating) : [], [computedAll, canCreate]);
+  // Nhiệm vụ thường đang chờ CHÍNH người xem duyệt (để hiện trong 🔔 thông báo, khác với "myPendingApprovals" của Nhiệm vụ khác)
+  const myPendingTaskApprovals = useMemo(() => computedAll.filter(t => t.status === "pending_approval" && canEditTask(t)), [computedAll, canEditTask]);
 
   const seenKey = currentUser ? `qlcv_seen_${currentUser.username}` : null;
   const markSeen = () => {}; // giữ để tương thích chữ ký gọi cũ; trạng thái xem nay lưu ở viewed_at trên server
@@ -138,13 +151,13 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     isSuspiciousCompletion, toggleDone, confirmCompletion,
     completionNoteModal, setCompletionNoteModal, completionNote, setCompletionNote, completionFiles, setCompletionFiles,
     approveModal, setApproveModal, approveRating, setApproveRating, approveNote, setApproveNote, openApproveModal, confirmApproveCompletion,
-    rejectCompletionRequest,
+    rejectCompletionRequest, remindApproval,
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,
     visibleTasks, trashedTasks, computed, stats, deptChart,
     dateFrom, setDateFrom, dateTo, setDateTo,
     fStatus, setFStatus, fDept, setFDept, fEid, setFEid, search, setSearch, fSort, setFSort, page, setPage,
     filtered, paged, totalPages,
-    notifications, unratedTasks, suspiciousTasks,
+    notifications, unratedTasks, suspiciousTasks, myPendingTaskApprovals,
     seenKey, markSeen, myAssignedTasks, myNewTasks, myOverdueTasks, myNewTaskIds,
   };
 }

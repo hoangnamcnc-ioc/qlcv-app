@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { DEPTS, DEPT_COLOR, RATING } from "../constants";
 import { RatingBadge, Chip, PChip } from "./ui";
 import { pendingApprovalDays } from "../helpers";
@@ -26,14 +26,15 @@ export default function TaskList({
   setModal, loadComments,
   openEditTask, toggleDone,
   setDeleteConfirm,
-  rateTask, ratingNote,
+  rateTask, ratingNote, setRatingNote,
   quickRate, setQuickRate,
   quickProgress, setQuickProgress,
   updateTask,
   myNewTaskIds,
   onCompleteRequest,
-  openApproveModal, rejectCompletionRequest,
+  openApproveModal, rejectCompletionRequest, remindApproval, currentUser,
 }) {
+  const [pendingQuickRating, setPendingQuickRating] = useState(null);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 12px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -96,12 +97,16 @@ export default function TaskList({
                   <button onClick={() => openApproveModal(t)} style={{ flex: 1, padding: "5px 0", border: "1px solid #16a34a", borderRadius: 6, background: "#f0fdf4", cursor: "pointer", fontSize: 12, color: "#15803d", fontWeight: 600 }}>✅ Duyệt</button>
                   <button onClick={() => rejectCompletionRequest(t)} style={{ flex: 1, padding: "5px 0", border: "1px solid #fca5a5", borderRadius: 6, background: "#fff0f0", cursor: "pointer", fontSize: 12, color: "#dc2626" }}>↩ Từ chối</button>
                 </>)}
-                {t.completion_requested && !canEditTask(t) && <span style={{ flex: 1, padding: "5px 0", textAlign: "center", fontSize: 12, color: "#92400e" }}>⏳ Chờ duyệt</span>}
+                {t.completion_requested && !canEditTask(t) && (
+                  (currentUser?.employee_id === t.eid || t.requested_by === currentUser?.full_name) ? (
+                    <button onClick={() => remindApproval(t)} style={{ flex: 1, padding: "5px 0", border: "1px solid #fbbf24", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 12, color: "#92400e", fontWeight: 600 }}>{t.reminder_at ? "🔔 Đã nhắc" : "🔔 Nhắc duyệt"}</button>
+                  ) : <span style={{ flex: 1, padding: "5px 0", textAlign: "center", fontSize: 12, color: "#92400e" }}>⏳ Chờ duyệt</span>
+                )}
                 {canUpdateProgress(t) && !t.completed && !t.completion_requested && (
                   <button onClick={() => setQuickProgress(t.id)} style={{ flex: 1, padding: "5px 0", border: "1px solid #e0e7ff", borderRadius: 6, background: "#eef2ff", cursor: "pointer", fontSize: 12, color: "#4f46e5", fontWeight: 600 }}>% TĐ</button>
                 )}
                 {canRate(t) && t.status === "completed" && (
-                  <button onClick={() => setQuickRate(t.id)} style={{ flex: 1, padding: "5px 0", border: "1px solid #fde68a", borderRadius: 6, background: "#fef9c3", cursor: "pointer", fontSize: 12, color: "#92400e", fontWeight: 600 }}>⭐ ĐG</button>
+                  <button onClick={() => { setQuickRate(t.id); setPendingQuickRating(null); setRatingNote(""); }} style={{ flex: 1, padding: "5px 0", border: "1px solid #fde68a", borderRadius: 6, background: "#fef9c3", cursor: "pointer", fontSize: 12, color: "#92400e", fontWeight: 600 }}>⭐ ĐG</button>
                 )}
                 {canEditTask(t) && <button onClick={() => openEditTask(t)} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#f9fafb", cursor: "pointer", fontSize: 13 }}>✏️</button>}
                 <button onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#f9fafb", cursor: "pointer", fontSize: 13 }}>💬</button>
@@ -119,11 +124,19 @@ export default function TaskList({
               )}
               {/* Quick rate popup */}
               {quickRate === t.id && (
-                <div style={{ padding: 10, borderTop: "1px solid #e5e7eb", background: "#fff", display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {Object.entries(RATING).map(([key,r]) => (
-                    <button key={key} onClick={() => { rateTask(t.id,key); setQuickRate(null); }} style={{ padding: "6px 12px", border: "2px solid "+(t.rating===key?r.col:"#e5e7eb"), borderRadius: 7, background: t.rating===key?r.bg:"#fff", cursor: "pointer", fontSize: 12, fontWeight: t.rating===key?700:400, color: t.rating===key?r.col:"#374151" }}>{r.icon} {r.label}</button>
-                  ))}
-                  <button onClick={() => setQuickRate(null)} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#9ca3af" }}>✕</button>
+                <div style={{ padding: 10, borderTop: "1px solid #e5e7eb", background: "#fff", display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {Object.entries(RATING).map(([key,r]) => (
+                      <button key={key} onClick={() => setPendingQuickRating(key)} style={{ padding: "6px 12px", border: "2px solid "+(pendingQuickRating===key?r.col:"#e5e7eb"), borderRadius: 7, background: pendingQuickRating===key?r.bg:"#fff", cursor: "pointer", fontSize: 12, fontWeight: pendingQuickRating===key?700:400, color: pendingQuickRating===key?r.col:"#374151" }}>{r.icon} {r.label}</button>
+                    ))}
+                    <button onClick={() => { setQuickRate(null); setPendingQuickRating(null); setRatingNote(""); }} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#9ca3af" }}>✕</button>
+                  </div>
+                  {pendingQuickRating && (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input value={ratingNote} onChange={e => setRatingNote(e.target.value)} placeholder={["tb","kem"].includes(pendingQuickRating) ? "Nhận xét (bắt buộc, tối thiểu 10 ký tự)..." : "Nhận xét (không bắt buộc)..."} style={{ ...inp, flex: 1 }} />
+                      <button onClick={() => { rateTask(t.id, pendingQuickRating); setQuickRate(null); setPendingQuickRating(null); }} style={{ padding: "6px 12px", border: "none", borderRadius: 7, background: "#4f46e5", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Lưu</button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -168,16 +181,24 @@ export default function TaskList({
                   <td style={{ padding: "9px 12px", fontSize: 12, color: t.status === "overdue" ? "#b91c1c" : "#6b7280", fontWeight: t.status === "overdue" ? 600 : 400 }}>{t.deadline}</td>
                   <td style={{ padding: "9px 12px", position: "relative" }}>
                     {quickRate === t.id ? (
-                      <div style={{ position: "absolute", top: 4, left: 0, zIndex: 20, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", display: "flex", gap: 6, whiteSpace: "nowrap" }}>
-                        {Object.entries(RATING).map(([key, r]) => (
-                          <button key={key} onClick={() => { rateTask(t.id, key); setQuickRate(null); }} style={{ padding: "5px 10px", border: "2px solid " + (t.rating === key ? r.col : "#e5e7eb"), borderRadius: 7, background: t.rating === key ? r.bg : "#fff", cursor: "pointer", fontSize: 12, fontWeight: t.rating === key ? 700 : 400, color: t.rating === key ? r.col : "#374151" }}>{r.icon} {r.label}</button>
-                        ))}
-                        <button onClick={() => setQuickRate(null)} style={{ padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#9ca3af" }}>✕</button>
+                      <div style={{ position: "absolute", top: 4, left: 0, zIndex: 20, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", gap: 6, whiteSpace: "nowrap" }}>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          {Object.entries(RATING).map(([key, r]) => (
+                            <button key={key} onClick={() => setPendingQuickRating(key)} style={{ padding: "5px 10px", border: "2px solid " + (pendingQuickRating === key ? r.col : "#e5e7eb"), borderRadius: 7, background: pendingQuickRating === key ? r.bg : "#fff", cursor: "pointer", fontSize: 12, fontWeight: pendingQuickRating === key ? 700 : 400, color: pendingQuickRating === key ? r.col : "#374151" }}>{r.icon} {r.label}</button>
+                          ))}
+                          <button onClick={() => { setQuickRate(null); setPendingQuickRating(null); setRatingNote(""); }} style={{ padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#9ca3af" }}>✕</button>
+                        </div>
+                        {pendingQuickRating && (
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <input value={ratingNote} onChange={e => setRatingNote(e.target.value)} placeholder={["tb","kem"].includes(pendingQuickRating) ? "Nhận xét (bắt buộc)..." : "Nhận xét..."} style={{ ...inp, width: 220 }} />
+                            <button onClick={() => { rateTask(t.id, pendingQuickRating); setQuickRate(null); setPendingQuickRating(null); }} style={{ padding: "5px 10px", border: "none", borderRadius: 7, background: "#4f46e5", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Lưu</button>
+                          </div>
+                        )}
                       </div>
                     ) : t.rating ? (
-                      <span onClick={() => canRate(t) && setQuickRate(t.id)} style={{ cursor: canRate(t) ? "pointer" : "default" }}><RatingBadge r={t.rating} /></span>
+                      <span onClick={() => canRate(t) && (setQuickRate(t.id), setPendingQuickRating(null), setRatingNote(""))} style={{ cursor: canRate(t) ? "pointer" : "default" }}><RatingBadge r={t.rating} /></span>
                     ) : (
-                      <span onClick={() => t.status === "completed" && canRate(t) && setQuickRate(t.id)} style={{ background: t.status === "completed" && canRate(t) ? "#fef9c3" : "transparent", color: t.status === "completed" && canRate(t) ? "#92400e" : "#d1d5db", fontSize: 12, cursor: t.status === "completed" && canRate(t) ? "pointer" : "default", padding: t.status === "completed" && canRate(t) ? "2px 8px" : "0", borderRadius: 8, border: t.status === "completed" && canRate(t) ? "1px solid #fde68a" : "none", fontWeight: t.status === "completed" && canRate(t) ? 600 : 400 }} title={t.status === "completed" ? canRate(t) ? "⭐ Bấm để đánh giá (bắt buộc)" : "Bạn không phải người giao việc này" : "Hoàn thành nhiệm vụ trước khi đánh giá"}>
+                      <span onClick={() => t.status === "completed" && canRate(t) && (setQuickRate(t.id), setPendingQuickRating(null), setRatingNote(""))} style={{ background: t.status === "completed" && canRate(t) ? "#fef9c3" : "transparent", color: t.status === "completed" && canRate(t) ? "#92400e" : "#d1d5db", fontSize: 12, cursor: t.status === "completed" && canRate(t) ? "pointer" : "default", padding: t.status === "completed" && canRate(t) ? "2px 8px" : "0", borderRadius: 8, border: t.status === "completed" && canRate(t) ? "1px solid #fde68a" : "none", fontWeight: t.status === "completed" && canRate(t) ? 600 : 400 }} title={t.status === "completed" ? canRate(t) ? "⭐ Bấm để đánh giá (bắt buộc)" : "Bạn không phải người giao việc này" : "Hoàn thành nhiệm vụ trước khi đánh giá"}>
                         {t.status === "completed" ? canRate(t) ? "⭐ Đánh giá" : "—" : "—"}
                       </span>
                     )}
@@ -191,6 +212,7 @@ export default function TaskList({
                         <button onClick={() => openApproveModal(t)} title="Duyệt & đánh giá" style={{ padding: "3px 6px", border: "1px solid #16a34a", borderRadius: 5, background: "#f0fdf4", cursor: "pointer", fontSize: 12, color: "#15803d" }}>✅</button>
                         <button onClick={() => rejectCompletionRequest(t)} title="Từ chối" style={{ padding: "3px 6px", border: "1px solid #fca5a5", borderRadius: 5, background: "#fff0f0", cursor: "pointer", fontSize: 12, color: "#dc2626" }}>↩</button>
                       </>)}
+                      {t.completion_requested && !canEditTask(t) && (currentUser?.employee_id === t.eid || t.requested_by === currentUser?.full_name) && <button onClick={() => remindApproval(t)} title={t.reminder_at ? `Đã nhắc lúc ${t.reminder_at}` : "Nhắc duyệt"} style={{ padding: "3px 6px", border: "1px solid #fbbf24", borderRadius: 5, background: "#fff", cursor: "pointer", fontSize: 12, color: "#92400e" }}>🔔</button>}
                       {canEditTask(t) && <button onClick={() => openEditTask(t)} style={{ padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 5, background: "#f9fafb", cursor: "pointer", fontSize: 12 }}>✏️</button>}
                       <button onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 5, background: "#f9fafb", cursor: "pointer", fontSize: 12 }}>💬</button>
                       {canDeleteTask(t) && <button onClick={() => setDeleteConfirm(t.id)} style={{ padding: "3px 6px", border: "1px solid #fca5a5", borderRadius: 5, background: "#fff0f0", cursor: "pointer", fontSize: 12, color: "#dc2626" }}>🗑️</button>}
