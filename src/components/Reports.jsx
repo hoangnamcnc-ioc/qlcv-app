@@ -248,8 +248,8 @@ export default function Reports({
                 <Row icon="②" label="Điểm chất lượng" sub={`Đánh giá kết quả ${e.onTime} việc đúng hạn (chưa ĐG = Trung bình) · tối đa 40`} val={b.quality} />
                 <Row icon="③" label="Phạt trễ & quá hạn" sub={`(${e.completedLate} HT trễ + ${e.over} quá hạn) × 2đ`} val={b.penalty} neg />
                 <Row icon="④" label="Thưởng khối lượng" sub={`Vượt ${Math.max(e.resolved - 5, 0)} việc so với mốc 5 · tối đa +10`} val={b.workloadBonus} />
-                <Row icon="⑤" label="Thưởng phối hợp" sub={e.collabTotal > 0 ? `${e.collabDone}/${e.collabTotal} việc phối hợp hoàn thành (×0.5 so với chủ trì)` : "Không có việc phối hợp"} val={b.collabBonus} />
               </div>
+              {e.collabTotal > 0 && <div style={{ margin: "0 18px 10px", fontSize: 11.5, color: "#7c3aed", background: "#f5f3ff", borderRadius: 8, padding: "8px 12px" }}>🤝 Đã gồm {e.collabDone}/{e.collabTotal} việc phối hợp hoàn thành, mỗi việc tính = 1/2 việc chủ trì trong điểm ① và ② ở trên.</div>}
               <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f8fafc", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>Tổng điểm <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400 }}>(giới hạn 0–100)</span></span>
                 <span style={{ fontSize: 22, fontWeight: 800, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ</span>
