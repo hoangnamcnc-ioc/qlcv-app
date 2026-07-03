@@ -220,7 +220,13 @@ export default function App() {
   const exportPDF=()=>{const rows=computed.filter(t=>(exStatus==="all"||t.status===exStatus)&&(exDept==="all"||t.dept===exDept));const total=rows.length,done=rows.filter(t=>t.status==="completed").length,over=rows.filter(t=>t.status==="overdue").length,nd=rows.filter(t=>t.status==="nearly_due").length;const rows_html=rows.map(t=>{const emp=getEmp(t.eid);const sc=STATUS[t.status];return`<tr><td>${t.title||""}</td><td>${t.dept}</td><td>${emp?.name||"–"}</td><td>${PRIO[t.prio]?.label||""}</td><td style="color:${t.status==="overdue"?"#b91c1c":"inherit"}">${t.deadline}</td><td>${t.progress||0}%</td><td style="color:${sc?.col}">${sc?.label||""}</td><td>${t.rating?RATING[t.rating]?.label:"–"}</td></tr>`;}).join("");const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Báo cáo nhiệm vụ</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{color:#1e1b4b;font-size:20px;margin-bottom:4px}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}.stats{display:flex;gap:16px;margin-bottom:20px}.stat{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:12px 20px;text-align:center}.stat .val{font-size:26px;font-weight:700;color:#4338ca}.stat .lbl{font-size:12px;color:#6b7280;margin-top:2px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#f1f5f9;padding:8px 10px;text-align:left;border:1px solid #e5e7eb;font-size:12px;color:#374151}td{padding:7px 10px;border:1px solid #e5e7eb}tr:nth-child(even){background:#fafafa}@media print{body{padding:0}button{display:none}}</style></head><body><h1>📋 Báo cáo Nhiệm vụ</h1><div class="meta">Xuất ngày: ${new Date().toLocaleDateString("vi-VN")} · Bộ lọc: ${exStatus==="all"?"Tất cả":STATUS[exStatus]?.label} · Phòng: ${exDept==="all"?"Tất cả":exDept}</div><div class="stats"><div class="stat"><div class="val">${total}</div><div class="lbl">Tổng</div></div><div class="stat"><div class="val" style="color:#15803d">${done}</div><div class="lbl">Hoàn thành</div></div><div class="stat"><div class="val" style="color:#b91c1c">${over}</div><div class="lbl">Quá hạn</div></div><div class="stat"><div class="val" style="color:#92400e">${nd}</div><div class="lbl">Sắp hết hạn</div></div><div class="stat"><div class="val" style="color:#4338ca">${total?Math.round(done/total*100):0}%</div><div class="lbl">Tỷ lệ HT</div></div></div><table><thead><tr><th>Tiêu đề</th><th>Phòng</th><th>Nhân viên</th><th>Ưu tiên</th><th>Hạn chót</th><th>Tiến độ</th><th>Trạng thái</th><th>Đánh giá</th></tr></thead><tbody>${rows_html}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`;const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}setExModal(false);};
 
   const inp={padding:"7px 10px",border:"1px solid #d1d5db",borderRadius:7,fontSize:13,background:"#fff",color:"#111",width:"100%",boxSizing:"border-box"};
-  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"othertasks",icon:"📌",label:"Nhiệm vụ khác"},{id:"supportcases",icon:"🎧",label:"Hỗ trợ người dùng/PAHT và vận hành DC",shortLabel:"Hỗ trợ ND"},{id:"calendar",icon:"🗓️",label:"Lịch trực"},{id:"documents",icon:"📁",label:"Văn bản"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
+  // Gom "Nhiệm vụ / Ngân sách / Khác / Hỗ trợ ND" vào 1 mục cha "Công việc" có tab con bên trong,
+  // giảm số mục menu chính. workSubviews giữ nguyên đúng các id view cũ để không phải sửa logic render bên dưới.
+  const workSubviews=[{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"othertasks",icon:"📌",label:"Nhiệm vụ khác"},{id:"supportcases",icon:"🎧",label:"Hỗ trợ người dùng/PAHT và vận hành DC",shortLabel:"Hỗ trợ ND"}];
+  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"work",icon:"💼",label:"Công việc"},{id:"calendar",icon:"🗓️",label:"Lịch trực"},{id:"documents",icon:"📁",label:"Văn bản"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
+  const isWorkView=workSubviews.some(w=>w.id===view);
+  const getViewMeta=id=>navItems.find(n=>n.id===id)||workSubviews.find(w=>w.id===id);
+  const goToWork=()=>setView(isWorkView?view:"tasks");
 
   if(!currentUser)return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f0f4ff",fontFamily:"system-ui,sans-serif",padding:16}}>
@@ -251,7 +257,12 @@ export default function App() {
         <div style={{width:220,background:"#1e1b4b",display:"flex",flexDirection:"column",flexShrink:0}}>
           <div style={{padding:"14px",borderBottom:"1px solid rgba(255,255,255,0.1)",display:"flex",alignItems:"center",gap:10}}><img src={LOGO} alt="logo" style={{width:40,height:40,objectFit:"contain",borderRadius:"50%",flexShrink:0}}/><div><div style={{color:"#fff",fontWeight:700,fontSize:13,lineHeight:1.3}}>QUẢN LÝ GIAO VIỆC</div><div style={{color:"#a5b4fc",fontSize:11,marginTop:1}}>DAK LAK IOC</div></div></div>
           <nav style={{flex:1,padding:"8px 0",overflowY:"auto",minHeight:0}}>
-            {navItems.map(n=><button key={n.id} onClick={()=>{setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:view===n.id?"rgba(165,180,252,0.15)":"transparent",border:"none",cursor:"pointer",color:view===n.id?"#c7d2fe":"#94a3b8",textAlign:"left",fontSize:13}}><span>{n.icon}</span>{n.label}</button>)}
+            {navItems.map(n=>{const active=n.id==="work"?isWorkView:view===n.id;return(
+            <div key={n.id}>
+              <button onClick={()=>{if(n.id==="work")goToWork();else setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:active?"rgba(165,180,252,0.15)":"transparent",border:"none",cursor:"pointer",color:active?"#c7d2fe":"#94a3b8",textAlign:"left",fontSize:13}}><span>{n.icon}</span>{n.label}</button>
+              {n.id==="work"&&isWorkView&&<div style={{display:"flex",flexDirection:"column"}}>{workSubviews.map(w=><button key={w.id} onClick={()=>setView(w.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 14px 8px 34px",background:view===w.id?"rgba(165,180,252,0.1)":"transparent",border:"none",cursor:"pointer",color:view===w.id?"#c7d2fe":"#94a3b8",textAlign:"left",fontSize:12.5}}><span>{w.icon}</span>{w.label}</button>)}</div>}
+            </div>
+            );})}
             {canCreate&&<button onClick={()=>setShowRecurring(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",color:"#94a3b8",textAlign:"left",fontSize:13}}>🔄 Nhiệm vụ định kỳ{recurringTemplates.filter(t=>t.active).length>0&&<span style={{background:"#6366f1",color:"#fff",fontSize:10,padding:"1px 6px",borderRadius:10,marginLeft:"auto"}}>{recurringTemplates.filter(t=>t.active).length}</span>}</button>}
             {isAdmin&&<button onClick={()=>setUserModal(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",color:"#94a3b8",textAlign:"left",fontSize:13}}>🔐 Tài khoản</button>}
           </nav>
@@ -276,7 +287,7 @@ export default function App() {
         <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:isMobile?"10px 12px":"10px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             {isMobile&&<div style={{display:"flex",alignItems:"center",gap:8}}><img src={LOGO} alt="logo" style={{width:30,height:30,objectFit:"contain",borderRadius:"50%"}}/><span style={{fontWeight:700,fontSize:13,color:"#1e1b4b"}}>DAK LAK IOC</span></div>}
-            <span style={{fontWeight:600,fontSize:isMobile?14:15,color:"#111827"}}>{navItems.find(n=>n.id===view)?.label}</span>
+            <span style={{fontWeight:600,fontSize:isMobile?14:15,color:"#111827"}}>{getViewMeta(view)?.label}</span>
           </div>
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
             {isMobile&&<RoleBadge role={currentUser.role}/>}
@@ -328,9 +339,15 @@ export default function App() {
           </div>
         </div>
 
+        {isMobile&&isWorkView&&(
+          <div style={{display:"flex",gap:6,overflowX:"auto",padding:"8px 12px",background:"#fff",borderBottom:"1px solid #e5e7eb",flexShrink:0}}>
+            {workSubviews.map(w=><button key={w.id} onClick={()=>setView(w.id)} style={{flex:"0 0 auto",padding:"6px 12px",borderRadius:20,border:"1px solid "+(view===w.id?"#4f46e5":"#e5e7eb"),background:view===w.id?"#4f46e5":"#fff",color:view===w.id?"#fff":"#374151",fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>{w.icon} {w.shortLabel||w.label}</button>)}
+          </div>
+        )}
+
         <div style={{flex:1,overflowY:"auto",padding:isMobile?12:20,paddingBottom:isMobile?"72px":20}}>
         <Suspense fallback={<div style={{padding:40,textAlign:"center",color:"#9ca3af",fontSize:13}}>Đang tải…</div>}>
-        <ErrorBoundary key={view} label={navItems.find(n=>n.id===view)?.label||"màn hình này"}>
+        <ErrorBoundary key={view} label={getViewMeta(view)?.label||"màn hình này"}>
 
           {/* DASHBOARD */}
           {view==="dashboard"&&(
@@ -713,7 +730,9 @@ export default function App() {
     {isMobile&&(
       <div className="qlcv-bottomnav" style={{position:"fixed",bottom:0,left:0,right:0,background:"#1e1b4b",display:"flex",overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",borderTop:"1px solid rgba(255,255,255,0.1)",zIndex:200,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
         <style>{`.qlcv-bottomnav::-webkit-scrollbar{display:none}`}</style>
-        {navItems.map(n=><button key={n.id} onClick={()=>{setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{flex:"0 0 auto",minWidth:60,padding:"10px 8px",background:"transparent",border:"none",cursor:"pointer",color:view===n.id?"#c7d2fe":"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2,whiteSpace:"nowrap"}}><span style={{fontSize:18}}>{n.icon}</span><span style={{fontSize:9}}>{n.shortLabel||n.label}</span></button>)}
+        {navItems.map(n=>{const active=n.id==="work"?isWorkView:view===n.id;return(
+        <button key={n.id} onClick={()=>{if(n.id==="work")goToWork();else setView(n.id);if(n.id==="security")loadLoginHistory();}} style={{flex:"0 0 auto",minWidth:60,padding:"10px 8px",background:"transparent",border:"none",cursor:"pointer",color:active?"#c7d2fe":"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2,whiteSpace:"nowrap"}}><span style={{fontSize:18}}>{n.icon}</span><span style={{fontSize:9}}>{n.shortLabel||n.label}</span></button>
+        );})}
         {canCreate&&<button onClick={()=>setShowRecurring(true)} style={{flex:"0 0 auto",minWidth:60,padding:"10px 8px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2,whiteSpace:"nowrap"}}><span style={{fontSize:18}}>🔄</span><span style={{fontSize:9}}>Định kỳ</span></button>}
         {isAdmin&&<button onClick={()=>setUserModal(true)} style={{flex:"0 0 auto",minWidth:60,padding:"10px 8px",background:"transparent",border:"none",cursor:"pointer",color:"#64748b",display:"flex",flexDirection:"column",alignItems:"center",gap:2,whiteSpace:"nowrap"}}><span style={{fontSize:18}}>🔐</span><span style={{fontSize:9}}>TK</span></button>}
       </div>
