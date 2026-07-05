@@ -41,7 +41,7 @@ const INV_TEMPLATES = {
 };
 const fmtMoney=n=>{const v=Number(n)||0;return v.toLocaleString("vi-VN")+" đ";};
 
-function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,onEdit,onDelete,onUpdateSteps,onSaveQuality,uploadFiles,uploadingFiles,inp,currentUser}){
+function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,onEdit,onDelete,onUpdateSteps,onSaveQuality,uploadFiles,uploadingFiles,inp,currentUser,showToast,onProposeExt,onApproveExt,onRejectExt}){
   const steps=parseJSON(proj.steps,[]);
   const [editStep,setEditStep]=React.useState(null);
   const [stepDraft,setStepDraft]=React.useState(null);
@@ -61,6 +61,45 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
   const myDept=getEmp(myEid)?.dept;
   const isDeptManager=["manager","deputy_manager","manager_hcth"].includes(currentUser?.role)&&myDept===proj.dept;
   const canApproveStep=isBGD||isDeptManager;
+  // Đề xuất gia hạn ngày kết thúc 1 bước: chỉ người chủ trì bước đó, khi bước đã có ngày kết thúc và chưa xong;
+  // duyệt/từ chối dùng lại canApproveStep (giống quyền duyệt bước hoàn thành hiện có), để nhất quán.
+  const canProposeStepExt=s=>myEid&&myEid===s.lead_eid&&s.status!=="done"&&!!s.end&&!s.ext_proposed;
+  const [stepExtRequestModal,setStepExtRequestModal]=React.useState(null); // idx
+  const [stepExtDate,setStepExtDate]=React.useState("");
+  const [stepExtReason,setStepExtReason]=React.useState("");
+  const openStepExtRequest=idx=>{setStepExtRequestModal(idx);setStepExtDate(steps[idx].end||"");setStepExtReason("");};
+  const submitStepExtRequest=async()=>{
+    const idx=stepExtRequestModal;const s=steps[idx];
+    if(!stepExtDate||(s.end&&stepExtDate<=s.end)){showToast&&showToast("Ngày đề xuất phải muộn hơn ngày kết thúc hiện tại","error");return;}
+    if(stepExtReason.trim().length<5){showToast&&showToast("Vui lòng nêu rõ lý do xin gia hạn","error");return;}
+    const ns=steps.map((st,i)=>i===idx?{...st,ext_proposed:stepExtDate,ext_reason:stepExtReason.trim(),ext_requested_by:currentUser.full_name,ext_requested_at:new Date().toLocaleString("vi-VN")}:st);
+    await onUpdateSteps(proj,ns);
+    showToast&&showToast("Đã gửi đề xuất gia hạn bước");
+    setStepExtRequestModal(null);setStepExtDate("");setStepExtReason("");
+  };
+  const [stepExtDecideModal,setStepExtDecideModal]=React.useState(null); // {idx,mode}
+  const [stepExtDecideDate,setStepExtDecideDate]=React.useState("");
+  const [stepExtDecideNote,setStepExtDecideNote]=React.useState("");
+  const openStepExtApprove=idx=>{setStepExtDecideModal({idx,mode:"approve"});setStepExtDecideDate(steps[idx].ext_proposed||"");setStepExtDecideNote("");};
+  const openStepExtReject=idx=>{setStepExtDecideModal({idx,mode:"reject"});setStepExtDecideDate("");setStepExtDecideNote("");};
+  const confirmStepExtDecision=async()=>{
+    if(!stepExtDecideModal)return;
+    const{idx,mode}=stepExtDecideModal;const s=steps[idx];
+    if(mode==="reject"){
+      if(stepExtDecideNote.trim().length<5){showToast&&showToast("Vui lòng nêu rõ lý do từ chối","error");return;}
+      const ns=steps.map((st,i)=>i===idx?{...st,ext_proposed:null,ext_reason:null,ext_requested_by:null,ext_requested_at:null}:st);
+      await onUpdateSteps(proj,ns);
+      showToast&&showToast("Đã từ chối đề xuất gia hạn bước");
+    }else{
+      if(!stepExtDecideDate){showToast&&showToast("Vui lòng chọn ngày duyệt","error");return;}
+      if(stepExtDecideDate>s.ext_proposed){showToast&&showToast("Không thể duyệt ngày muộn hơn ngày đề xuất","error");return;}
+      if(stepExtDecideDate!==s.ext_proposed&&stepExtDecideNote.trim().length<5){showToast&&showToast("Bạn chọn ngày ngắn hơn đề xuất, vui lòng nêu rõ lý do","error");return;}
+      const ns=steps.map((st,i)=>i===idx?{...st,end:stepExtDecideDate,ext_proposed:null,ext_reason:null,ext_requested_by:null,ext_requested_at:null}:st);
+      await onUpdateSteps(proj,ns);
+      showToast&&showToast("Đã duyệt gia hạn bước");
+    }
+    setStepExtDecideModal(null);setStepExtDecideDate("");setStepExtDecideNote("");
+  };
   const setStepStatus=(idx,status)=>{
     if(status==="done"){
       // Không tự hoàn thành: chuyển sang chờ duyệt, TP/PP/BGĐ sẽ duyệt + đánh giá
@@ -105,6 +144,22 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
           <div style={{background:"#f0fdf4",borderRadius:10,padding:12}}><div style={{fontSize:11,color:"#6b7280"}}>Còn lại</div><div style={{fontSize:15,fontWeight:700,color:remain<0?"#dc2626":"#15803d"}}>{fmtMoney(remain)}</div></div>
           <div style={{background:"#f5f3ff",borderRadius:10,padding:12}}><div style={{fontSize:11,color:"#6b7280"}}>Tiến độ</div><div style={{fontSize:15,fontWeight:700,color:"#6d28d9"}}>{pct}%</div></div>
         </div>
+        <div style={{marginBottom:16,padding:"12px 14px",background:proj.ext_proposed?"#eff6ff":"#f8fafc",borderRadius:10,border:"1px solid "+(proj.ext_proposed?"#bfdbfe":"#e5e7eb")}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#374151"}}>📅 Hạn hoàn thành: <span style={{fontWeight:400}}>{proj.deadline||"— (chưa đặt)"}</span></div>
+            {!proj.ext_proposed&&isProjLead&&pct<100&&<button onClick={onProposeExt} style={{padding:"5px 10px",border:"1px solid #93c5fd",borderRadius:7,background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontSize:12,fontWeight:600}}>📅 Đề xuất gia hạn</button>}
+          </div>
+          {proj.ext_proposed&&(<div style={{marginTop:8}}>
+            <div style={{fontSize:12,color:"#1d4ed8"}}>{proj.ext_requested_by} đề xuất gia hạn đến <b>{proj.ext_proposed}</b> lúc {proj.ext_requested_at}</div>
+            {proj.ext_reason&&<div style={{fontSize:12,color:"#1e3a8a",marginTop:6,fontStyle:"italic",background:"#dbeafe",padding:"6px 10px",borderRadius:6}}>"{proj.ext_reason}"</div>}
+            {isBGD?(
+              <div style={{display:"flex",gap:8,marginTop:10}}>
+                <button onClick={onApproveExt} style={{flex:1,padding:"8px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>✅ Duyệt gia hạn</button>
+                <button onClick={onRejectExt} style={{flex:1,padding:"8px",border:"1px solid #fca5a5",borderRadius:8,background:"#fff0f0",color:"#dc2626",cursor:"pointer",fontSize:13}}>✖ Từ chối</button>
+              </div>
+            ):(<div style={{fontSize:12,color:"#9ca3af",marginTop:8}}>Chờ Ban Giám đốc duyệt</div>)}
+          </div>)}
+        </div>
         {proj.note&&<div style={{fontSize:13,color:"#475569",background:"#f8fafc",padding:"10px 14px",borderRadius:8,marginBottom:16}}>📝 {proj.note}</div>}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
           <div style={{fontWeight:600,fontSize:14}}>📋 Quy trình thực hiện ({doneCount}/{steps.length}){countOverdueSteps(steps)>0&&<span style={{marginLeft:8,fontSize:11,background:"#fee2e2",color:"#b91c1c",padding:"2px 8px",borderRadius:8,fontWeight:600}}>⚠ {countOverdueSteps(steps)} bước trễ hạn</span>}</div>
@@ -129,6 +184,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
                   {(s.start||s.end)&&<div style={{fontSize:13,color:"#6b7280",marginTop:3}}>📅 {s.start||"?"} → {s.end||"?"}</div>}
                   {s.note&&<div style={{fontSize:13,color:"#475569",marginTop:3,fontStyle:"italic"}}>{s.note}</div>}
                   {s.status==="pending_approval"&&s.requested_by&&<div style={{fontSize:12,color:"#92400e",marginTop:3,background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>📨 {s.requested_by} yêu cầu duyệt · {s.requested_at}</div>}
+                  {s.ext_proposed&&<div style={{fontSize:12,color:"#1d4ed8",marginTop:3,background:"#eff6ff",padding:"4px 10px",borderRadius:6}}>📅 {s.ext_requested_by} đề xuất gia hạn đến {s.ext_proposed}{s.ext_reason?` — "${s.ext_reason}"`:""}</div>}
                   {s.status==="done"&&s.quality_note&&<div style={{fontSize:12,color:"#15803d",marginTop:3,background:"#f0fdf4",padding:"4px 10px",borderRadius:6}}>✅ Đánh giá: {s.quality_note}{s.approved_by&&<span style={{opacity:0.7}}> — duyệt bởi {s.approved_by} · {s.approved_at}</span>}</div>}
                   {(s.attachments||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{(s.attachments||[]).map((f,fi)=><a key={fi} href={f.url} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
                 </div>
@@ -144,6 +200,11 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
                 {s.status==="pending_approval"&&canApproveStep&&<>
                   <button onClick={()=>setStepQualityPopup({idx,quality:1,note:""})} style={{padding:"3px 10px",border:"1px solid #16a34a",borderRadius:6,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:12.5,fontWeight:600}}>✅ Duyệt & đánh giá</button>
                   <button onClick={()=>rejectStepRequest(idx)} style={{padding:"3px 10px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",color:"#dc2626",cursor:"pointer",fontSize:12.5}}>↩ Từ chối, làm lại</button>
+                </>}
+                {canProposeStepExt(s)&&<button onClick={()=>openStepExtRequest(idx)} style={{padding:"3px 8px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:12.5,color:"#1d4ed8"}}>📅 Đề xuất gia hạn</button>}
+                {s.ext_proposed&&canApproveStep&&<>
+                  <button onClick={()=>openStepExtApprove(idx)} style={{padding:"3px 10px",border:"1px solid #16a34a",borderRadius:6,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:12.5,fontWeight:600}}>✅ Duyệt gia hạn</button>
+                  <button onClick={()=>openStepExtReject(idx)} style={{padding:"3px 10px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",color:"#dc2626",cursor:"pointer",fontSize:12.5}}>✖ Từ chối</button>
                 </>}
                 {canEditStep(s)&&<button onClick={()=>openEditStep(s,idx)} style={{padding:"3px 8px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:12.5,marginLeft:"auto"}}>✏️ Sửa</button>}
                 {canEditProject&&<button onClick={()=>insertStepAfter(idx)} style={{padding:"3px 8px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:12.5,color:"#1d4ed8"}}>⤵ Chèn dưới</button>}
@@ -253,6 +314,43 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
         </div>
       </div>
     </div>)}
+    {/* ── Đề xuất gia hạn 1 bước ── */}
+    {stepExtRequestModal!==null&&(<div onClick={()=>setStepExtRequestModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:80,padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:420,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb"}}><div style={{fontWeight:600,fontSize:15}}>📅 Đề xuất gia hạn bước</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{steps[stepExtRequestModal]?.content}</div></div>
+        <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{padding:"10px 14px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,color:"#1d4ed8"}}>Ngày kết thúc hiện tại: <b>{steps[stepExtRequestModal]?.end}</b></div>
+          <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Đề xuất gia hạn đến ngày *</label><input type="date" min={steps[stepExtRequestModal]?.end} value={stepExtDate} onChange={e=>setStepExtDate(e.target.value)} style={inp}/></div>
+          <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Lý do xin gia hạn *</label><textarea value={stepExtReason} onChange={e=>setStepExtReason(e.target.value)} placeholder="Nêu rõ lý do... (ít nhất 5 ký tự)" rows={3} style={{...inp,resize:"vertical"}}/></div>
+        </div>
+        <div style={{padding:"0 20px 18px",display:"flex",gap:10}}>
+          <button onClick={()=>setStepExtRequestModal(null)} style={{flex:1,padding:"9px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button>
+          <button onClick={submitStepExtRequest} style={{flex:2,padding:"9px",background:"#4f46e5",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Gửi đề xuất</button>
+        </div>
+      </div>
+    </div>)}
+    {/* ── Duyệt/Từ chối gia hạn 1 bước ── */}
+    {stepExtDecideModal&&(<div onClick={()=>setStepExtDecideModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:80,padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:420,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb"}}><div style={{fontWeight:600,fontSize:15}}>{stepExtDecideModal.mode==="approve"?"✅ Duyệt gia hạn bước":"✖ Từ chối gia hạn bước"}</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{steps[stepExtDecideModal.idx]?.content}</div></div>
+        <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{padding:"10px 14px",background:"#f8fafc",borderRadius:8,fontSize:12,color:"#374151"}}>
+            <div style={{marginBottom:4}}><b>{steps[stepExtDecideModal.idx]?.ext_requested_by}</b> đề xuất gia hạn đến <b>{steps[stepExtDecideModal.idx]?.ext_proposed}</b> (hiện tại: {steps[stepExtDecideModal.idx]?.end})</div>
+            {steps[stepExtDecideModal.idx]?.ext_reason&&<div style={{fontStyle:"italic",color:"#6b7280"}}>"{steps[stepExtDecideModal.idx]?.ext_reason}"</div>}
+          </div>
+          {stepExtDecideModal.mode==="approve"?(<>
+            <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Duyệt đến ngày *</label><input type="date" max={steps[stepExtDecideModal.idx]?.ext_proposed} value={stepExtDecideDate} onChange={e=>setStepExtDecideDate(e.target.value)} style={inp}/><div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>Chỉ được duyệt đúng ngày đề xuất hoặc ngắn hơn.</div></div>
+            <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Lý do {stepExtDecideDate!==steps[stepExtDecideModal.idx]?.ext_proposed?<span style={{color:"#dc2626"}}>* (bắt buộc vì ngắn hơn đề xuất)</span>:"(không bắt buộc)"}</label><input value={stepExtDecideNote} onChange={e=>setStepExtDecideNote(e.target.value)} placeholder="Vì sao rút ngắn so với đề xuất..." style={inp}/></div>
+          </>):(
+            <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Lý do từ chối *</label><textarea value={stepExtDecideNote} onChange={e=>setStepExtDecideNote(e.target.value)} placeholder="Nêu rõ lý do từ chối... (ít nhất 5 ký tự)" rows={3} style={{...inp,resize:"vertical"}}/></div>
+          )}
+        </div>
+        <div style={{padding:"0 20px 18px",display:"flex",gap:10}}>
+          <button onClick={()=>setStepExtDecideModal(null)} style={{flex:1,padding:"9px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button>
+          <button onClick={confirmStepExtDecision} style={{flex:2,padding:"9px",background:stepExtDecideModal.mode==="approve"?"#16a34a":"#dc2626",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>{stepExtDecideModal.mode==="approve"?"Xác nhận duyệt":"Xác nhận từ chối"}</button>
+        </div>
+      </div>
+    </div>)}
     {editStep!==null&&stepDraft&&(<div onClick={()=>setEditStep(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:70,padding:"12px 8px",overflowY:"auto"}}>
       <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:480,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.25)"}}>
         <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:14}}>Sửa bước {stepDraft.id}</span><button onClick={()=>setEditStep(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#9ca3af"}}>✕</button></div>
@@ -301,6 +399,9 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
   const leaders=useMemo(()=>(users||[]).filter(u=>u.role==="director"||u.role==="admin"),[users]);
   const canSeeAll=["admin","director","manager_hcth"].includes(currentUser?.role);
   const canManageInvest=["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role);
+  const isBGD=["admin","director"].includes(currentUser?.role); // Ban Giám đốc
+  const myEid=currentUser?.employee_id;
+  const isProjLead=p=>myEid&&myEid===p.lead_eid; // Phụ trách chính dự án
   // Dự án thuộc tab đang xem (dự án chưa gán loại chi mặc định coi là Chi Hoạt Động)
   const baseProjects=useMemo(()=>projects.filter(p=>(p.expense_type||"operating")===expenseTab),[projects,expenseTab]);
   const invStats=useMemo(()=>({budget:baseProjects.reduce((s,p)=>s+(Number(p.total_budget)||0),0),spent:baseProjects.reduce((s,p)=>s+(Number(p.spent)||0),0)}),[baseProjects]);
@@ -324,6 +425,44 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
   const deleteProject=async id=>{if(!window.confirm("Xóa vĩnh viễn dự án này?"))return;setSaving(true);await supabase.from("projects").delete().eq("id",id);setProjects(p=>p.filter(x=>x.id!==id));setProjDetail(null);setSaving(false);showToast&&showToast("Đã xóa dự án");onScoringChange?.();};
   const updateProjectSteps=async(proj,newSteps)=>{const stepsStr=JSON.stringify(newSteps);const{error}=await supabase.from("projects").update({steps:stepsStr}).eq("id",proj.id);if(!error){setProjects(p=>p.map(x=>x.id===proj.id?{...x,steps:stepsStr}:x));setProjDetail(d=>d&&d.id===proj.id?{...d,steps:stepsStr}:d);onScoringChange?.();}else showToast&&showToast("Lỗi cập nhật bước","error");};
   const saveProjectQuality=async(id,upd)=>{const{error}=await supabase.from("projects").update(upd).eq("id",id);if(!error){setProjects(p=>p.map(x=>x.id===id?{...x,...upd}:x));setProjDetail(d=>d&&d.id===id?{...d,...upd}:d);showToast&&showToast("Đã lưu nghiệm thu tổng thể");onScoringChange?.();}else showToast&&showToast("Lỗi lưu nghiệm thu","error");};
+
+  // ── Đề xuất & duyệt gia hạn "Hạn hoàn thành" dự án: Phụ trách chính đề xuất, chỉ BGĐ duyệt ──
+  const [extRequestModal,setExtRequestModal]=useState(null); // dự án đang đề xuất
+  const [extProposedDate,setExtProposedDate]=useState("");
+  const [extReason,setExtReason]=useState("");
+  const openExtRequestModal=p=>{setExtRequestModal(p);setExtProposedDate(p.deadline||"");setExtReason("");};
+  const submitExtRequest=async()=>{
+    const p=extRequestModal;
+    if(!extProposedDate||(p.deadline&&extProposedDate<=p.deadline)){showToast&&showToast("Ngày đề xuất phải muộn hơn hạn hiện tại","error");return;}
+    if(extReason.trim().length<5){showToast&&showToast("Vui lòng nêu rõ lý do xin gia hạn","error");return;}
+    const upd={ext_proposed:extProposedDate,ext_reason:extReason.trim(),ext_requested_by:currentUser.full_name,ext_requested_at:new Date().toLocaleString("vi-VN")};
+    const{error}=await supabase.from("projects").update(upd).eq("id",p.id);
+    if(!error){setProjects(ps=>ps.map(x=>x.id===p.id?{...x,...upd}:x));setProjDetail(d=>d&&d.id===p.id?{...d,...upd}:d);showToast&&showToast("Đã gửi đề xuất gia hạn tới Ban Giám đốc");setExtRequestModal(null);setExtProposedDate("");setExtReason("");}
+    else showToast&&showToast("Lỗi: "+(error.message||""),"error");
+  };
+  const [extDecideModal,setExtDecideModal]=useState(null); // {proj,mode:"approve"|"reject"}
+  const [extDecideDate,setExtDecideDate]=useState("");
+  const [extDecideNote,setExtDecideNote]=useState("");
+  const openExtApprove=p=>{setExtDecideModal({proj:p,mode:"approve"});setExtDecideDate(p.ext_proposed||"");setExtDecideNote("");};
+  const openExtReject=p=>{setExtDecideModal({proj:p,mode:"reject"});setExtDecideDate("");setExtDecideNote("");};
+  const confirmExtDecision=async()=>{
+    if(!extDecideModal)return;
+    const p=extDecideModal.proj;
+    const clear={ext_proposed:null,ext_reason:null,ext_requested_by:null,ext_requested_at:null};
+    let upd,msg;
+    if(extDecideModal.mode==="reject"){
+      if(extDecideNote.trim().length<5){showToast&&showToast("Vui lòng nêu rõ lý do từ chối","error");return;}
+      upd=clear;msg="Đã từ chối đề xuất gia hạn";
+    }else{
+      if(!extDecideDate){showToast&&showToast("Vui lòng chọn ngày duyệt","error");return;}
+      if(extDecideDate>p.ext_proposed){showToast&&showToast("Không thể duyệt ngày muộn hơn ngày đề xuất","error");return;}
+      if(extDecideDate!==p.ext_proposed&&extDecideNote.trim().length<5){showToast&&showToast("Bạn chọn ngày ngắn hơn đề xuất, vui lòng nêu rõ lý do","error");return;}
+      upd={deadline:extDecideDate,...clear};msg="Đã duyệt gia hạn";
+    }
+    const{error}=await supabase.from("projects").update(upd).eq("id",p.id);
+    if(!error){setProjects(ps=>ps.map(x=>x.id===p.id?{...x,...upd}:x));setProjDetail(d=>d&&d.id===p.id?{...d,...upd}:d);showToast&&showToast(msg);setExtDecideModal(null);setExtDecideDate("");setExtDecideNote("");}
+    else showToast&&showToast("Lỗi: "+(error.message||""),"error");
+  };
 
   return (<div style={{display:"flex",flexDirection:"column",gap:14}}>
     <div style={{display:"flex",gap:8,background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:8}}>
@@ -384,7 +523,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
           <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Tổng mức đầu tư (đ)</label><input type="number" value={projForm.total_budget} onChange={e=>setProjForm(f=>({...f,total_budget:e.target.value}))} style={inp}/></div>
           <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Đã chi (đ)</label><input type="number" value={projForm.spent} onChange={e=>setProjForm(f=>({...f,spent:e.target.value}))} style={inp}/></div>
           <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Phụ trách chính</label><select value={projForm.lead_eid} onChange={e=>setProjForm(f=>({...f,lead_eid:e.target.value}))} style={inp}><option value="">— Chọn —</option>{(employees||[]).map(e=><option key={e.id} value={e.id}>{e.name} ({e.dept} - {e.role})</option>)}</select></div>
-          <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Hạn hoàn thành</label><input type="date" value={projForm.deadline} onChange={e=>setProjForm(f=>({...f,deadline:e.target.value}))} style={inp}/></div>
+          <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Hạn hoàn thành</label>{(!projForm.id||isBGD)?<input type="date" value={projForm.deadline} onChange={e=>setProjForm(f=>({...f,deadline:e.target.value}))} style={inp}/>:<div style={{...inp,background:"#f9fafb",color:"#6b7280"}} title="Chỉ Ban Giám đốc mới đổi được hạn hoàn thành sau khi tạo">{projForm.deadline||"—"} 🔒</div>}</div>
         </div>
         <div style={{border:"1px solid #e5e7eb",borderRadius:10,overflow:"hidden"}}><div style={{padding:"8px 12px",background:"#f8fafc",borderBottom:"1px solid #e5e7eb",display:"flex",alignItems:"center",gap:6}}><span>👥</span><span style={{fontWeight:500,fontSize:13}}>Thành viên dự án</span>{parseJSON(projForm.member_eids,[]).length>0&&<span style={{background:"#dcfce7",color:"#15803d",fontSize:11,padding:"1px 8px",borderRadius:10}}>{parseJSON(projForm.member_eids,[]).length}</span>}</div><div style={{padding:10,display:"flex",flexWrap:"wrap",gap:6,maxHeight:160,overflowY:"auto"}}>{(employees||[]).map(e=>{const sel=parseJSON(projForm.member_eids,[]).includes(e.id);const isLead=projForm.lead_eid===e.id;return(<button key={e.id} disabled={isLead} onClick={()=>{const m=parseJSON(projForm.member_eids,[]);const nm=sel?m.filter(x=>x!==e.id):[...m,e.id];setProjForm(f=>({...f,member_eids:JSON.stringify(nm)}));}} style={{padding:"4px 10px",border:"1.5px solid "+(sel?"#16a34a":"#e5e7eb"),borderRadius:20,background:sel?"#dcfce7":"#fff",color:sel?"#15803d":"#6b7280",cursor:isLead?"default":"pointer",fontSize:12,fontWeight:sel?600:400,opacity:isLead?0.4:1}}>{sel&&"✓ "}{e.name} <span style={{fontSize:10,opacity:0.7}}>({e.dept})</span>{isLead&&" (PT chính)"}</button>);})}</div></div>
         <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Ghi chú</label><textarea value={projForm.note} onChange={e=>setProjForm(f=>({...f,note:e.target.value}))} rows={2} style={{...inp,resize:"vertical"}}/></div>
@@ -393,7 +532,71 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
       <div style={{padding:"0 18px 18px",display:"flex",gap:10,justifyContent:"flex-end"}}><button onClick={()=>setProjForm(null)} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={saveProject} disabled={saving} style={{padding:"8px 16px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>{saving?"Đang lưu…":(projForm.id?"Cập nhật":"Tạo dự án")}</button></div>
     </div></div>)}
 
-    {projDetail&&(<ProjectDetail proj={projDetail} onClose={()=>setProjDetail(null)} canManage={canManageInvest} getEmp={getEmp} employees={employees} users={users} isMobile={isMobile} onEdit={()=>{setProjForm({...projDetail,total_budget:projDetail.total_budget||0,spent:projDetail.spent||0,member_eids:projDetail.member_eids||"[]",leader_id:projDetail.leader_id||""});setProjDetail(null);}} onDelete={()=>deleteProject(projDetail.id)} onUpdateSteps={updateProjectSteps} onSaveQuality={saveProjectQuality} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} inp={inp} currentUser={currentUser}/>)}
+    {/* ── ĐỀ XUẤT GIA HẠN HẠN HOÀN THÀNH DỰ ÁN (Phụ trách chính) ── */}
+    {extRequestModal&&(
+      <div onClick={()=>setExtRequestModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:90,padding:16}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:440,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+          <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div><div style={{fontWeight:700,fontSize:15}}>📅 Đề xuất gia hạn dự án</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{extRequestModal.name}</div></div>
+            <button onClick={()=>setExtRequestModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
+          </div>
+          <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+            <div style={{padding:"10px 14px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,color:"#1d4ed8"}}>Hạn hoàn thành hiện tại: <b>{extRequestModal.deadline||"— (chưa đặt)"}</b>. Đề xuất sẽ được gửi tới Ban Giám đốc để duyệt.</div>
+            <div>
+              <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Đề xuất gia hạn đến ngày <span style={{color:"#dc2626"}}>*</span></label>
+              <input type="date" min={extRequestModal.deadline||undefined} value={extProposedDate} onChange={e=>setExtProposedDate(e.target.value)} style={inp}/>
+            </div>
+            <div>
+              <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Lý do xin gia hạn <span style={{color:"#dc2626"}}>*</span></label>
+              <textarea value={extReason} onChange={e=>setExtReason(e.target.value)} placeholder="Nêu rõ lý do cần thêm thời gian... (ít nhất 5 ký tự)" rows={3} style={{...inp,resize:"vertical"}}/>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setExtRequestModal(null)} style={{flex:1,padding:10,border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>Hủy</button>
+              <button onClick={submitExtRequest} style={{flex:2,padding:10,border:"none",borderRadius:8,background:"#4f46e5",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600}}>Gửi đề xuất</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    {/* ── DUYỆT/TỪ CHỐI ĐỀ XUẤT GIA HẠN DỰ ÁN (chỉ Ban Giám đốc) ── */}
+    {extDecideModal&&(
+      <div onClick={()=>setExtDecideModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:90,padding:16}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:440,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+          <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div><div style={{fontWeight:700,fontSize:15}}>{extDecideModal.mode==="approve"?"✅ Duyệt gia hạn dự án":"✖ Từ chối gia hạn dự án"}</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{extDecideModal.proj.name}</div></div>
+            <button onClick={()=>setExtDecideModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
+          </div>
+          <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+            <div style={{padding:"10px 14px",background:"#f8fafc",borderRadius:8,fontSize:12,color:"#374151"}}>
+              <div style={{marginBottom:4}}><b>{extDecideModal.proj.ext_requested_by}</b> đề xuất gia hạn đến <b>{extDecideModal.proj.ext_proposed}</b> (hạn hiện tại: {extDecideModal.proj.deadline||"—"})</div>
+              {extDecideModal.proj.ext_reason&&<div style={{fontStyle:"italic",color:"#6b7280"}}>"{extDecideModal.proj.ext_reason}"</div>}
+            </div>
+            {extDecideModal.mode==="approve"?(<>
+              <div>
+                <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Duyệt đến ngày <span style={{color:"#dc2626"}}>*</span></label>
+                <input type="date" max={extDecideModal.proj.ext_proposed} value={extDecideDate} onChange={e=>setExtDecideDate(e.target.value)} style={inp}/>
+                <div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>Chỉ được duyệt đúng ngày đề xuất hoặc ngắn hơn.</div>
+              </div>
+              <div>
+                <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Lý do {extDecideDate!==extDecideModal.proj.ext_proposed?<span style={{color:"#dc2626"}}>* (bắt buộc vì ngắn hơn đề xuất)</span>:"(không bắt buộc)"}</label>
+                <input value={extDecideNote} onChange={e=>setExtDecideNote(e.target.value)} placeholder="Vì sao rút ngắn so với đề xuất..." style={inp}/>
+              </div>
+            </>):(
+              <div>
+                <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Lý do từ chối <span style={{color:"#dc2626"}}>*</span></label>
+                <textarea value={extDecideNote} onChange={e=>setExtDecideNote(e.target.value)} placeholder="Nêu rõ lý do từ chối gia hạn... (ít nhất 5 ký tự)" rows={3} style={{...inp,resize:"vertical"}}/>
+              </div>
+            )}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setExtDecideModal(null)} style={{flex:1,padding:10,border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>Hủy</button>
+              <button onClick={confirmExtDecision} style={{flex:2,padding:10,border:"none",borderRadius:8,background:extDecideModal.mode==="approve"?"#16a34a":"#dc2626",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600}}>{extDecideModal.mode==="approve"?"Xác nhận duyệt":"Xác nhận từ chối"}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {projDetail&&(<ProjectDetail proj={projDetail} onClose={()=>setProjDetail(null)} canManage={canManageInvest} getEmp={getEmp} employees={employees} users={users} isMobile={isMobile} onEdit={()=>{setProjForm({...projDetail,total_budget:projDetail.total_budget||0,spent:projDetail.spent||0,member_eids:projDetail.member_eids||"[]",leader_id:projDetail.leader_id||""});setProjDetail(null);}} onDelete={()=>deleteProject(projDetail.id)} onUpdateSteps={updateProjectSteps} onSaveQuality={saveProjectQuality} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} inp={inp} currentUser={currentUser} showToast={showToast} onProposeExt={()=>openExtRequestModal(projDetail)} onApproveExt={()=>openExtApprove(projDetail)} onRejectExt={()=>openExtReject(projDetail)}/>)}
 
     {showReport&&(<div onClick={()=>setShowReport(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:isMobile?"12px 8px":16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:920,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
       <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:2}}><span style={{fontWeight:700,fontSize:16}}>📊 Báo cáo tiến độ Nhiệm vụ ngân sách</span><button onClick={()=>setShowReport(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div>
