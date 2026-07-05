@@ -163,6 +163,8 @@ const SECTIONS = [
       { p: "Phụ trách chính bấm 📅 Đề xuất gia hạn trong màn chi tiết dự án (nêu ngày + lý do). BGĐ bấm ✅ Duyệt gia hạn (đúng ngày hoặc ngắn hơn, ngắn hơn phải nêu lý do) hoặc ✖ Từ chối." },
       { h: "📅 Gia hạn ngày kết thúc 1 bước" },
       { p: "Người chủ trì bước bấm 📅 Đề xuất gia hạn ngay trên bước đó. Ban Giám đốc hoặc Trưởng/Phó phòng đúng đơn vị dự án duyệt/từ chối tương tự — quyền duyệt giống hệt quyền duyệt bước hoàn thành." },
+      { h: "💰 Nhật ký thay đổi ngân sách" },
+      { p: "Mỗi lần sửa \"Tổng mức đầu tư\" hoặc \"Đã chi\", hệ thống tự ghi lại ai sửa, lúc nào, từ bao nhiêu thành bao nhiêu — hiển thị ngay trong màn chi tiết dự án, không xóa/sửa được." },
     ]
   },
   {
@@ -243,6 +245,20 @@ const SECTIONS = [
       { p: "Nhiệm vụ ngân sách cũng được cộng vào điểm hiệu suất: mỗi bước dự án đã duyệt+chấm chất lượng tính là 1 việc cho người chủ trì bước; khi cả dự án được BGĐ nghiệm thu (1–5 sao), phụ trách chính được cộng thêm 1 việc riêng." },
       { note: "Bấm ℹ️ cạnh điểm số để xem chi tiết \"Vì sao điểm này?\"." },
       { p: "Xuất báo cáo ra PDF (để in) hoặc CSV (Excel)." },
+      { h: "📑 Xếp loại (chốt sổ điểm) — dành cho BGĐ/TP.HCTH/Admin" },
+      { p: "Điểm hiệu suất được \"chốt sổ\" cố định vào đầu mỗi tháng cho tháng vừa kết thúc (tự động khi BGĐ/Admin đăng nhập, hoặc chốt thủ công). Điểm đã chốt KHÔNG thay đổi khi dữ liệu cũ bị sửa — dùng làm căn cứ bình xét." },
+      { ul: [
+        "Chọn kỳ (Quý 1–4 hoặc Cả năm) để xem điểm từng tháng, điểm trung bình và xếp loại của toàn bộ nhân viên.",
+        "Ngưỡng xếp loại: ≥90 Hoàn thành xuất sắc · ≥75 Hoàn thành tốt · ≥50 Hoàn thành · dưới 50 Không hoàn thành.",
+        "🖨 In phiếu xếp loại: xuất phiếu tổng hợp có chỗ ký, dùng cho họp bình xét thi đua.",
+        "Có thể \"Chốt lại\" một tháng nếu dữ liệu tháng đó vừa được bổ sung/sửa — sổ sẽ ghi đè theo dữ liệu hiện tại.",
+      ]},
+      { h: "🏛️ Điều hành — dành cho BGĐ/TP.HCTH/Admin" },
+      { ul: [
+        "Biểu đồ tỷ lệ hoàn thành của 3 phòng qua 6 tháng gần nhất — phát hiện phòng đang đi xuống.",
+        "Top việc quá hạn lâu nhất toàn đơn vị (bấm mở xem chi tiết ngay).",
+        "Bảng tốc độ duyệt: thời gian trung bình mỗi người duyệt xử lý yêu cầu + số việc đang treo — đo cả phía quản lý, không chỉ đo nhân viên.",
+      ]},
     ]
   },
   {
@@ -261,7 +277,11 @@ const SECTIONS = [
   },
   {
     icon: "🔐", title: "16. Bảo mật",
-    body: [{ p: "Chỉ hiển thị với Quản trị viên. Theo dõi lịch sử đăng nhập thành công/thất bại của toàn bộ tài khoản." }]
+    body: [
+      { p: "Chỉ hiển thị với Quản trị viên. Theo dõi lịch sử đăng nhập thành công/thất bại của toàn bộ tài khoản." },
+      { h: "💾 Sao lưu dữ liệu" },
+      { p: "Quản trị viên bấm nút 💾 Sao lưu dữ liệu (menu trái) để tải toàn bộ dữ liệu về 1 file JSON — nên thực hiện ít nhất 1 lần/tuần và cất file vào nơi an toàn. Ngoài ra hệ thống có sao lưu tự động hàng tuần qua GitHub Actions (xem tài liệu vận hành TAI_LIEU_VAN_HANH.md)." },
+    ]
   },
   {
     icon: "🤝", title: "17. Ủy quyền duyệt",

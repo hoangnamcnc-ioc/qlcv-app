@@ -72,6 +72,7 @@ export default function App() {
   const [supportCasesForScoring,setSupportCasesForScoring]=useState([]); // chỉ để tính điểm hiệu suất từ hỗ trợ người dùng, không phải state đầy đủ của trang Hỗ trợ ND
   const [allComments,setAllComments]=useState([]); // bản nhẹ (task_id, user_name, created_at) toàn bộ bình luận, để tính "bình luận mới chưa đọc" không cần mở từng nhiệm vụ
   const [delegations,setDelegations]=useState([]); // ủy quyền duyệt: Trưởng phòng vắng mặt ủy quyền cho Phó phòng trong 1 khoảng ngày cụ thể
+  const [monthlyScores,setMonthlyScores]=useState([]); // sổ điểm đã chốt theo tháng — snapshot cố định, không đổi khi dữ liệu sống bị sửa
   const [showRecurring,setShowRecurring]=useState(false); const [templateForm,setTemplateForm]=useState(null);
   const recurringChecked=useRef(false);
   const [loginNotifShown,setLoginNotifShown]=useState(false);
@@ -184,6 +185,21 @@ export default function App() {
     else showToast("Lỗi: "+(error.message||""),"error");
   };
 
+  // ── Sao lưu dữ liệu (admin): tải toàn bộ các bảng về 1 file JSON — dùng khi cần lưu trữ định kỳ
+  // hoặc trước khi thay đổi lớn. Bảng nào không đọc được (thiếu quyền/chưa tạo) ghi _error thay vì làm hỏng cả file.
+  const [backingUp,setBackingUp]=useState(false);
+  const backupData=async()=>{
+    setBackingUp(true);
+    const tables={employees:"*",tasks:"*",users:"id,username,full_name,role,employee_id",recurring_templates:"*",comments:"*",documents:"*",duty_schedule:"*",projects:"*",other_tasks:"*",support_cases:"*",feedback:"*",approval_delegations:"*",monthly_scores:"*",login_history:"*",app_config:"*"};
+    const out={_meta:{app:"QLCV DAK LAK IOC",exported_at:new Date().toISOString(),by:currentUser.full_name}};
+    for(const[t,cols]of Object.entries(tables)){
+      try{const{data,error}=await supabase.from(t).select(cols);out[t]=error?{_error:error.message}:data;}catch(e){out[t]={_error:String(e)};}
+    }
+    const url=URL.createObjectURL(new Blob([JSON.stringify(out,null,1)],{type:"application/json"}));
+    const a=document.createElement("a");a.href=url;a.download=`qlcv-backup-${todayStr}.json`;a.click();URL.revokeObjectURL(url);
+    setBackingUp(false);showToast("Đã tải file sao lưu về máy — cất vào nơi lưu trữ an toàn");
+  };
+
   // Nhiệm vụ ngân sách/Hỗ trợ ND ghi qua trang riêng (Investment/SupportCases) không tự cập nhật state điểm hiệu suất
   // ở đây — gọi hàm này sau khi lưu/xóa để Báo cáo phản ánh ngay, không cần tải lại trang.
   const refreshScoringData=async()=>{
@@ -196,9 +212,9 @@ export default function App() {
     (async()=>{
       setLoading(true);
       try{
-        const[{data:ed},{data:td},{data:ud},{data:rtd},{data:otd},{data:pjd},{data:scd},{data:cmd},{data:dgd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false}),supabase.from("projects").select("id,name,dept,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time,deadline,ext_proposed,ext_reason,ext_requested_by,ext_requested_at"),supabase.from("support_cases").select("id,eid,difficulty,created,content,category").eq("deleted",false),supabase.from("comments").select("task_id,user_name,created_at"),supabase.from("approval_delegations").select("*").order("start_date",{ascending:false})]);
+        const[{data:ed},{data:td},{data:ud},{data:rtd},{data:otd},{data:pjd},{data:scd},{data:cmd},{data:dgd},{data:msd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false}),supabase.from("projects").select("id,name,dept,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time,deadline,ext_proposed,ext_reason,ext_requested_by,ext_requested_at"),supabase.from("support_cases").select("id,eid,difficulty,created,content,category").eq("deleted",false),supabase.from("comments").select("task_id,user_name,created_at"),supabase.from("approval_delegations").select("*").order("start_date",{ascending:false}),supabase.from("monthly_scores").select("*")]);
         if(!ed||ed.length===0){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}else setEmployees(ed);
-        setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);setProjectsForScoring(pjd||[]);setSupportCasesForScoring(scd||[]);setAllComments(cmd||[]);setDelegations(dgd||[]);
+        setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);setProjectsForScoring(pjd||[]);setSupportCasesForScoring(scd||[]);setAllComments(cmd||[]);setDelegations(dgd||[]);setMonthlyScores(msd||[]);
       }catch{showToast("Lỗi kết nối database","error");setEmployees(DEFAULT_EMPLOYEES);setTasks([]);}
       setLoading(false);
     })();
@@ -266,7 +282,39 @@ export default function App() {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks,
+    calcMonthPerf,
   } = useReports({ computed, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring });
+
+  // ── Chốt sổ điểm tháng: lưu snapshot cố định điểm hiệu suất vào monthly_scores để điểm quá khứ
+  // không thay đổi khi dữ liệu sống bị sửa/xóa về sau — phục vụ phiếu xếp loại quý/năm (bình xét thi đua).
+  // mJs = tháng theo JS (0-11); trong DB lưu 1-12 cho dễ đọc.
+  const snapshotMonth=async(y,mJs,opts={})=>{
+    const rows=(employees||[]).map(emp=>{
+      const m=calcMonthPerf(emp.id,y,mJs);
+      if(m.total<=0)return null;
+      return {id:`ms${y}_${mJs+1}_${emp.id}`,year:y,month:mJs+1,eid:emp.id,name:emp.name,dept:emp.dept,score:m.eligible?m.perfScore:null,eligible:m.eligible,total:m.total,done:m.done,on_time:m.onTime,completed_late:m.completedLate,over:m.over,breakdown:m.breakdown?JSON.stringify(m.breakdown):null,snapshot_at:nowStr(),snapshot_by:currentUser.full_name};
+    }).filter(Boolean);
+    if(rows.length===0){if(!opts.silent)showToast("Tháng này không có dữ liệu để chốt","error");return false;}
+    const{error:delErr}=await supabase.from("monthly_scores").delete().eq("year",y).eq("month",mJs+1);
+    if(delErr){if(!opts.silent)showToast("Lỗi: "+(delErr.message||""),"error");return false;}
+    const{error}=await supabase.from("monthly_scores").insert(rows);
+    if(error){if(!opts.silent)showToast("Lỗi chốt sổ: "+(error.message||""),"error");return false;}
+    setMonthlyScores(p=>[...p.filter(r=>!(r.year===y&&r.month===mJs+1)),...rows]);
+    if(!opts.silent)showToast(`Đã chốt sổ điểm tháng ${mJs+1}/${y} (${rows.length} nhân viên)`);
+    return true;
+  };
+  // Tự chốt sổ THÁNG TRƯỚC nếu chưa chốt, khi người có quyền toàn đơn vị đăng nhập —
+  // cùng cơ chế client-side với nhiệm vụ định kỳ (không có server chạy nền).
+  const scoreSnapshotChecked=useRef(false);
+  useEffect(()=>{
+    if(loading||!currentUser||!FULL_ACCESS.includes(currentUser.role)||scoreSnapshotChecked.current)return;
+    if(!employees||!tasks)return;
+    scoreSnapshotChecked.current=true;
+    const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);
+    const y=d.getFullYear(),mJs=d.getMonth();
+    if(monthlyScores.some(r=>r.year===y&&r.month===mJs+1))return;
+    (async()=>{const ok=await snapshotMonth(y,mJs,{silent:true});if(ok)showToast(`📊 Đã tự động chốt sổ điểm tháng ${mJs+1}/${y}`);})();
+  },[loading,currentUser,employees,tasks,monthlyScores]);
 
   // ── Tìm kiếm toàn hệ thống: gộp Nhiệm vụ + Nhiệm vụ khác + Nhiệm vụ ngân sách + Hỗ trợ ND vào 1 ô tìm,
   // vì trước đây mỗi tab chỉ tìm được trong phạm vi riêng, khó nhớ lại 1 việc cũ thuộc mục nào ──
@@ -470,6 +518,7 @@ export default function App() {
           </nav>
           <div style={{padding:"10px 14px",borderTop:"1px solid rgba(255,255,255,0.1)",display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
             {canSeeAll&&<button onClick={()=>setExModal(true)} style={{background:"rgba(99,102,241,0.25)",border:"none",borderRadius:7,padding:"8px 10px",cursor:"pointer",color:"#c7d2fe",fontSize:13,textAlign:"left"}}>📤 Xuất CSV</button>}
+            {isAdmin&&<button onClick={backupData} disabled={backingUp} style={{background:"rgba(16,185,129,0.2)",border:"none",borderRadius:7,padding:"8px 10px",cursor:backingUp?"wait":"pointer",color:"#6ee7b7",fontSize:13,textAlign:"left"}}>{backingUp?"⏳ Đang sao lưu…":"💾 Sao lưu dữ liệu"}</button>}
             {/* User info + actions */}
             <div style={{background:"rgba(255,255,255,0.05)",borderRadius:8,padding:"8px 10px"}}>
               <div style={{color:"#e0e7ff",fontSize:12,fontWeight:500,marginBottom:2}}>{currentUser.full_name}</div>
@@ -652,6 +701,7 @@ export default function App() {
               leaderboard={leaderboard}
               lateReasonStats={lateReasonStats}
               getEmp={getEmp} setModal={setModal} loadComments={loadComments}
+              canExec={FULL_ACCESS.includes(currentUser?.role)} computed={computed} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} currentUser={currentUser}
             />
           )}
 

@@ -1,0 +1,45 @@
+# Sao lưu dữ liệu Supabase tự động hàng tuần — lưu thành artifact của GitHub Actions (giữ 90 ngày).
+# YÊU CẦU: vào Settings > Secrets and variables > Actions của repo, thêm 2 secret:
+#   SUPABASE_URL      = https://<project>.supabase.co
+#   SUPABASE_ANON_KEY = anon key (giống VITE_SUPABASE_KEY trong .env)
+# Tải bản sao lưu: tab Actions > chọn lần chạy > mục Artifacts.
+# Có thể bấm "Run workflow" để sao lưu thủ công bất cứ lúc nào.
+name: Sao luu du lieu hang tuan
+
+on:
+  schedule:
+    - cron: "0 22 * * 5" # 22:00 UTC thứ Sáu = 05:00 sáng thứ Bảy giờ Việt Nam
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Xuat cac bang du lieu
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Chua khai bao secret SUPABASE_URL / SUPABASE_ANON_KEY trong repo Settings > Secrets"
+            exit 1
+          fi
+          mkdir -p backup
+          for t in employees tasks recurring_templates comments documents duty_schedule projects other_tasks support_cases feedback approval_delegations monthly_scores; do
+            echo "Dang xuat: $t"
+            curl -sf "$SUPABASE_URL/rest/v1/$t?select=*" \
+              -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              -o "backup/$t.json" || echo "{\"_error\":\"khong doc duoc bang $t\"}" > "backup/$t.json"
+          done
+          # Bang users chi xuat cac cot an toan (cot password da bi chan tu Buoc 1a bao mat)
+          curl -sf "$SUPABASE_URL/rest/v1/users?select=id,username,full_name,role,employee_id" \
+            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -o "backup/users.json" || echo '{"_error":"khong doc duoc bang users"}' > "backup/users.json"
+          echo "Kich thuoc ban sao luu:" && du -sh backup && ls -la backup
+
+      - name: Luu artifact (giu 90 ngay)
+        uses: actions/upload-artifact@v4
+        with:
+          name: qlcv-backup-${{ github.run_number }}
+          path: backup/
+          retention-days: 90

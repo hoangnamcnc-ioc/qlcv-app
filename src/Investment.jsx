@@ -144,6 +144,19 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
           <div style={{background:"#f0fdf4",borderRadius:10,padding:12}}><div style={{fontSize:11,color:"#6b7280"}}>Còn lại</div><div style={{fontSize:15,fontWeight:700,color:remain<0?"#dc2626":"#15803d"}}>{fmtMoney(remain)}</div></div>
           <div style={{background:"#f5f3ff",borderRadius:10,padding:12}}><div style={{fontSize:11,color:"#6b7280"}}>Tiến độ</div><div style={{fontSize:15,fontWeight:700,color:"#6d28d9"}}>{pct}%</div></div>
         </div>
+        {parseJSON(proj.budget_log,[]).length>0&&(
+          <div style={{marginBottom:16,padding:"10px 14px",background:"#fffbeb",borderRadius:10,border:"1px solid #fde68a"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#92400e",marginBottom:8}}>💰 Lịch sử thay đổi ngân sách ({parseJSON(proj.budget_log,[]).length})</div>
+            <div style={{maxHeight:120,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+              {parseJSON(proj.budget_log,[]).slice().reverse().map((l,i)=>(
+                <div key={i} style={{fontSize:12,padding:"5px 10px",background:"#fff",borderRadius:6,borderLeft:"3px solid #f59e0b"}}>
+                  <span style={{fontWeight:600,color:"#92400e"}}>{l.field}</span>: {fmtMoney(l.from)} → <b>{fmtMoney(l.to)}</b>
+                  <span style={{color:"#9ca3af",marginLeft:8}}>— {l.by} · {l.at}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={{marginBottom:16,padding:"12px 14px",background:proj.ext_proposed?"#eff6ff":"#f8fafc",borderRadius:10,border:"1px solid "+(proj.ext_proposed?"#bfdbfe":"#e5e7eb")}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
             <div style={{fontSize:12,fontWeight:700,color:"#374151"}}>📅 Hạn hoàn thành: <span style={{fontWeight:400}}>{proj.deadline||"— (chưa đặt)"}</span></div>
@@ -429,7 +442,15 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
 
   const openCreate=()=>setProjForm({name:"",dept:userDept||DEPTS[0],expense_type:expenseTab,leader_id:"",fund_source:FUND_SOURCES[0],total_budget:0,spent:0,lead_eid:"",member_eids:"[]",deadline:"",note:"",steps:JSON.stringify(INV_TEMPLATES.dautu.steps.map((s,i)=>({...s,id:i+1,status:"pending",start:"",end:"",note:"",attachments:[],lead_eid:"",collab_eids:[]})))});
 
-  const saveProject=async()=>{if(!projForm.name||!projForm.dept){showToast&&showToast("Nhập tên dự án và phòng ban","error");return;}setSaving(true);const f=projForm;if(f.id){const upd={name:f.name,dept:f.dept,expense_type:f.expense_type||"operating",leader_id:f.leader_id||"",fund_source:f.fund_source,total_budget:Number(f.total_budget)||0,spent:Number(f.spent)||0,lead_eid:f.lead_eid,member_eids:f.member_eids,deadline:f.deadline,note:f.note,steps:f.steps};const{error}=await supabase.from("projects").update(upd).eq("id",f.id);if(!error){setProjects(p=>p.map(x=>x.id===f.id?{...x,...upd}:x));showToast&&showToast("Đã cập nhật dự án");setProjForm(null);onScoringChange?.();}else showToast&&showToast("Lỗi: "+(error.message||""),"error");}else{const proj={id:`pj${Date.now()}`,name:f.name,dept:f.dept,expense_type:f.expense_type||"operating",leader_id:f.leader_id||"",fund_source:f.fund_source,total_budget:Number(f.total_budget)||0,spent:Number(f.spent)||0,lead_eid:f.lead_eid,member_eids:f.member_eids,deadline:f.deadline,note:f.note,steps:f.steps,created:todayStr,created_by:currentUser.full_name};const{error}=await supabase.from("projects").insert(proj);if(!error){setProjects(p=>[proj,...p]);showToast&&showToast("Đã tạo dự án");setProjForm(null);onScoringChange?.();}else showToast&&showToast("Lỗi: "+(error.message||""),"error");}setSaving(false);};
+  const saveProject=async()=>{if(!projForm.name||!projForm.dept){showToast&&showToast("Nhập tên dự án và phòng ban","error");return;}setSaving(true);const f=projForm;if(f.id){const upd={name:f.name,dept:f.dept,expense_type:f.expense_type||"operating",leader_id:f.leader_id||"",fund_source:f.fund_source,total_budget:Number(f.total_budget)||0,spent:Number(f.spent)||0,lead_eid:f.lead_eid,member_eids:f.member_eids,deadline:f.deadline,note:f.note,steps:f.steps};
+    // Nhật ký ngân sách: số tiền là dữ liệu nhạy cảm, mỗi lần sửa phải có vết ai/lúc nào/từ bao nhiêu thành bao nhiêu
+    const old=projects.find(x=>x.id===f.id);
+    if(old){const log=parseJSON(old.budget_log,[]);const at=new Date().toLocaleString("vi-VN");
+      if((Number(old.total_budget)||0)!==upd.total_budget)log.push({field:"Tổng mức đầu tư",from:Number(old.total_budget)||0,to:upd.total_budget,by:currentUser.full_name,at});
+      if((Number(old.spent)||0)!==upd.spent)log.push({field:"Đã chi",from:Number(old.spent)||0,to:upd.spent,by:currentUser.full_name,at});
+      if(log.length>parseJSON(old.budget_log,[]).length)upd.budget_log=JSON.stringify(log);
+    }
+    const{error}=await supabase.from("projects").update(upd).eq("id",f.id);if(!error){setProjects(p=>p.map(x=>x.id===f.id?{...x,...upd}:x));showToast&&showToast("Đã cập nhật dự án");setProjForm(null);onScoringChange?.();}else showToast&&showToast("Lỗi: "+(error.message||""),"error");}else{const proj={id:`pj${Date.now()}`,name:f.name,dept:f.dept,expense_type:f.expense_type||"operating",leader_id:f.leader_id||"",fund_source:f.fund_source,total_budget:Number(f.total_budget)||0,spent:Number(f.spent)||0,lead_eid:f.lead_eid,member_eids:f.member_eids,deadline:f.deadline,note:f.note,steps:f.steps,created:todayStr,created_by:currentUser.full_name};const{error}=await supabase.from("projects").insert(proj);if(!error){setProjects(p=>[proj,...p]);showToast&&showToast("Đã tạo dự án");setProjForm(null);onScoringChange?.();}else showToast&&showToast("Lỗi: "+(error.message||""),"error");}setSaving(false);};
   const deleteProject=async id=>{if(!window.confirm("Xóa vĩnh viễn dự án này?"))return;setSaving(true);await supabase.from("projects").delete().eq("id",id);setProjects(p=>p.filter(x=>x.id!==id));setProjDetail(null);setSaving(false);showToast&&showToast("Đã xóa dự án");onScoringChange?.();};
   const updateProjectSteps=async(proj,newSteps)=>{const stepsStr=JSON.stringify(newSteps);const{error}=await supabase.from("projects").update({steps:stepsStr}).eq("id",proj.id);if(!error){setProjects(p=>p.map(x=>x.id===proj.id?{...x,steps:stepsStr}:x));setProjDetail(d=>d&&d.id===proj.id?{...d,steps:stepsStr}:d);onScoringChange?.();}else showToast&&showToast("Lỗi cập nhật bước","error");};
   const saveProjectQuality=async(id,upd)=>{const{error}=await supabase.from("projects").update(upd).eq("id",id);if(!error){setProjects(p=>p.map(x=>x.id===id?{...x,...upd}:x));setProjDetail(d=>d&&d.id===id?{...d,...upd}:d);showToast&&showToast("Đã lưu nghiệm thu tổng thể");onScoringChange?.();}else showToast&&showToast("Lỗi lưu nghiệm thu","error");};

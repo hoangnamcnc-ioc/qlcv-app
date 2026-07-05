@@ -190,5 +190,6 @@ export default function useReports({ computed, employees, currentUser, overloadT
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks,
+    calcMonthPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (snapshot cố định, không đổi khi dữ liệu sống bị sửa)
   };
 }
