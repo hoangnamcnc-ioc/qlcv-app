@@ -187,7 +187,7 @@ function TaskForm({form,setForm,onClose,onSave,employees,isMobile,inp,saving}){
 }
 
 // ───── COMPONENT CHÍNH ─────
-export default function OtherTasks({ currentUser, employees, getEmp, isMobile, inp, showToast, tasksData, setTasksData }) {
+export default function OtherTasks({ currentUser, employees, getEmp, isMobile, inp, showToast, tasksData, setTasksData, openTaskId, onTaskOpened }) {
   // Dùng state chung từ App.jsx nếu được truyền vào (để thông báo chờ duyệt cập nhật ngay lập tức),
   // ngược lại tự tải và quản lý state riêng.
   const [localTasks,setLocalTasks]=useState([]);
@@ -209,6 +209,14 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
     if(tasksData){setLoading(false);return;} // đã có dữ liệu từ App.jsx
     (async()=>{setLoading(true);try{const{data}=await supabase.from("other_tasks").select("*").order("created",{ascending:false});setLocalTasks(data||[]);}catch{showToast&&showToast("Lỗi tải nhiệm vụ","error");}setLoading(false);})();
   },[]);
+
+  // Cho phép mở thẳng 1 nhiệm vụ khác cụ thể từ nơi khác (VD: màn "Việc chờ tôi xử lý")
+  useEffect(()=>{
+    if(!openTaskId||!tasks.length)return;
+    const t=tasks.find(x=>x.id===openTaskId);
+    if(t)setDetail(t);
+    onTaskOpened&&onTaskOpened();
+  },[openTaskId,tasks]);
 
   const openCreate=()=>setForm({name:"",content:"",team:"[]",steps:"[]"});
   const openEdit=(t)=>{setForm({...t});setDetail(null);};

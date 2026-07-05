@@ -382,7 +382,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
 }
 
 // ───── COMPONENT CHÍNH: Tab Đầu tư ─────
-export default function Investment({ currentUser, employees, users, getEmp, isMobile, inp, uploadFiles, uploadingFiles, showToast, headerSlot, onScoringChange }) {
+export default function Investment({ currentUser, employees, users, getEmp, isMobile, inp, uploadFiles, uploadingFiles, showToast, headerSlot, onScoringChange, openProjectId, onProjectOpened }) {
   const [projects,setProjects]=useState([]);
   const [projForm,setProjForm]=useState(null);
   const [projDetail,setProjDetail]=useState(null);
@@ -418,6 +418,14 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
   const exportReportPDF=()=>{const w=window.open("","_blank");if(!w)return;const rowsHtml=reportRows.map(r=>`<tr><td>${r.name}</td><td>${r.fund}</td><td>${r.leader}</td><td>${r.lead}</td><td style="text-align:center">${r.members}</td><td style="text-align:center">${r.done}/${r.total} (${r.pct}%)</td><td style="text-align:center;color:${r.overdue>0?"#b91c1c":"#333"}">${r.overdue}</td><td style="text-align:right">${fmtMoney(r.budget)}</td><td style="text-align:right">${fmtMoney(r.spent)}</td><td style="text-align:right">${fmtMoney(r.remain)}</td></tr>`).join("");w.document.write(`<html><head><meta charset="utf-8"><title>Báo cáo Nhiệm vụ ngân sách</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#1e293b}h1{font-size:18px;text-align:center;color:#1e3a8a}h2{font-size:13px;text-align:center;color:#64748b;font-weight:400;margin-top:-8px}table{width:100%;border-collapse:collapse;margin-top:16px;font-size:11px}th,td{border:1px solid #cbd5e1;padding:6px 8px}th{background:#1d4ed8;color:#fff;font-size:11px}tr:nth-child(even){background:#f8fafc}.sum{margin-top:16px;font-size:12px}</style></head><body><h1>BÁO CÁO TIẾN ĐỘ NHIỆM VỤ NGÂN SÁCH</h1><h2>Trung tâm Giám sát, Điều hành Đô thị thông minh tỉnh Đắk Lắk · Ngày ${new Date().toLocaleDateString("vi-VN")}</h2><div class="sum">Tổng số dự án: <b>${reportRows.length}</b> · Tổng mức đầu tư: <b>${fmtMoney(invStats.budget)}</b> · Đã chi: <b>${fmtMoney(invStats.spent)}</b> · Còn lại: <b>${fmtMoney(invStats.budget-invStats.spent)}</b></div><table><thead><tr><th>Tên dự án</th><th>Nguồn vốn</th><th>Lãnh đạo PT</th><th>Phụ trách chính</th><th>TV</th><th>Tiến độ</th><th>Trễ</th><th>Tổng mức</th><th>Đã chi</th><th>Còn lại</th></tr></thead><tbody>${rowsHtml}</tbody></table></body></html>`);w.document.close();setTimeout(()=>w.print(),400);};
 
   useEffect(()=>{(async()=>{setLoading(true);try{const{data}=await supabase.from("projects").select("*").order("created",{ascending:false});setProjects(data||[]);}catch{showToast&&showToast("Lỗi tải dự án","error");}setLoading(false);})();},[]);
+
+  // Cho phép mở thẳng 1 dự án cụ thể từ nơi khác (VD: màn "Việc chờ tôi xử lý")
+  useEffect(()=>{
+    if(!openProjectId||!projects.length)return;
+    const p=projects.find(x=>x.id===openProjectId);
+    if(p){setExpenseTab(p.expense_type||"operating");setProjDetail(p);}
+    onProjectOpened&&onProjectOpened();
+  },[openProjectId,projects]);
 
   const openCreate=()=>setProjForm({name:"",dept:userDept||DEPTS[0],expense_type:expenseTab,leader_id:"",fund_source:FUND_SOURCES[0],total_budget:0,spent:0,lead_eid:"",member_eids:"[]",deadline:"",note:"",steps:JSON.stringify(INV_TEMPLATES.dautu.steps.map((s,i)=>({...s,id:i+1,status:"pending",start:"",end:"",note:"",attachments:[],lead_eid:"",collab_eids:[]})))});
 

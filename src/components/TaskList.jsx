@@ -18,6 +18,7 @@ export default function TaskList({
   fStatus, setFStatus,
   fDept, setFDept,
   fEid, setFEid,
+  fAssignedByMe, setFAssignedByMe,
   fSort, setFSort,
   filtered, paged, page, setPage, totalPages,
   canSeeAll, canCreate, canEditTask, canDeleteTask, canUpdateProgress, canRate, canApprove,
@@ -47,6 +48,7 @@ export default function TaskList({
         <select value={fSort} onChange={e => setFSort(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12, borderColor: "#6366f1", color: "#4f46e5", fontWeight: 500 }}>
           <option value="urgency">⚡ Ưu tiên</option><option value="deadline_asc">📅 Hạn gần nhất</option><option value="deadline_desc">📅 Hạn xa nhất</option><option value="newest">🆕 Mới nhất</option>
         </select>
+        {canCreate && <button onClick={() => setFAssignedByMe(v => !v)} style={{ padding: "6px 12px", border: "1px solid " + (fAssignedByMe ? "#4f46e5" : "#d1d5db"), borderRadius: 7, background: fAssignedByMe ? "#eef2ff" : "#fff", color: fAssignedByMe ? "#4338ca" : "#6b7280", cursor: "pointer", fontSize: 12, fontWeight: fAssignedByMe ? 600 : 400 }}>{fAssignedByMe ? "✓ " : ""}👤 Tôi giao</button>}
         <span style={{ fontSize: 12, color: "#9ca3af" }}>{filtered.length}</span>
       </div>
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 12px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -78,6 +80,7 @@ export default function TaskList({
                   <span style={{ background: DEPT_COLOR[t.dept] + "22", color: DEPT_COLOR[t.dept], fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>{t.dept}</span>
                   <PChip p={t.prio} />
                   <span style={{ fontSize: 11, color: "#6b7280" }}>{getEmp(t.eid)?.name || "–"}</span>
+                  {(t.forwarded_by || t.created_by_name) && <span title="Người giao việc" style={{ fontSize: 11, color: "#9333ea" }}>📤 {t.forwarded_by || t.created_by_name}</span>}
                   <span style={{ fontSize: 11, color: t.status === "overdue" ? "#b91c1c" : "#6b7280", fontWeight: t.status === "overdue" ? 600 : 400 }}>📅 {t.deadline}</span>
                   {t.rating && <RatingBadge r={t.rating} />}
                   {canEditTask(t) && !t.completed && (t.viewed_at
@@ -158,6 +161,7 @@ export default function TaskList({
                   <td style={{ padding: "9px 12px" }}><span style={{ background: DEPT_COLOR[t.dept] + "22", color: DEPT_COLOR[t.dept], fontSize: 11, padding: "2px 6px", borderRadius: 8 }}>{t.dept}</span></td>
                   <td style={{ padding: "9px 12px", color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis" }}>
                     <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{getEmp(t.eid)?.name || "–"}</div>
+                    {(t.forwarded_by || t.created_by_name) && <div title="Người giao việc" style={{ fontSize: 10, color: "#9333ea", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>📤 {t.forwarded_by || t.created_by_name}</div>}
                     {canEditTask(t) && !t.completed && (t.viewed_at
                       ? <div title={`Đã xem lúc ${t.viewed_at}`} style={{ fontSize: 10, color: "#15803d", marginTop: 2 }}>👁️ Đã xem</div>
                       : <div style={{ fontSize: 10, color: "#b91c1c", marginTop: 2 }}>🔴 Chưa xem</div>)}

@@ -20,7 +20,24 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "🔑", title: "2. Đăng nhập & bảo mật tài khoản",
+    icon: "🗂️", title: "2. Việc chờ tôi xử lý",
+    body: [
+      { p: "Màn hình tổng hợp MỌI thứ đang cần chính bạn ra tay — gộp từ cả 3 module (Nhiệm vụ, Nhiệm vụ khác, Nhiệm vụ ngân sách) vào 1 chỗ duy nhất, thay vì phải đi tìm rải rác ở nhiều nơi khi \"dọn bàn\" cuối tuần." },
+      { p: "Bấm mục 🗂️ Việc chờ xử lý ở menu chính (có số đỏ báo tổng số việc đang chờ). Các nhóm hiển thị:" },
+      { ul: [
+        "📨 Chờ duyệt hoàn thành nhiệm vụ",
+        "📅 Chờ duyệt gia hạn nhiệm vụ",
+        "⭐ Nhiệm vụ chưa đánh giá",
+        "💬 Bình luận mới chưa xem",
+        "📨 Bước \"Nhiệm vụ khác\" chờ duyệt",
+        "📋 Bước dự án (Nhiệm vụ ngân sách) chờ duyệt hoàn thành",
+        "📅 Gia hạn dự án / gia hạn bước dự án chờ duyệt",
+      ]},
+      { note: "Bấm vào từng mục để mở thẳng đúng chỗ cần xử lý. Xử lý xong (duyệt/từ chối/đánh giá/xem bình luận), mục đó tự biến mất khỏi danh sách — không cần tải lại trang." },
+    ]
+  },
+  {
+    icon: "🔑", title: "3. Đăng nhập & bảo mật tài khoản",
     body: [
       { h: "Đăng nhập" },
       { ol: ["Truy cập địa chỉ web phần mềm (do quản trị viên cung cấp).", "Nhập Tên đăng nhập và Mật khẩu.", "Bấm Đăng nhập."] },
@@ -35,7 +52,7 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "🖥️", title: "3. Giao diện chung",
+    icon: "🖥️", title: "4. Giao diện chung",
     body: [
       { p: "Máy tính: menu dọc bên trái. Điện thoại: menu ngang cố định ở đáy màn hình, luôn hiển thị khi cuộn." },
       { h: "Mục 💼 Công việc" },
@@ -60,7 +77,7 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "📊", title: "4. Tổng quan (Dashboard)",
+    icon: "📊", title: "5. Tổng quan (Dashboard)",
     body: [
       { ul: [
         "Tổng hợp điều hành theo phòng ban: tỷ lệ hoàn thành, số việc quá hạn, cảnh báo quá tải.",
@@ -72,12 +89,14 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "📋", title: "5. Nhiệm vụ",
+    icon: "📋", title: "6. Nhiệm vụ",
     body: [
       { h: "Tạo nhiệm vụ mới" },
       { p: "Bấm + Tạo việc, điền: Tiêu đề/Mô tả, Phòng ban, Giao cho, Ưu tiên, Hạn chót, Phối hợp (người hỗ trợ), file đính kèm hoặc link tài liệu." },
       { h: "Tìm kiếm & lọc" },
       { p: "Ô tìm kiếm theo tên việc/mô tả/người thực hiện/số văn bản, cùng bộ lọc Trạng thái, Phòng ban, Nhân viên, Sắp xếp." },
+      { note: "Nút 👤 Tôi giao (Trưởng/Phó phòng, TP.HCTH, BGĐ, Admin mới thấy) lọc riêng những việc CHÍNH bạn đã giao (tạo hoặc chuyển tiếp) — giúp theo dõi riêng phần việc mình phải chịu trách nhiệm duyệt, không lẫn với việc của người khác trong phòng." },
+      { p: "Mỗi thẻ/dòng nhiệm vụ hiện thêm 📤 tên người giao việc (người tạo hoặc người chuyển tiếp gần nhất), giúp biết ngay ai là người cần liên hệ khi cần duyệt/hỏi thêm." },
       { h: "Cập nhật tiến độ" },
       { p: "Bấm vào thanh % tiến độ (hoặc nút % TĐ) để chọn nhanh mức 0–100%." },
       { h: "⭐ Quy trình hoàn thành — Yêu cầu duyệt" },
@@ -97,10 +116,21 @@ const SECTIONS = [
       { p: "BGĐ, Trưởng phòng, Phó phòng thấy biểu tượng 👁️ Đã xem hoặc 🔴 Chưa xem cạnh tên người được giao — biết ngay nhân viên đã mở xem việc hay chưa, kể cả khi họ đăng nhập từ thiết bị khác." },
       { h: "Cảnh báo duyệt chậm" },
       { p: "Nếu 1 yêu cầu duyệt hoàn thành bị treo từ 2 ngày trở lên chưa được xử lý, danh sách hiển thị badge ⏳ Chờ duyệt N ngày để BGĐ/Trưởng phòng biết ai đang duyệt chậm." },
+      { h: "📅 Đề xuất & duyệt gia hạn deadline" },
+      { note: "Chỉ người giao việc (người tạo/chuyển tiếp gần nhất) hoặc Admin/BGĐ mới đổi Hạn chót trực tiếp được. Trưởng/Phó phòng khác trong phòng ban KHÔNG còn tự ý đổi hạn của nhiệm vụ không phải do mình giao." },
+      { ol: [
+        "Người được giao bấm 📅 Đề xuất gia hạn trong modal chi tiết, chọn ngày muốn gia hạn tới + nêu lý do.",
+        "Người giao việc thấy đề xuất, bấm ✅ Duyệt gia hạn (chọn đúng ngày đề xuất hoặc ngắn hơn — nếu ngắn hơn phải nêu rõ lý do) hoặc ✖ Từ chối (phải nêu lý do).",
+        "Duyệt xong, Hạn chót của nhiệm vụ cập nhật ngay theo ngày đã duyệt.",
+      ]},
+      { h: "🔁 Bàn giao hàng loạt" },
+      { p: "Khi 1 nhân viên nghỉ phép dài/nghỉ việc: vào 💼 Công việc → 🔁 Bàn giao hàng loạt, chọn nhân viên cần bàn giao, tick các việc muốn chuyển (mặc định chọn hết), chọn người nhận rồi xác nhận — chuyển 1 lần thay vì phải mở từng nhiệm vụ để ↪ Chuyển tiếp." },
+      { h: "💬 Bình luận mới chưa xem" },
+      { p: "Nếu có bình luận mới trong nhiệm vụ bạn đang giao/thực hiện/phối hợp mà bạn chưa mở xem, hệ thống báo ở chuông 🔔 và mục 🗂️ Việc chờ xử lý. Bấm vào để mở và tự động đánh dấu đã xem." },
     ]
   },
   {
-    icon: "💰", title: "6. Nhiệm vụ ngân sách",
+    icon: "💰", title: "7. Nhiệm vụ ngân sách",
     body: [
       { p: "Quản lý dự án/gói việc liên quan ngân sách, đầu tư, mua sắm, sửa chữa theo từng bước quy trình." },
       { h: "3 nhóm phân loại" },
@@ -128,10 +158,15 @@ const SECTIONS = [
       { h: "Nghiệm thu tổng thể" },
       { p: "Khi tất cả bước hoàn thành, Ban Giám đốc thấy banner 📋 Nghiệm thu để đánh giá tổng thể: 1–5 sao, đúng tiến độ/trong ngân sách, nhận xét kết luận. Phụ trách chính được cộng thêm 1 việc riêng vào tháng nghiệm thu." },
       { note: "Điểm hiệu suất ở mục Báo cáo cập nhật ngay sau khi lưu/duyệt bước hay nghiệm thu, không cần tải lại trang. Danh sách dự án phân trang 20 mục/trang." },
+      { h: "📅 Gia hạn Hạn hoàn thành dự án" },
+      { note: "Chỉ Ban Giám đốc mới đổi Hạn hoàn thành trực tiếp được. Phụ trách chính phải đề xuất gia hạn, BGĐ duyệt." },
+      { p: "Phụ trách chính bấm 📅 Đề xuất gia hạn trong màn chi tiết dự án (nêu ngày + lý do). BGĐ bấm ✅ Duyệt gia hạn (đúng ngày hoặc ngắn hơn, ngắn hơn phải nêu lý do) hoặc ✖ Từ chối." },
+      { h: "📅 Gia hạn ngày kết thúc 1 bước" },
+      { p: "Người chủ trì bước bấm 📅 Đề xuất gia hạn ngay trên bước đó. Ban Giám đốc hoặc Trưởng/Phó phòng đúng đơn vị dự án duyệt/từ chối tương tự — quyền duyệt giống hệt quyền duyệt bước hoàn thành." },
     ]
   },
   {
-    icon: "🎧", title: "7. Hỗ trợ người dùng/PAHT và vận hành DC",
+    icon: "🎧", title: "8. Hỗ trợ người dùng/PAHT và vận hành DC",
     body: [
       { p: "Ghi nhanh từng trường hợp hỗ trợ/xử lý sự cố — không qua bước duyệt, vì bản chất đã xử lý xong ngay khi ghi nhận." },
       { h: "2 tab" },
@@ -159,7 +194,7 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "📌", title: "8. Nhiệm vụ khác",
+    icon: "📌", title: "9. Nhiệm vụ khác",
     body: [
       { p: "Dành cho nhiệm vụ theo tổ công tác, thành viên từ nhiều phòng ban, không thuộc luồng ngân sách." },
       { ul: [
@@ -171,16 +206,17 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "🗓️", title: "9. Lịch trực",
+    icon: "🗓️", title: "10. Lịch (Deadline/Trực)",
     body: [
       { ul: [
-        "📅 Nhiệm vụ: xem việc theo ngày dạng lịch tháng, bấm 1 ngày để xem chi tiết.",
+        "📅 Nhiệm vụ: xem hạn chót theo ngày dạng lịch tháng, bấm 1 ngày để xem chi tiết các việc đến hạn ngày đó.",
         "🗓️ Trực: xếp lịch trực (ca trực, người trực) theo ngày/tuần cho các phòng ban.",
       ]},
+      { note: "Ở tab 📅 Nhiệm vụ có thêm bảng \"Hạn chót trong tháng theo nhân viên\" — bấm vào tên 1 người để lọc lịch chỉ hiện hạn chót của riêng người đó, giúp cân nhắc khối lượng trước khi giao thêm việc." },
     ]
   },
   {
-    icon: "📁", title: "10. Văn bản",
+    icon: "📁", title: "11. Văn bản",
     body: [
       { p: "Quản lý văn bản đến/đi: số văn bản, trích yếu, nơi gửi/nhận, ngày văn bản, file đính kèm." },
       { ul: [
@@ -191,7 +227,7 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "📈", title: "11. Báo cáo",
+    icon: "📈", title: "12. Báo cáo",
     body: [
       { h: "Hiệu suất nhân viên & Bảng xếp hạng" },
       { p: "Điểm hiệu suất (0–100) gồm:" },
@@ -210,25 +246,38 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "👥", title: "12. Nhân viên",
+    icon: "👥", title: "13. Nhân viên",
     body: [
       { p: "Danh sách nhân viên theo phòng ban, số việc đang xử lý, số việc phối hợp. Thêm/sửa: họ tên, phòng ban, chức vụ." },
     ]
   },
   {
-    icon: "💡", title: "13. Góp ý",
+    icon: "💡", title: "14. Góp ý",
     body: [{ p: "Nơi gửi phản hồi, đề xuất cải tiến phần mềm hoặc quy trình làm việc trực tiếp trong ứng dụng." }]
   },
   {
-    icon: "📜", title: "14. Nhật ký",
+    icon: "📜", title: "15. Nhật ký",
     body: [{ p: "Chỉ hiển thị với Ban Giám đốc/Quản trị viên/TP.HCTH. Ghi lại lịch sử thao tác trên các nhiệm vụ." }]
   },
   {
-    icon: "🔐", title: "15. Bảo mật",
+    icon: "🔐", title: "16. Bảo mật",
     body: [{ p: "Chỉ hiển thị với Quản trị viên. Theo dõi lịch sử đăng nhập thành công/thất bại của toàn bộ tài khoản." }]
   },
   {
-    icon: "📑", title: "16. Bảng phân quyền tổng hợp",
+    icon: "🤝", title: "17. Ủy quyền duyệt",
+    body: [
+      { p: "Dùng khi Trưởng phòng đi công tác/nghỉ phép dài ngày — ủy quyền tạm thời cho Phó phòng cùng đơn vị duyệt hoàn thành/gia hạn thay trong 1 khoảng ngày cụ thể." },
+      { p: "Bấm 🤝 Ủy quyền duyệt ở cuối menu chính (Trưởng/Phó phòng, TP.HCTH, BGĐ, Admin mới thấy)." },
+      { ol: [
+        "Chọn Người được ủy quyền (chỉ hiện Phó phòng cùng đơn vị), Từ ngày – Đến ngày.",
+        "Bấm + Tạo ủy quyền.",
+        "Trong khoảng ngày đó, Phó phòng được ủy quyền sẽ thấy và duyệt được mọi yêu cầu duyệt hoàn thành/gia hạn của các nhiệm vụ do Trưởng phòng đó giao — y như chính mình là người giao việc.",
+      ]},
+      { note: "Hết ngày kết thúc, ủy quyền tự động hết hiệu lực, không cần thao tác gì thêm. Có thể bấm Thu hồi để hủy sớm bất cứ lúc nào. Admin/BGĐ có thể tạo/xem ủy quyền cho bất kỳ Trưởng phòng nào; Trưởng phòng chỉ tạo/xem được ủy quyền của chính mình." },
+    ]
+  },
+  {
+    icon: "📑", title: "18. Bảng phân quyền tổng hợp",
     body: [{ table: {
       head: ["Chức năng", "Nhân viên", "Trưởng/Phó phòng", "TP.HCTH/BGĐ/Admin"],
       rows: [
@@ -245,7 +294,7 @@ const SECTIONS = [
     }}]
   },
   {
-    icon: "❓", title: "17. Mẹo sử dụng & Câu hỏi thường gặp",
+    icon: "❓", title: "19. Mẹo sử dụng & Câu hỏi thường gặp",
     body: [
       { h: "Sử dụng trên điện thoại" },
       { ul: ["Menu chính cố định ở đáy màn hình, luôn hiển thị khi cuộn.", "Bấm Aa trên thanh tiêu đề để chỉnh cỡ chữ phù hợp."] },

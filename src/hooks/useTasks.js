@@ -8,7 +8,7 @@ const PAGE_SIZE = 20;
 // Toàn bộ logic nghiệp vụ của "Nhiệm vụ": phân quyền, CRUD, luồng yêu cầu/duyệt hoàn thành,
 // lọc/phân trang, và các danh sách phái sinh dùng cho thông báo.
 // Tách khỏi App.jsx để component chính không phải ôm hết state + xử lý của module này.
-export default function useTasks({ tasks, setTasks, employees, currentUser, canSeeAll, userDept, canCreate, showToast, getEmp, setModal, setSaving }) {
+export default function useTasks({ tasks, setTasks, employees, currentUser, canSeeAll, userDept, canCreate, showToast, getEmp, setModal, setSaving, delegations }) {
   // ── Phân quyền ──
   const canSeeTask = useMemo(() => (t) => { if (!currentUser) return false; if (canSeeAll) return true; if (["manager", "deputy_manager"].includes(currentUser.role)) return t.dept === userDept; if (t.eid === currentUser.employee_id) return true; return parseJSON(t.collab_eids, []).includes(currentUser.employee_id); }, [currentUser, canSeeAll, userDept]);
   const canEditTask = useMemo(() => (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; return false; }, [currentUser, userDept]);
@@ -18,10 +18,14 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // Đúng người đã giao việc (hoặc người đã chuyển tiếp gần nhất) — dùng để quyết định AI ĐƯỢC CHỦ ĐỘNG BÁO,
   // không tính Admin/BGĐ vào đây để tránh mọi BGĐ đều nhận thông báo của tất cả nhiệm vụ trong hệ thống.
   const isAssigner = (t) => { if (!currentUser) return false; if (t.created_by_id === currentUser.id) return true; if (t.forwarded_by && t.forwarded_by === currentUser.full_name) return true; return false; };
-  // Duyệt hoàn thành: chỉ đúng người đã giao việc mới được duyệt & nhận xét —
+  // Ủy quyền duyệt: Trưởng phòng vắng mặt có thể ủy quyền cho Phó phòng duyệt thay trong 1 khoảng ngày cụ thể.
+  // Chỉ áp dụng theo created_by_id (người giao gốc) — không tính chuyển tiếp (forwarded_by) vì đó lưu dạng tên,
+  // không có id để đối chiếu ủy quyền một cách chắc chắn.
+  const isDelegatedApprover = (t) => { if (!currentUser || !t.created_by_id) return false; const now = todayStr; return (delegations || []).some(d => !d.revoked && d.delegate_id === currentUser.id && d.delegator_id === t.created_by_id && d.start_date <= now && d.end_date >= now); };
+  // Duyệt hoàn thành: đúng người đã giao việc, hoặc người đang được ủy quyền duyệt thay, mới được duyệt & nhận xét —
   // Admin/BGĐ vẫn giữ quyền duyệt thay (nút bấm) để tránh việc bị kẹt khi người giao việc vắng mặt,
   // nhưng KHÔNG được chủ động báo qua chuông/popup đăng nhập (xem isAssigner ở trên).
-  const canApprove = (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; return isAssigner(t); };
+  const canApprove = (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (isAssigner(t)) return true; return isDelegatedApprover(t); };
   const canForward = (t) => { if (!currentUser) return false; if (t.completed || isCompletedStatus(t.status)) return false; return ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role) && t.dept === userDept; };
   const canSetLateReason = (t) => isLateStatus(t.status) && (currentUser?.employee_id === t.eid || parseJSON(t.collab_eids, []).includes(currentUser?.employee_id) || canCreate);
   // Đề xuất gia hạn deadline: chỉ đúng người được giao chính (không tính người phối hợp) mới đề xuất được,
@@ -171,10 +175,11 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const [fStatus, setFStatus] = useState("all");
   const [fDept, setFDept] = useState("all");
   const [fEid, setFEid] = useState("all");
+  const [fAssignedByMe, setFAssignedByMe] = useState(false); // chỉ hiện nhiệm vụ do CHÍNH mình giao (tạo/chuyển tiếp) — giúp Trưởng phòng lọc riêng việc mình phải chịu trách nhiệm duyệt
   const [search, setSearch] = useState("");
   const [fSort, setFSort] = useState("urgency");
   const [page, setPage] = useState(1);
-  const filtered = useMemo(() => { const f = computed.filter(t => { if (fStatus !== "all" && t.status !== fStatus) return false; if (fDept !== "all" && t.dept !== fDept) return false; if (fEid !== "all" && t.eid !== fEid) return false; if (search) { const q = search.toLowerCase(); const empName = (getEmp(t.eid)?.name || "").toLowerCase(); const hit = t.title.toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q) || empName.includes(q); if (!hit) return false; } return true; }); if (fSort === "urgency") return [...f].sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)); if (fSort === "deadline_asc") return [...f].sort((a, b) => a.deadline.localeCompare(b.deadline)); if (fSort === "deadline_desc") return [...f].sort((a, b) => b.deadline.localeCompare(a.deadline)); if (fSort === "newest") return [...f].sort((a, b) => (b.created || "").localeCompare(a.created || "")); return f; }, [computed, fStatus, fDept, fEid, search, fSort]);
+  const filtered = useMemo(() => { const f = computed.filter(t => { if (fStatus !== "all" && t.status !== fStatus) return false; if (fDept !== "all" && t.dept !== fDept) return false; if (fEid !== "all" && t.eid !== fEid) return false; if (fAssignedByMe && !isAssigner(t)) return false; if (search) { const q = search.toLowerCase(); const empName = (getEmp(t.eid)?.name || "").toLowerCase(); const hit = t.title.toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q) || empName.includes(q); if (!hit) return false; } return true; }); if (fSort === "urgency") return [...f].sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)); if (fSort === "deadline_asc") return [...f].sort((a, b) => a.deadline.localeCompare(b.deadline)); if (fSort === "deadline_desc") return [...f].sort((a, b) => b.deadline.localeCompare(a.deadline)); if (fSort === "newest") return [...f].sort((a, b) => (b.created || "").localeCompare(a.created || "")); return f; }, [computed, fStatus, fDept, fEid, fAssignedByMe, search, fSort]);
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)), [filtered]);
   const paged = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
 
@@ -183,8 +188,8 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const unratedTasks = useMemo(() => computedAll.filter(t => t.status === "completed" && !t.rating && t.created_by_id === currentUser?.id), [computedAll, currentUser]);
   const suspiciousTasks = useMemo(() => canCreate ? computedAll.filter(t => t.suspicious_completion && !t.rating) : [], [computedAll, canCreate]);
   // Nhiệm vụ thường đang chờ CHÍNH người xem duyệt (để hiện trong 🔔 thông báo, khác với "myPendingApprovals" của Nhiệm vụ khác)
-  const myPendingTaskApprovals = useMemo(() => computedAll.filter(t => t.status === "pending_approval" && isAssigner(t)), [computedAll, currentUser]);
-  const myPendingExtRequests = useMemo(() => computedAll.filter(t => t.ext_proposed && isAssigner(t)), [computedAll, currentUser]);
+  const myPendingTaskApprovals = useMemo(() => computedAll.filter(t => t.status === "pending_approval" && (isAssigner(t) || isDelegatedApprover(t))), [computedAll, currentUser, delegations]);
+  const myPendingExtRequests = useMemo(() => computedAll.filter(t => t.ext_proposed && (isAssigner(t) || isDelegatedApprover(t))), [computedAll, currentUser, delegations]);
 
   const seenKey = currentUser ? `qlcv_seen_${currentUser.username}` : null;
   const markSeen = () => {}; // giữ để tương thích chữ ký gọi cũ; trạng thái xem nay lưu ở viewed_at trên server
@@ -208,7 +213,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,
     visibleTasks, trashedTasks, computed, stats, deptChart,
     dateFrom, setDateFrom, dateTo, setDateTo,
-    fStatus, setFStatus, fDept, setFDept, fEid, setFEid, search, setSearch, fSort, setFSort, page, setPage,
+    fStatus, setFStatus, fDept, setFDept, fEid, setFEid, fAssignedByMe, setFAssignedByMe, search, setSearch, fSort, setFSort, page, setPage,
     filtered, paged, totalPages,
     notifications, unratedTasks, suspiciousTasks, myPendingTaskApprovals, myPendingExtRequests,
     seenKey, markSeen, myAssignedTasks, myNewTasks, myOverdueTasks, myNewTaskIds,
