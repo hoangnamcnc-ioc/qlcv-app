@@ -11,7 +11,7 @@ export default function TaskModal({
   isMobile, inp,
   currentUser,
   getEmp,
-  canEditTask, canDeleteTask, canRate, canForward, canSetLateReason, canUpdateProgress,
+  canEditTask, canDeleteTask, canRate, canApprove, canForward, canSetLateReason, canUpdateProgress,
   canCreate,
   comments, commentText, setCommentText, commentFiles, setCommentFiles, commentLoading,
   addComment, uploadFiles, uploadingFiles,
@@ -93,14 +93,14 @@ export default function TaskModal({
               <div style={{ fontSize: 12, color: "#92400e" }}>{modal.requested_by} yêu cầu duyệt lúc {modal.requested_at}</div>
               {modal.completion_note && <div style={{ fontSize: 12, color: "#78350f", marginTop: 6, fontStyle: "italic", background: "#fef3c7", padding: "6px 10px", borderRadius: 6 }}>"{modal.completion_note}"</div>}
               {modal.reminder_at && <div style={{ fontSize: 11.5, color: "#92400e", marginTop: 6 }}>🔔 Đã nhắc duyệt lúc {modal.reminder_at}</div>}
-              {canEditTask(modal) ? (
+              {canApprove(modal) ? (
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button onClick={() => { openApproveModal(modal); setModal(null); }} style={{ flex: 1, padding: "8px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>✅ Duyệt & đánh giá</button>
                   <button onClick={() => { rejectCompletionRequest(modal); setModal(null); }} style={{ flex: 1, padding: "8px", border: "1px solid #fca5a5", borderRadius: 8, background: "#fff0f0", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>↩ Từ chối</button>
                 </div>
               ) : (
                 <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 12, color: "#9ca3af" }}>Chờ Trưởng phòng/Phó phòng/Ban Giám đốc duyệt</div>
+                  <div style={{ fontSize: 12, color: "#9ca3af" }}>Chờ người giao việc duyệt</div>
                   {(currentUser?.employee_id === modal.eid || modal.requested_by === currentUser?.full_name) && (
                     <button onClick={() => remindApproval(modal)} style={{ marginTop: 8, padding: "6px 12px", border: "1px solid #fbbf24", borderRadius: 7, background: "#fff", color: "#92400e", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>🔔 Nhắc duyệt</button>
                   )}

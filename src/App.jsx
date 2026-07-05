@@ -179,7 +179,7 @@ export default function App() {
 
   // ── Toàn bộ logic nghiệp vụ của Nhiệm vụ (phân quyền, CRUD, luồng yêu cầu/duyệt, lọc/phân trang, thông báo) ──
   const {
-    canSeeTask, canEditTask, canDeleteTask, canUpdateProgress, canRate, canForward, canSetLateReason,
+    canSeeTask, canEditTask, canDeleteTask, canUpdateProgress, canRate, canApprove, canForward, canSetLateReason,
     addTask, updateTask,
     forwardModal, setForwardModal, forwardEid, setForwardEid, forwardTask,
     deleteConfirm, setDeleteConfirm, deleteTaskFn, restoreTaskFn, purgeTaskFn,
@@ -479,7 +479,7 @@ export default function App() {
               fEid={fEid} setFEid={setFEid}
               fSort={fSort} setFSort={setFSort}
               filtered={filtered} paged={paged} page={page} setPage={setPage} totalPages={totalPages}
-              canSeeAll={canSeeAll} canCreate={canCreate} canEditTask={canEditTask} canDeleteTask={canDeleteTask} canUpdateProgress={canUpdateProgress} canRate={canRate}
+              canSeeAll={canSeeAll} canCreate={canCreate} canEditTask={canEditTask} canDeleteTask={canDeleteTask} canUpdateProgress={canUpdateProgress} canRate={canRate} canApprove={canApprove}
               employees={employees} userDept={userDept}
               getEmp={getEmp}
               setModal={setModal} loadComments={loadComments}
@@ -809,7 +809,7 @@ export default function App() {
         isMobile={isMobile} inp={inp}
         currentUser={currentUser}
         getEmp={getEmp}
-        canEditTask={canEditTask} canDeleteTask={canDeleteTask} canRate={canRate} canForward={canForward} canSetLateReason={canSetLateReason} canUpdateProgress={canUpdateProgress}
+        canEditTask={canEditTask} canDeleteTask={canDeleteTask} canRate={canRate} canApprove={canApprove} canForward={canForward} canSetLateReason={canSetLateReason} canUpdateProgress={canUpdateProgress}
         canCreate={canCreate}
         comments={comments} commentText={commentText} setCommentText={setCommentText} commentFiles={commentFiles} setCommentFiles={setCommentFiles} commentLoading={commentLoading}
         addComment={addComment} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles}

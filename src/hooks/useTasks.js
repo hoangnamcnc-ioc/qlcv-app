@@ -15,6 +15,9 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const canDeleteTask = useMemo(() => (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (["manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; return false; }, [currentUser, userDept]);
   const canUpdateProgress = useMemo(() => (t) => canEditTask(t) || currentUser?.employee_id === t.eid || parseJSON(t.collab_eids, []).includes(currentUser?.employee_id), [canEditTask, currentUser]);
   const canRate = (t) => { const st = t.status || getStatus(t); if (st === "completed_late") return false; if (!t.completed && st !== "completed") return false; if (t.created_by_id) { if (currentUser.id === t.created_by_id) return true; if (t.forwarded_by && t.forwarded_by === currentUser.full_name) return true; return FULL_ACCESS.includes(currentUser.role) && false; } return canCreate; };
+  // Duyệt hoàn thành: chỉ đúng người đã giao việc (hoặc người đã chuyển tiếp gần nhất) mới được duyệt & nhận xét —
+  // Admin/BGĐ vẫn giữ quyền duyệt thay để tránh việc bị kẹt khi người giao việc vắng mặt.
+  const canApprove = (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (t.created_by_id === currentUser.id) return true; if (t.forwarded_by && t.forwarded_by === currentUser.full_name) return true; return false; };
   const canForward = (t) => { if (!currentUser) return false; if (t.completed || isCompletedStatus(t.status)) return false; return ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role) && t.dept === userDept; };
   const canSetLateReason = (t) => isLateStatus(t.status) && (currentUser?.employee_id === t.eid || parseJSON(t.collab_eids, []).includes(currentUser?.employee_id) || canCreate);
 
@@ -133,7 +136,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const unratedTasks = useMemo(() => computedAll.filter(t => t.status === "completed" && !t.rating && t.created_by_id === currentUser?.id), [computedAll, currentUser]);
   const suspiciousTasks = useMemo(() => canCreate ? computedAll.filter(t => t.suspicious_completion && !t.rating) : [], [computedAll, canCreate]);
   // Nhiệm vụ thường đang chờ CHÍNH người xem duyệt (để hiện trong 🔔 thông báo, khác với "myPendingApprovals" của Nhiệm vụ khác)
-  const myPendingTaskApprovals = useMemo(() => computedAll.filter(t => t.status === "pending_approval" && canEditTask(t)), [computedAll, canEditTask]);
+  const myPendingTaskApprovals = useMemo(() => computedAll.filter(t => t.status === "pending_approval" && canApprove(t)), [computedAll, currentUser]);
 
   const seenKey = currentUser ? `qlcv_seen_${currentUser.username}` : null;
   const markSeen = () => {}; // giữ để tương thích chữ ký gọi cũ; trạng thái xem nay lưu ở viewed_at trên server
@@ -144,7 +147,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const myNewTaskIds = useMemo(() => new Set(myNewTasks.map(t => t.id)), [myNewTasks]);
 
   return {
-    canSeeTask, canEditTask, canDeleteTask, canUpdateProgress, canRate, canForward, canSetLateReason,
+    canSeeTask, canEditTask, canDeleteTask, canUpdateProgress, canRate, canApprove, canForward, canSetLateReason,
     addTask, updateTask,
     forwardModal, setForwardModal, forwardEid, setForwardEid, forwardTask,
     deleteConfirm, setDeleteConfirm, deleteTaskFn, restoreTaskFn, purgeTaskFn,
