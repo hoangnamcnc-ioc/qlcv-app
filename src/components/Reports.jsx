@@ -14,7 +14,8 @@ export default function Reports({
   getEmp, setModal, loadComments,
   canExec, computed, monthlyScores, snapshotMonth, currentUser,
 }) {
-  const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm
+  const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm (tháng)
+  const [whyYear, setWhyYear] = useState(null); // nhân viên đang xem giải thích điểm (năm/xếp hạng)
   const [lateReasonDetail, setLateReasonDetail] = useState(null); // nguyên nhân đang xem danh sách nhiệm vụ
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -154,7 +155,7 @@ export default function Reports({
                       <div style={{ textAlign: "right" }}>
                         {e.score === null
                           ? <span style={{ fontSize: 11, color: "#9ca3af" }}>Chưa đủ ĐK</span>
-                          : <span style={{ fontSize: 22, fontWeight: 800, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ</span>
+                          : <span onClick={() => setWhyYear(e)} style={{ cursor: "pointer", fontSize: 22, fontWeight: 800, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ <span style={{ fontSize: 12 }}>ℹ️</span></span>
                         }
                         <div style={{ fontSize: 10, color: "#9ca3af" }}>{e.eligibleMonths} tháng · {e.rate}% HT</div>
                       </div>
@@ -190,7 +191,7 @@ export default function Reports({
                         <td style={{ padding: "10px 12px", color: e.over > 0 ? "#b91c1c" : "#6b7280", fontWeight: e.over > 0 ? 600 : 400 }}>{e.over}</td>
                         <td style={{ padding: "10px 12px" }}>{e.collabTotal > 0 ? <span style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span> : <span style={{ color: "#9ca3af" }}>–</span>}</td>
                         <td style={{ padding: "10px 12px", textAlign: "center" }}>{e.eligibleMonths}/12</td>
-                        <td style={{ padding: "10px 12px" }}>{e.score === null ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa có dữ liệu</span> : <span style={{ fontSize: 15, fontWeight: 700, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ</span>}</td>
+                        <td style={{ padding: "10px 12px" }}>{e.score === null ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa có dữ liệu</span> : <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 15, fontWeight: 700, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ</span><button onClick={() => setWhyYear(e)} title="Vì sao điểm này?" style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 6, padding: "1px 6px", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>ℹ️</button></span>}</td>
                         <td style={{ padding: "10px 12px" }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 60, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: e.rate + "%", background: e.rate >= 80 ? "#16a34a" : e.rate >= 50 ? "#f59e0b" : "#dc2626", borderRadius: 6 }} /></div><span style={{ fontSize: 12, fontWeight: 700, color: e.rate >= 80 ? "#15803d" : e.rate >= 50 ? "#92400e" : "#b91c1c" }}>{e.rate}%</span></div></td>
                       </tr>
                     );
@@ -258,6 +259,38 @@ export default function Reports({
               <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f8fafc", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>Tổng điểm <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400 }}>(giới hạn 0–100)</span></span>
                 <span style={{ fontSize: 22, fontWeight: 800, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL: Vì sao điểm TB năm này? (Xếp hạng năm) */}
+      {whyYear && (() => {
+        const e = whyYear;
+        const eligibleRows = e.monthly.map((m, idx) => ({ ...m, monthIdx: idx })).filter(m => m.eligible);
+        return (
+          <div onClick={() => setWhyYear(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: isMobile ? "12px 8px" : 16 }}>
+            <div onClick={ev => ev.stopPropagation()} style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+              <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>Vì sao {e.score}đ?</div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{e.name} · {e.dept} · Xếp hạng năm {rankYear}</div>
+                </div>
+                <button onClick={() => setWhyYear(null)} style={{ background: "#f3f4f6", border: "none", cursor: "pointer", fontSize: 16, color: "#374151", width: 28, height: 28, borderRadius: "50%" }}>✕</button>
+              </div>
+              <div style={{ padding: "10px 18px 0", fontSize: 11.5, color: "#9ca3af" }}>Điểm TB năm = trung bình điểm của {eligibleRows.length} tháng đủ điều kiện (≥5 việc đến hạn trong tháng đó). Các tháng còn lại không tính vào trung bình.</div>
+              <div style={{ padding: "8px 18px 0" }}>
+                {eligibleRows.map(m => (
+                  <div key={m.monthIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
+                    <div style={{ fontSize: 13 }}>{VI_MONTHS[m.monthIdx]}/{rankYear} <span style={{ fontSize: 11, color: "#9ca3af" }}>({m.resolved} việc đến hạn)</span></div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: m.perfScore >= 80 ? "#15803d" : m.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{m.perfScore}đ</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f8fafc", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Điểm TB năm <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400 }}>(TB {eligibleRows.length} tháng)</span></span>
+                <span style={{ fontSize: 22, fontWeight: 800, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ</span>
               </div>
             </div>
           </div>

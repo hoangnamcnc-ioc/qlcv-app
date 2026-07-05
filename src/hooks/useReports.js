@@ -172,7 +172,7 @@ export default function useReports({ computed, employees, currentUser, overloadT
     const avgScore = eligibleMonths.length ? Math.round(eligibleMonths.reduce((s, m) => s + m.perfScore, 0) / eligibleMonths.length) : null;
     const collabTotal = monthly.reduce((s, m) => s + (m.collabTotal || 0), 0);
     const collabDone = monthly.reduce((s, m) => s + (m.collabDone || 0), 0);
-    return { ...emp, total, done, completedLate, over, collabTotal, collabDone, eligibleMonths: eligibleMonths.length, score: avgScore, rate: total ? Math.round(done / total * 100) : 0 };
+    return { ...emp, total, done, completedLate, over, collabTotal, collabDone, eligibleMonths: eligibleMonths.length, score: avgScore, rate: total ? Math.round(done / total * 100) : 0, monthly };
   }).filter(e => e.total > 0).sort((a, b) => {
     const aHas = a.score !== null, bHas = b.score !== null;
     if (aHas !== bHas) return aHas ? -1 : 1;
