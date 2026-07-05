@@ -11,13 +11,14 @@ export default function TaskModal({
   isMobile, inp,
   currentUser,
   getEmp,
-  canEditTask, canDeleteTask, canRate, canApprove, canForward, canSetLateReason, canUpdateProgress,
+  canEditTask, canDeleteTask, canRate, canApprove, canForward, canSetLateReason, canUpdateProgress, canProposeExtension,
   canCreate,
   comments, commentText, setCommentText, commentFiles, setCommentFiles, commentLoading,
   addComment, uploadFiles, uploadingFiles,
   updateTask,
   toggleDone,
   openApproveModal, rejectCompletionRequest, remindApproval,
+  openExtRequestModal, openExtApprove, openExtReject,
   rateTask, ratingNote, setRatingNote,
   setLateReasonFn, lateNote, setLateNote,
   openEditTask,
@@ -57,6 +58,28 @@ export default function TaskModal({
               <div key={k}><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 3 }}>{k}</div><div>{v}</div></div>
             ))}
           </div>
+
+          {!modal.completed && (modal.ext_proposed || canProposeExtension(modal)) && (
+            <div style={{ marginBottom: 14, padding: "12px 14px", background: modal.ext_proposed ? "#eff6ff" : "#f8fafc", borderRadius: 10, border: "1px solid " + (modal.ext_proposed ? "#bfdbfe" : "#e5e7eb") }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: modal.ext_proposed ? "#1d4ed8" : "#374151", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>📅 Gia hạn deadline</div>
+              {modal.ext_proposed ? (
+                <>
+                  <div style={{ fontSize: 12, color: "#1d4ed8" }}>{modal.ext_requested_by} đề xuất gia hạn đến <b>{modal.ext_proposed}</b> lúc {modal.ext_requested_at}</div>
+                  {modal.ext_reason && <div style={{ fontSize: 12, color: "#1e3a8a", marginTop: 6, fontStyle: "italic", background: "#dbeafe", padding: "6px 10px", borderRadius: 6 }}>"{modal.ext_reason}"</div>}
+                  {canApprove(modal) ? (
+                    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                      <button onClick={() => openExtApprove(modal)} style={{ flex: 1, padding: "8px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>✅ Duyệt gia hạn</button>
+                      <button onClick={() => openExtReject(modal)} style={{ flex: 1, padding: "8px", border: "1px solid #fca5a5", borderRadius: 8, background: "#fff0f0", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>✖ Từ chối</button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>Chờ người giao việc duyệt</div>
+                  )}
+                </>
+              ) : (
+                <button onClick={() => openExtRequestModal(modal)} style={{ padding: "6px 12px", border: "1px solid #93c5fd", borderRadius: 7, background: "#eff6ff", color: "#1d4ed8", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>📅 Đề xuất gia hạn</button>
+              )}
+            </div>
+          )}
 
           {modal.forwarded_by && (
             <div style={{ marginBottom: 14, padding: "10px 14px", background: "#eff6ff", borderRadius: 10, border: "1px solid #bfdbfe" }}>

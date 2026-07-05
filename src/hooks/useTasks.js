@@ -20,6 +20,9 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const canApprove = (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (t.created_by_id === currentUser.id) return true; if (t.forwarded_by && t.forwarded_by === currentUser.full_name) return true; return false; };
   const canForward = (t) => { if (!currentUser) return false; if (t.completed || isCompletedStatus(t.status)) return false; return ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role) && t.dept === userDept; };
   const canSetLateReason = (t) => isLateStatus(t.status) && (currentUser?.employee_id === t.eid || parseJSON(t.collab_eids, []).includes(currentUser?.employee_id) || canCreate);
+  // Đề xuất gia hạn deadline: chỉ đúng người được giao chính (không tính người phối hợp) mới đề xuất được,
+  // và chỉ khi chưa có đề xuất nào khác đang treo (mỗi lúc chỉ 1 đề xuất chờ xử lý).
+  const canProposeExtension = (t) => !!currentUser && currentUser.employee_id === t.eid && !t.completed && !t.completion_requested && !t.ext_proposed;
 
   // ── CRUD ──
   const addTask = async data => { setSaving(true); const h = [{ action: "Tạo nhiệm vụ", by: currentUser.full_name, at: nowStr() }]; const t = { ...data, id: `t${Date.now()}`, completed: data.progress === 100, created: todayStr, created_by_id: currentUser.id, created_by_name: currentUser.full_name, forwarded_by: "", deleted: false, history: JSON.stringify(h), rating: "", rating_note: "", rated_by: "", rated_at: "", late_reason: "", late_note: "" }; const { error } = await supabase.from("tasks").insert(t); if (!error) { setTasks(p => [t, ...p]); showToast("Đã tạo nhiệm vụ"); } else { console.error("Lỗi tạo nhiệm vụ:", error); showToast("Lỗi: " + (error.message || "không tạo được"), "error"); } setSaving(false); return error ? null : t; };
@@ -94,6 +97,46 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     else showToast("Lỗi khi gửi nhắc, vui lòng thử lại", "error");
   };
 
+  // ── Đề xuất & duyệt gia hạn deadline: nhân viên đề xuất ngày mới + lý do,
+  // người giao việc duyệt đúng ngày đó hoặc rút ngắn hơn (bắt buộc nêu lý do), hoặc từ chối hẳn.
+  const [extRequestModal, setExtRequestModal] = useState(null);
+  const [extProposedDate, setExtProposedDate] = useState("");
+  const [extReason, setExtReason] = useState("");
+  const openExtRequestModal = t => { setExtRequestModal(t); setExtProposedDate(t.deadline); setExtReason(""); };
+  const submitExtRequest = async () => {
+    const task = extRequestModal;
+    if (!extProposedDate || extProposedDate <= task.deadline) { showToast("Ngày đề xuất phải muộn hơn hạn chót hiện tại", "error"); return; }
+    if (extReason.trim().length < 5) { showToast("Vui lòng nêu rõ lý do xin gia hạn", "error"); return; }
+    await updateTask(task.id, { ext_proposed: extProposedDate, ext_reason: extReason.trim(), ext_requested_by: currentUser.full_name, ext_requested_at: nowStr() }, `Đề xuất gia hạn đến ${extProposedDate}: "${extReason.trim().slice(0, 60)}"`);
+    showToast("Đã gửi đề xuất gia hạn tới người giao việc");
+    setExtRequestModal(null); setExtProposedDate(""); setExtReason("");
+  };
+
+  const [extDecideModal, setExtDecideModal] = useState(null); // { task, mode: "approve" | "reject" }
+  const [extDecideDate, setExtDecideDate] = useState("");
+  const [extDecideNote, setExtDecideNote] = useState("");
+  const openExtApprove = t => { setExtDecideModal({ task: t, mode: "approve" }); setExtDecideDate(t.ext_proposed); setExtDecideNote(""); };
+  const openExtReject = t => { setExtDecideModal({ task: t, mode: "reject" }); setExtDecideDate(""); setExtDecideNote(""); };
+  const confirmExtDecision = async () => {
+    if (!extDecideModal) return;
+    const task = extDecideModal.task;
+    const clear = { ext_proposed: null, ext_reason: null, ext_requested_by: null, ext_requested_at: null };
+    if (extDecideModal.mode === "reject") {
+      if (extDecideNote.trim().length < 5) { showToast("Vui lòng nêu rõ lý do từ chối", "error"); return; }
+      await updateTask(task.id, clear, `Từ chối gia hạn (đề xuất ${task.ext_proposed}): "${extDecideNote.trim().slice(0, 80)}"`);
+      showToast("Đã từ chối đề xuất gia hạn");
+    } else {
+      if (!extDecideDate) { showToast("Vui lòng chọn ngày duyệt", "error"); return; }
+      if (extDecideDate > task.ext_proposed) { showToast("Không thể duyệt ngày muộn hơn ngày nhân viên đề xuất", "error"); return; }
+      const shorter = extDecideDate !== task.ext_proposed;
+      if (shorter && extDecideNote.trim().length < 5) { showToast("Bạn chọn ngày ngắn hơn đề xuất, vui lòng nêu rõ lý do", "error"); return; }
+      const label = shorter ? `Duyệt gia hạn rút ngắn còn ${extDecideDate} (đề xuất ${task.ext_proposed}): "${extDecideNote.trim().slice(0, 80)}"` : `Duyệt gia hạn đến ${extDecideDate}`;
+      await updateTask(task.id, { deadline: extDecideDate, ...clear }, label);
+      showToast("Đã duyệt gia hạn");
+    }
+    setExtDecideModal(null); setExtDecideDate(""); setExtDecideNote("");
+  };
+
   const [ratingNote, setRatingNote] = useState("");
   const [lateNote, setLateNote] = useState("");
   const rateTask = async (id, rating) => { if (["tb", "kem"].includes(rating) && ratingNote.trim().length < 10) { showToast("Đánh giá Trung bình/Kém cần ghi rõ nhận xét (ít nhất 10 ký tự) để nhân viên biết cần cải thiện gì", "error"); return; } const up = { rating, rating_note: ratingNote, rated_by: currentUser.full_name, rated_at: nowStr() }; await updateTask(id, up, `Đánh giá: ${RATING[rating]?.label}`); setModal(m => m ? { ...m, ...up } : m); setRatingNote(""); };
@@ -137,6 +180,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const suspiciousTasks = useMemo(() => canCreate ? computedAll.filter(t => t.suspicious_completion && !t.rating) : [], [computedAll, canCreate]);
   // Nhiệm vụ thường đang chờ CHÍNH người xem duyệt (để hiện trong 🔔 thông báo, khác với "myPendingApprovals" của Nhiệm vụ khác)
   const myPendingTaskApprovals = useMemo(() => computedAll.filter(t => t.status === "pending_approval" && canApprove(t)), [computedAll, currentUser]);
+  const myPendingExtRequests = useMemo(() => computedAll.filter(t => t.ext_proposed && canApprove(t)), [computedAll, currentUser]);
 
   const seenKey = currentUser ? `qlcv_seen_${currentUser.username}` : null;
   const markSeen = () => {}; // giữ để tương thích chữ ký gọi cũ; trạng thái xem nay lưu ở viewed_at trên server
@@ -147,7 +191,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const myNewTaskIds = useMemo(() => new Set(myNewTasks.map(t => t.id)), [myNewTasks]);
 
   return {
-    canSeeTask, canEditTask, canDeleteTask, canUpdateProgress, canRate, canApprove, canForward, canSetLateReason,
+    canSeeTask, canEditTask, canDeleteTask, canUpdateProgress, canRate, canApprove, canForward, canSetLateReason, canProposeExtension,
     addTask, updateTask,
     forwardModal, setForwardModal, forwardEid, setForwardEid, forwardTask,
     deleteConfirm, setDeleteConfirm, deleteTaskFn, restoreTaskFn, purgeTaskFn,
@@ -155,12 +199,14 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     completionNoteModal, setCompletionNoteModal, completionNote, setCompletionNote, completionFiles, setCompletionFiles,
     approveModal, setApproveModal, approveRating, setApproveRating, approveNote, setApproveNote, openApproveModal, confirmApproveCompletion,
     rejectCompletionRequest, remindApproval,
+    extRequestModal, setExtRequestModal, extProposedDate, setExtProposedDate, extReason, setExtReason, openExtRequestModal, submitExtRequest,
+    extDecideModal, setExtDecideModal, extDecideDate, setExtDecideDate, extDecideNote, setExtDecideNote, openExtApprove, openExtReject, confirmExtDecision,
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,
     visibleTasks, trashedTasks, computed, stats, deptChart,
     dateFrom, setDateFrom, dateTo, setDateTo,
     fStatus, setFStatus, fDept, setFDept, fEid, setFEid, search, setSearch, fSort, setFSort, page, setPage,
     filtered, paged, totalPages,
-    notifications, unratedTasks, suspiciousTasks, myPendingTaskApprovals,
+    notifications, unratedTasks, suspiciousTasks, myPendingTaskApprovals, myPendingExtRequests,
     seenKey, markSeen, myAssignedTasks, myNewTasks, myOverdueTasks, myNewTaskIds,
   };
 }
