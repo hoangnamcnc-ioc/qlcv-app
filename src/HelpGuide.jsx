@@ -253,7 +253,7 @@ const SECTIONS = [
         "Hàng năm = 3 việc",
       ]},
       { note: "Người phối hợp trên MỌI nhiệm vụ (thường lẫn định kỳ) luôn được tính = 1/2 trọng số của nhiệm vụ chính, không phải cố định 0.5 việc — ví dụ phối hợp 1 việc hàng ngày (0.25) chỉ được cộng 0.125 việc, không phải 0.5." },
-      { note: "Khi tạo mẫu định kỳ với tần suất Hàng ngày, ô Deadline tự khóa 🔒 = Trong ngày (không chỉnh được số ngày), vì việc hàng ngày mặc định phải xong ngay trong ngày được giao." },
+      { note: "Khi tạo mẫu định kỳ với tần suất Hàng ngày, ô Deadline tự khóa 🔒 (không chỉnh được số ngày) — hạn của mỗi nhiệm vụ sinh ra là ngày hôm sau, để có trọn 1 ngày xử lý trước khi bị tính quá hạn." },
       { note: "Việc \"trễ hạn\" được tính theo lúc bạn bấm Yêu cầu hoàn thành, không phải lúc người duyệt bấm duyệt — nếu bạn yêu cầu duyệt đúng hạn thì dù người duyệt xử lý chậm bao lâu, bạn vẫn không bị tính trễ." },
       { p: "Nhiệm vụ ngân sách cũng được cộng vào điểm hiệu suất: mỗi bước dự án đã duyệt+chấm chất lượng tính là 1 việc cho người chủ trì bước; khi cả dự án được BGĐ nghiệm thu (1–5 sao), phụ trách chính được cộng thêm 1 việc riêng." },
       { note: "Bấm ℹ️ cạnh điểm số để xem chi tiết \"Vì sao điểm này?\"." },
