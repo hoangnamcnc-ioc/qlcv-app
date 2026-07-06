@@ -76,16 +76,18 @@ export default function useReports({ computed, employees, currentUser, overloadT
   const repStats = useMemo(() => { const total = repTasks.length, done = repTasks.filter(t => isCompletedStatus(t.status)).length, over = repTasks.filter(t => t.status === "overdue").length, completedLate = repTasks.filter(t => t.status === "completed_late").length; return { total, done, over, completedLate, rate: total ? Math.round(done / total * 100) : 0 }; }, [repTasks]);
   const repDeptData = useMemo(() => DEPTS.map(d => { const dt = repTasks.filter(t => t.dept === d); const done = dt.filter(t => isCompletedStatus(t.status)).length; const over = dt.filter(t => t.status === "overdue").length; const completedLate = dt.filter(t => t.status === "completed_late").length; return { name: d, total: dt.length, done, over, completedLate, rate: dt.length ? Math.round(done / dt.length * 100) : 0 }; }), [repTasks]);
 
-  // ── Vai trò phối hợp (collab_eids) trên việc ĐÃ HOÀN THÀNH được tính = 1/2 việc cho người phối hợp,
-  // cộng thẳng vào tổng số việc/điểm chất lượng/thời hạn của họ (giống cách tính hỗ trợ ND/dự án ngân sách) —
-  // không tính việc đang dở dang vì chưa có kết quả để đánh giá ──
+  // ── Vai trò phối hợp (collab_eids) trên việc ĐÃ HOÀN THÀNH được tính = 1/2 trọng số của việc chính
+  // cho người phối hợp (không phải luôn cố định 0.5 việc — nhiệm vụ định kỳ có trọng số khác 1 thì
+  // người phối hợp cũng phải theo đúng tỷ lệ, tránh trường hợp phối hợp việc hàng ngày (0.25) lại
+  // được tính nhiều hơn cả người thực hiện chính), cộng thẳng vào tổng số việc/điểm chất lượng/thời hạn
+  // của họ (giống cách tính hỗ trợ ND/dự án ngân sách) — không tính việc đang dở dang vì chưa có kết quả để đánh giá ──
   const collabPseudoTasks = useMemo(() => {
     const out = [];
     for (const t of computed) {
       if (!isCompletedStatus(t.status)) continue;
       for (const cid of parseJSON(t.collab_eids, [])) {
         if (cid === t.eid) continue; // tránh trùng nếu dữ liệu lỗi gán chính mình vào phối hợp
-        out.push({ id: `collab_${t.id}_${cid}`, eid: cid, deadline: t.deadline, status: t.status, rating: t.rating, collab_eids: "[]", suspicious_completion: false, weight: 0.5 });
+        out.push({ id: `collab_${t.id}_${cid}`, eid: cid, deadline: t.deadline, status: t.status, rating: t.rating, collab_eids: "[]", suspicious_completion: false, weight: (t.weight ?? 1) * 0.5 });
       }
     }
     return out;
@@ -102,11 +104,14 @@ export default function useReports({ computed, employees, currentUser, overloadT
       const ym = `${d.getFullYear()}|${d.getMonth()}`;
       push(byEid, `${t.eid}|${ym}`, t);
     }
-    for (const t of computed) {
+    // Dùng lại chính collabPseudoTasks (đã có eid=người phối hợp + weight=1/2 trọng số việc chính)
+    // thay vì tự dò lại collab_eids trên việc gốc — nếu không, badge "🤝 X/Y" sẽ hiện SAI (bằng trọng số
+    // đầy đủ của việc chính) trong khi điểm thực tế cộng cho người phối hợp chỉ có 1/2, gây hiểu nhầm.
+    for (const t of collabPseudoTasks) {
       if (!t.deadline) continue;
       const d = new Date(t.deadline); if (isNaN(d)) continue;
       const ym = `${d.getFullYear()}|${d.getMonth()}`;
-      for (const cid of parseJSON(t.collab_eids, [])) push(byCollab, `${cid}|${ym}`, t);
+      push(byCollab, `${t.eid}|${ym}`, t);
     }
     return { byEid, byCollab };
   }, [computed, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);

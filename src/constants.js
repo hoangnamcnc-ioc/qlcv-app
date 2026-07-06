@@ -10,7 +10,18 @@ export const CAN_CREATE  = ["admin","director","manager_hcth","manager","deputy_
 export const RATING = {xuat_sac:{label:"Xuất sắc",bg:"#fef9c3",col:"#854d0e",icon:"🏆",score:4},tot:{label:"Tốt",bg:"#dcfce7",col:"#15803d",icon:"🌟",score:3},tb:{label:"Trung bình",bg:"#e0e7ff",col:"#4338ca",icon:"⚡",score:2},kem:{label:"Kém",bg:"#fee2e2",col:"#b91c1c",icon:"❌",score:0}};
 export const LATE_REASONS = [{value:"overload",label:"Khối lượng quá lớn"},{value:"missing_info",label:"Thiếu thông tin/tài liệu"},{value:"dependency",label:"Phụ thuộc bên khác"},{value:"unexpected",label:"Phát sinh đột xuất"},{value:"other",label:"Lý do khác"}];
 export const OVERLOAD_DEFAULT = 5;
-export const FREQUENCIES = [{value:"daily",label:"Hàng ngày",days:1},{value:"weekly",label:"Hàng tuần",days:7},{value:"biweekly",label:"2 tuần/lần",days:14},{value:"monthly",label:"Hàng tháng",days:30},{value:"quarterly",label:"Hàng quý",days:90}];
+// weight = quy đổi 1 lần tạo nhiệm vụ từ mẫu định kỳ thành bao nhiêu "việc" khi tính điểm hiệu suất
+// (Hàng ngày lặp lại quá nhiều/quá đơn giản nên tính thấp; tần suất càng thưa, khối lượng dồn mỗi lần
+// càng lớn nên tính cao hơn) — xem calcMonthPerf trong useReports.js.
+export const FREQUENCIES = [
+  {value:"daily",label:"Hàng ngày",days:1,weight:0.25},
+  {value:"weekly",label:"Hàng tuần",days:7,weight:1},
+  {value:"biweekly",label:"2 tuần/lần",days:14,weight:1.5},
+  {value:"monthly",label:"Hàng tháng",days:30,weight:2.5},
+  {value:"quarterly",label:"Hàng quý",days:90,weight:3},
+  {value:"semiannual",label:"6 tháng/lần",days:182,weight:3},
+  {value:"yearly",label:"Hàng năm",days:365,weight:3},
+];
 export const STATUS = {on_time:{label:"Trong hạn",bg:"#dcfce7",col:"#15803d",dot:"#16a34a"},nearly_due:{label:"Sắp hết hạn",bg:"#fef9c3",col:"#a16207",dot:"#ca8a04"},overdue:{label:"Quá hạn",bg:"#fee2e2",col:"#b91c1c",dot:"#dc2626"},pending_approval:{label:"Chờ duyệt",bg:"#fef3c7",col:"#92400e",dot:"#f59e0b"},completed_late:{label:"Hoàn thành quá hạn",bg:"#fee2e2",col:"#991b1b",dot:"#991b1b"},completed:{label:"Hoàn thành (đã đánh giá)",bg:"#e0e7ff",col:"#4338ca",dot:"#6366f1"}};
 export const PRIO = {high:{label:"Cao",bg:"#fee2e2",col:"#b91c1c"},medium:{label:"Trung bình",bg:"#fef9c3",col:"#92400e"},low:{label:"Thấp",bg:"#f1f5f9",col:"#475569"}};
 export const STATUS_ORDER = {overdue:0,pending_approval:1,nearly_due:2,on_time:3,completed_late:4,completed:5};
