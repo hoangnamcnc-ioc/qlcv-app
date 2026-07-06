@@ -522,6 +522,18 @@ class QLCVInserter:
         ext = re.sub(r"[^A-Za-z0-9.]+", "", ext)
         return f"{base}{ext}"
 
+    _MIME_TYPES = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif",
+        ".doc": "application/msword",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xls": "application/vnd.ms-excel",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".ppt": "application/vnd.ms-powerpoint",
+        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ".zip": "application/zip", ".rar": "application/vnd.rar",
+    }
+
     def upload_attachment(self, local_path: str, filename: str) -> dict | None:
         """Upload 1 file lên Supabase Storage bucket 'attachments' (cùng bucket app đang dùng),
         trả về {name, url} để gắn vào cột attachments của bảng documents."""
@@ -532,12 +544,16 @@ class QLCVInserter:
         except OSError as e:
             print(f"       ⚠ Không đọc được file tạm '{local_path}': {e}")
             return None
+        ext = os.path.splitext(filename)[1].lower()
+        # Content-Type đúng theo đuôi file — nếu để mặc định application/octet-stream, trình duyệt
+        # sẽ luôn bắt tải file về (kể cả PDF) thay vì hiển thị trực tiếp trên tab.
+        content_type = self._MIME_TYPES.get(ext, "application/octet-stream")
         resp = requests.post(
             f"{self.base}/storage/v1/object/attachments/{safe_name}",
             headers={
                 "apikey": CONFIG["SUPABASE_SERVICE_KEY"],
                 "Authorization": f"Bearer {CONFIG['SUPABASE_SERVICE_KEY']}",
-                "Content-Type": "application/octet-stream",
+                "Content-Type": content_type,
             },
             data=data,
             timeout=30,
