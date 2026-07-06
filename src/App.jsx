@@ -735,7 +735,7 @@ export default function App() {
             <OtherTasks currentUser={currentUser} employees={employees} getEmp={getEmp} isMobile={isMobile} inp={inp} showToast={showToast} tasksData={otherTasks} setTasksData={setOtherTasks} openTaskId={pendingOpenOtherTaskId} onTaskOpened={()=>setPendingOpenOtherTaskId(null)}/>
           )}
           {view==="supportcases"&&(
-            <SupportCases currentUser={currentUser} employees={employees} getEmp={getEmp} isMobile={isMobile} inp={inp} showToast={showToast} onScoringChange={refreshScoringData}/>
+            <SupportCases currentUser={currentUser} employees={employees} getEmp={getEmp} isMobile={isMobile} inp={inp} showToast={showToast} onScoringChange={refreshScoringData} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles}/>
           )}
           {view==="feedback"&&(
             <Feedback currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director"].includes(currentUser?.role)}/>

@@ -177,7 +177,7 @@ const SECTIONS = [
         "🖧 Xử lý lỗi Trung tâm dữ liệu — kênh: Điện thoại, Zalo. Người xử lý: chỉ nhân viên phòng HT-NTS.",
       ]},
       { h: "Ghi nhận 1 trường hợp" },
-      { p: "Bấm + Ghi nhận, điền: Kênh tiếp nhận, Nội dung hỗ trợ/Mô tả lỗi, Kết quả giải quyết (bắt buộc), Người xử lý, Độ khó, Ngày xử lý." },
+      { p: "Bấm + Ghi nhận, điền: Kênh tiếp nhận, Nội dung hỗ trợ/Mô tả lỗi, Kết quả giải quyết (bắt buộc), Người xử lý, Độ khó, Ngày xử lý, và có thể đính kèm 📎 file kết quả xử lý (ảnh chụp, log, tài liệu...) — áp dụng cho cả 2 tab." },
       { note: "Kết quả giải quyết là bắt buộc — nếu thiếu, danh sách sẽ hiện cảnh báo \"⚠️ Thiếu nội dung kết quả giải quyết\" để dễ rà soát bổ sung." },
       { h: "Tính điểm hiệu suất theo độ khó" },
       { ul: [

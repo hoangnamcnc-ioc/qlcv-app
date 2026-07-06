@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 import { DEPTS, DEPT_COLOR, SUPPORT_CHANNELS, SUPPORT_CHANNELS_BY_CATEGORY, SUPPORT_CONTENT_LABEL, SUPPORT_DIFFICULTY, SUPPORT_CATEGORIES } from "./constants";
-import { todayStr } from "./helpers";
+import { todayStr, getFileIcon, parseJSON } from "./helpers";
 
 // ───── Hỗ trợ người dùng/PAHT và vận hành DC — nền tảng số dùng chung (điện thoại/Zalo) ─────
 // Mỗi trường hợp ghi nhận xong là tính "hoàn thành" ngay (không có bước duyệt) — quy đổi thành điểm hiệu suất
 // theo trọng số độ khó trong useReports.js (Khó=1, Trung bình=1/2, Nhanh=1/4 nhiệm vụ).
-export default function SupportCases({ currentUser, employees, getEmp, isMobile, inp, showToast, onScoringChange }) {
+export default function SupportCases({ currentUser, employees, getEmp, isMobile, inp, showToast, onScoringChange, uploadFiles, uploadingFiles }) {
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,20 +39,20 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
     setLoading(false);
   })(); }, []);
 
-  const openCreate = () => { const myEmp = (employees || []).find(e => e.id === myEid); setForm({ category: catTab, channel: catChannels[0], content: "", result: "", eid: myEmp && catDepts.includes(myEmp.dept) ? myEid : "", difficulty: "medium", created: todayStr }); };
-  const openEdit = (c) => setForm({ ...c });
+  const openCreate = () => { const myEmp = (employees || []).find(e => e.id === myEid); setForm({ category: catTab, channel: catChannels[0], content: "", result: "", eid: myEmp && catDepts.includes(myEmp.dept) ? myEid : "", difficulty: "medium", created: todayStr, attachments: [] }); };
+  const openEdit = (c) => setForm({ ...c, attachments: parseJSON(c.attachments, []) });
 
   const saveCase = async () => {
     if (!form.content.trim() || !form.eid) { showToast && showToast("Nhập nội dung và chọn người xử lý", "error"); return; }
     if (!form.result.trim()) { showToast && showToast("Nhập kết quả giải quyết", "error"); return; }
     setSaving(true);
     if (form.id) {
-      const upd = { category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr };
+      const upd = { category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr, attachments: JSON.stringify(form.attachments || []) };
       const { error } = await supabase.from("support_cases").update(upd).eq("id", form.id);
       if (!error) { setCases(p => p.map(x => x.id === form.id ? { ...x, ...upd } : x)); showToast && showToast("Đã cập nhật"); setForm(null); onScoringChange?.(); }
       else showToast && showToast("Lỗi: " + (error.message || ""), "error");
     } else {
-      const c = { id: `sc${Date.now()}`, category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr, created_by: currentUser.full_name };
+      const c = { id: `sc${Date.now()}`, category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr, created_by: currentUser.full_name, attachments: JSON.stringify(form.attachments || []) };
       const { error } = await supabase.from("support_cases").insert(c);
       if (!error) { setCases(p => [c, ...p]); showToast && showToast("Đã ghi nhận trường hợp hỗ trợ"); setForm(null); onScoringChange?.(); }
       else showToast && showToast("Lỗi: " + (error.message || ""), "error");
@@ -176,6 +176,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
                 ) : (
                   <div style={{ fontSize: 11.5, marginTop: 4, color: "#b91c1c" }}>⚠️ Thiếu nội dung kết quả giải quyết</div>
                 )}
+                {parseJSON(c.attachments, []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>{parseJSON(c.attachments, []).map((f, i) => <a key={i} href={f.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, background: "#eef2ff", color: "#4338ca", padding: "2px 8px", borderRadius: 6, textDecoration: "none" }}>{getFileIcon(f.name)} {f.name}</a>)}</div>}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 5, alignItems: "center" }}>
                   <span style={{ background: DEPT_COLOR[emp?.dept] + "22", color: DEPT_COLOR[emp?.dept], fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>{emp?.name || "–"}</span>
                   <span style={{ background: SUPPORT_DIFFICULTY[c.difficulty]?.icon ? "#f1f5f9" : "transparent", fontSize: 11, padding: "2px 7px", borderRadius: 8, color: "#475569" }}>{SUPPORT_DIFFICULTY[c.difficulty]?.icon} {SUPPORT_DIFFICULTY[c.difficulty]?.label} ({SUPPORT_DIFFICULTY[c.difficulty]?.weight} việc)</span>
@@ -241,6 +242,14 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
             </div>
           </div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Ngày xử lý</label><input type="date" value={form.created} onChange={e => setForm(f => ({ ...f, created: e.target.value }))} style={inp} /></div>
+          <div>
+            <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 6 }}>📎 File kết quả xử lý (ảnh chụp, log, tài liệu...)</label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", border: "1.5px dashed #d1d5db", borderRadius: 8, cursor: "pointer", background: "#f9fafb", fontSize: 13, color: "#6b7280" }}>
+              <span>🗂️</span><span>{uploadingFiles ? "Đang upload..." : "Chọn file… (chọn được nhiều file cùng lúc)"}</span>
+              <input type="file" multiple style={{ display: "none" }} disabled={uploadingFiles} onChange={async e => { const files = Array.from(e.target.files); if (!files.length) return; const up = await uploadFiles(files, form.attachments || []); setForm(f => ({ ...f, attachments: up })); e.target.value = ""; }} />
+            </label>
+            {(form.attachments || []).length > 0 && <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>{(form.attachments || []).map((f, i) => (<div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: "#f1f5f9", borderRadius: 6, fontSize: 12 }}><span>{getFileIcon(f.name)} {f.name}</span><button onClick={() => setForm(fm => ({ ...fm, attachments: fm.attachments.filter((_, idx) => idx !== i) }))} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 14 }}>✕</button></div>))}</div>}
+          </div>
         </div>
         <div style={{ padding: "0 18px 18px", display: "flex", gap: 10 }}>
           <button onClick={() => setForm(null)} style={{ flex: 1, padding: "9px", border: "1px solid #d1d5db", borderRadius: 8, background: "#f9fafb", cursor: "pointer", fontSize: 13 }}>Hủy</button>
