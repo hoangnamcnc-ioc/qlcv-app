@@ -15,6 +15,8 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
   const [filterType,setFilterType]=useState("all");
   const [search,setSearch]=useState("");
   const [saving,setSaving]=useState(false);
+  const [selectMode,setSelectMode]=useState(false);
+  const [selected,setSelected]=useState(()=>new Set());
 
   useEffect(()=>{(async()=>{setLoading(true);try{const{data}=await supabase.from("documents").select("*").order("doc_date",{ascending:false});setItems(data||[]);}catch{}setLoading(false);})();},[]);
 
@@ -29,6 +31,20 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
 
   const remove=async id=>{if(!window.confirm("Xóa văn bản này?"))return;await supabase.from("documents").delete().eq("id",id);setItems(p=>p.filter(x=>x.id!==id));};
 
+  const toggleSelect=id=>setSelected(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
+  const toggleSelectAll=()=>setSelected(p=>p.size===filtered.length?new Set():new Set(filtered.map(d=>d.id)));
+  const exitSelectMode=()=>{setSelectMode(false);setSelected(new Set());};
+  const removeSelected=async()=>{
+    if(selected.size===0)return;
+    if(!window.confirm(`Xóa ${selected.size} văn bản đã chọn?`))return;
+    const ids=[...selected];
+    const{error}=await supabase.from("documents").delete().in("id",ids);
+    if(error){showToast&&showToast("Lỗi: "+(error.message||""),"error");return;}
+    setItems(p=>p.filter(x=>!selected.has(x.id)));
+    showToast&&showToast(`Đã xóa ${ids.length} văn bản`);
+    exitSelectMode();
+  };
+
   const filtered=useMemo(()=>items.filter(d=>{if(filterType==="den"&&!isIncoming(d))return false;if(filterType==="di"&&isIncoming(d))return false;if(search){const q=search.toLowerCase();if(!d.doc_number.toLowerCase().includes(q)&&!d.title.toLowerCase().includes(q)&&!(d.sender||"").toLowerCase().includes(q))return false;}return true;}),[items,filterType,search]);
   const counts=useMemo(()=>({den:items.filter(isIncoming).length,di:items.filter(d=>!isIncoming(d)).length}),[items]);
 
@@ -40,25 +56,35 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
     </div>
     <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Tìm theo số văn bản, trích yếu, nơi gửi..." style={{...inp,flex:1,minWidth:160}}/>
+      {canManage&&!selectMode&&<button onClick={()=>setSelectMode(true)} style={{background:"#f9fafb",color:"#374151",border:"1px solid #d1d5db",borderRadius:8,padding:"8px 16px",fontSize:13,cursor:"pointer",fontWeight:500}}>☑️ Chọn</button>}
       {canManage&&<button onClick={openCreate} style={{background:"#4f46e5",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:13,cursor:"pointer",fontWeight:500}}>+ Thêm văn bản</button>}
     </div>
+    {selectMode&&<div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"#eef2ff",border:"1px solid #c7d2fe",borderRadius:8,padding:"8px 12px"}}>
+      <label style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={filtered.length>0&&selected.size===filtered.length} onChange={toggleSelectAll}/>Chọn tất cả ({filtered.length})</label>
+      <span style={{fontSize:13,color:"#4338ca",fontWeight:500}}>Đã chọn: {selected.size}</span>
+      <button onClick={removeSelected} disabled={selected.size===0} style={{marginLeft:"auto",background:selected.size===0?"#f3f4f6":"#fee2e2",color:selected.size===0?"#9ca3af":"#dc2626",border:"1px solid "+(selected.size===0?"#e5e7eb":"#fca5a5"),borderRadius:8,padding:"6px 14px",fontSize:13,cursor:selected.size===0?"default":"pointer",fontWeight:500}}>🗑️ Xóa đã chọn</button>
+      <button onClick={exitSelectMode} style={{background:"#fff",border:"1px solid #d1d5db",borderRadius:8,padding:"6px 14px",fontSize:13,cursor:"pointer"}}>Hủy</button>
+    </div>}
     {loading?<div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>Đang tải…</div>:filtered.length===0?<div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:40,textAlign:"center",color:"#9ca3af"}}><div style={{fontSize:40,marginBottom:8}}>📁</div><div style={{fontSize:14}}>Chưa có văn bản nào</div></div>:
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {filtered.map(d=>{const T=isIncoming(d)?TYPES.den:TYPES.di;const linkedTask=d.task_id?(tasks||[]).find(t=>t.id===d.task_id):null;const atts=d.attachments?(typeof d.attachments==="string"?JSON.parse(d.attachments||"[]"):d.attachments):[];return(
-        <div key={d.id} style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",borderLeft:"4px solid "+T.col,padding:14}}>
+        <div key={d.id} style={{background:"#fff",borderRadius:10,border:"1px solid "+(selectMode&&selected.has(d.id)?"#6366f1":"#e5e7eb"),borderLeft:"4px solid "+T.col,padding:14,display:"flex",gap:10}}>
+          {selectMode&&<input type="checkbox" checked={selected.has(d.id)} onChange={()=>toggleSelect(d.id)} style={{marginTop:3,flexShrink:0,width:16,height:16,cursor:"pointer"}}/>}
+          <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6,flexWrap:"wrap"}}>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
               <span style={{fontSize:11,background:T.bg,color:T.col,padding:"2px 8px",borderRadius:8,fontWeight:600}}>{T.icon} {T.label}</span>
               <span style={{fontWeight:700,fontSize:13}}>{d.doc_number}</span>
               <span style={{fontSize:11,color:"#9ca3af"}}>{d.doc_date}</span>
             </div>
-            {canManage&&<div style={{display:"flex",gap:6}}>{isIncoming(d)&&!d.task_id&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}<button onClick={()=>openEdit(d)} style={{padding:"3px 9px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11}}>✏️ Sửa</button><button onClick={()=>remove(d.id)} style={{padding:"3px 9px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:11,color:"#dc2626"}}>🗑️</button></div>}
+            {canManage&&!selectMode&&<div style={{display:"flex",gap:6}}>{isIncoming(d)&&!d.task_id&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}<button onClick={()=>openEdit(d)} style={{padding:"3px 9px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11}}>✏️ Sửa</button><button onClick={()=>remove(d.id)} style={{padding:"3px 9px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:11,color:"#dc2626"}}>🗑️</button></div>}
           </div>
           <div style={{fontSize:14,fontWeight:500,marginBottom:4}}>{d.title}</div>
           {d.sender&&<div style={{fontSize:12,color:"#6b7280",marginBottom:4}}>{isIncoming(d)?"Nơi gửi":"Nơi nhận"}: {d.sender}</div>}
           {d.note&&<div style={{fontSize:12,color:"#475569",fontStyle:"italic",marginBottom:4}}>📝 {d.note}</div>}
           {atts.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{atts.map((f,fi)=><a key={fi} href={getPreviewUrl(f.url,f.name)} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
           {linkedTask&&<div onClick={()=>onOpenTask&&onOpenTask(linkedTask)} style={{marginTop:8,padding:"6px 10px",background:"#f8fafc",borderRadius:8,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:6,color:"#4338ca"}}>🔗 Liên kết nhiệm vụ: <b>{linkedTask.title}</b></div>}
+          </div>
         </div>);})}
     </div>}
 
