@@ -6,8 +6,15 @@
 ╚══════════════════════════════════════════════════════════╝
 
 Cách dùng:
-  python sync_vanban.py              # Chạy thật
-  python sync_vanban.py --dry-run    # Chỉ xem kết quả, không thay đổi
+  python sync_vanban.py                 # Chạy thật (kèm tải file đính kèm)
+  python sync_vanban.py --dry-run       # Chỉ xem kết quả, không thay đổi (vẫn thử dò file đính kèm để kiểm tra)
+  python sync_vanban.py --no-attachments  # Bỏ qua bước mở chi tiết/tải file đính kèm (nhanh hơn)
+
+Lưu ý về file đính kèm: mỗi văn bản MỚI (chưa có trong qlcv-app) sẽ được gọi link
+"Tải file" có sẵn ngay trên bảng danh sách (nút 📎 trong iOffice) để lấy toàn bộ file
+đính kèm, rồi upload lên cùng kho lưu trữ (Storage bucket "attachments") mà ứng dụng
+đang dùng. File tạm được lưu ở thư mục hệ thống (qlcv_sync_vanban_attachments) và tự
+xoá sau khi upload xong.
 
 Cài đặt:
   pip install playwright requests
@@ -29,12 +36,20 @@ Cài đặt:
 """
 
 import asyncio
+import os
 import sys
 import json
+import tempfile
 from datetime import datetime
 
 import requests
 from playwright.async_api import async_playwright
+
+# Thư mục tạm để lưu file đính kèm đã tải — cần tự tạo vì Playwright sẽ XOÁ file tạm
+# của riêng nó ngay khi đóng trình duyệt (browser.close()), trong khi bước upload lên
+# Supabase Storage chỉ chạy SAU khi đã đóng trình duyệt.
+ATTACHMENT_TMP_DIR = os.path.join(tempfile.gettempdir(), "qlcv_sync_vanban_attachments")
+os.makedirs(ATTACHMENT_TMP_DIR, exist_ok=True)
 
 
 # ════════════════════════════════════════════════════════════
@@ -242,6 +257,8 @@ class IOfficeExtractor:
             await asyncio.sleep(3)
 
         # Đọc tất cả rows, dùng textContent, lọc theo cột STT (index 2)
+        # Đồng thời lấy href của link "Tải file" (a.btnDownloadAllFileVBDen) ngay trong mỗi dòng —
+        # đây là link javascript:allFileDownload(id) tải toàn bộ file đính kèm của văn bản đó.
         async def read_rows():
             return await frame.evaluate("""
                 () => {
@@ -253,9 +270,12 @@ class IOfficeExtractor:
                     }
                     if (!tbl) return [];
                     return Array.from(tbl.querySelectorAll('tr'))
-                        .map(r => Array.from(r.querySelectorAll('td'))
-                                       .map(c => (c.textContent||'').trim()))
-                        .filter(r => r.length > 10 && /^\\d+$/.test((r[2]||'').trim()));
+                        .map(r => {
+                            const cells = Array.from(r.querySelectorAll('td')).map(c => (c.textContent||'').trim());
+                            const dl = r.querySelector('a.btnDownloadAllFileVBDen');
+                            return { cells, download_href: dl ? dl.getAttribute('href') : null };
+                        })
+                        .filter(r => r.cells.length > 10 && /^\\d+$/.test((r.cells[2]||'').trim()));
                 }
             """)
 
@@ -265,8 +285,9 @@ class IOfficeExtractor:
         # Nếu DataTables không mở rộng được, phân trang thủ công
         if total_in_page > 0:
             for row in rows:
-                doc = self._parse_row(row)
+                doc = self._parse_row(row["cells"])
                 if doc:
+                    doc["_download_href"] = row.get("download_href")
                     all_docs.append(doc)
 
             # Phân trang: click từng số trang bằng Playwright locator
@@ -301,8 +322,9 @@ class IOfficeExtractor:
                 page_num = next_page
                 print(f"     → Trang {page_num}: {len(more_rows)} dòng")
                 for row in more_rows:
-                    doc = self._parse_row(row)
+                    doc = self._parse_row(row["cells"])
                     if doc:
+                        doc["_download_href"] = row.get("download_href")
                         all_docs.append(doc)
 
         return all_docs
@@ -333,7 +355,30 @@ class IOfficeExtractor:
             "loai_van_ban":    safe(12),
         }
 
-    async def get_all_vanban_den(self) -> list[dict]:
+    async def download_all_files(self, download_href: str, so_ky_hieu: str) -> list[dict]:
+        """Gọi thẳng hàm JS của link 'Tải file' (href dạng javascript:allFileDownload(id))
+        để kích hoạt tải toàn bộ file đính kèm của văn bản, không cần click/mở trang chi tiết.
+        Trả về [{name, path}] (file tạm cục bộ, có thể là 1 file lẻ hoặc 1 file .zip gộp nhiều file)."""
+        if not download_href:
+            return []
+        js_call = download_href.replace("javascript:", "", 1)
+        try:
+            async with self.page.expect_download(timeout=15000) as dl_info:
+                await self.page.evaluate(js_call)
+            download = await dl_info.value
+            name = download.suggested_filename or f"{so_ky_hieu.replace('/', '_')}.zip"
+            # Lưu ra thư mục tạm CỐ ĐỊNH (không dùng download.path()) vì Playwright sẽ xoá
+            # file tạm của nó ngay khi đóng trình duyệt, trước cả lúc mình kịp upload lên Supabase.
+            dest = os.path.join(ATTACHMENT_TMP_DIR, f"{int(datetime.now().timestamp()*1000)}_{name}")
+            await download.save_as(dest)
+            print(f"       📎 Tải được: {name}")
+            return [{"name": name, "path": dest}]
+        except Exception as e:
+            print(f"       ⚠ Không tải được file đính kèm cho {so_ky_hieu}: {e}")
+            return []
+
+    async def get_all_vanban_den(self, existing: set[str], missing_attachments: set[str] = frozenset(),
+                                  fetch_attachments: bool = True) -> list[dict]:
         all_docs = []
         for section in CONFIG["SECTIONS"]:
             print(f"\n📂 Section: {section}")
@@ -342,6 +387,17 @@ class IOfficeExtractor:
                 continue
             docs = await self.read_table_all_pages()
             print(f"   → Tìm thấy {len(docs)} văn bản")
+
+            if fetch_attachments:
+                for doc in docs:
+                    is_new = doc["so_ky_hieu"] not in existing
+                    needs_backfill = doc["so_ky_hieu"] in missing_attachments
+                    if not is_new and not needs_backfill:
+                        continue  # đã có sẵn và đã có file rồi, không cần tải lại
+                    if not doc.get("_download_href"):
+                        continue  # văn bản không có link tải file (không có đính kèm)
+                    doc["_attachment_files"] = await self.download_all_files(doc["_download_href"], doc["so_ky_hieu"])
+
             all_docs.extend(docs)
         return all_docs
 
@@ -421,6 +477,76 @@ class QLCVInserter:
             return set()
         return {d["doc_number"] for d in resp.json() if d.get("doc_number")}
 
+    def get_existing_missing_attachments(self) -> set[str]:
+        """Số hiệu văn bản đã có trong qlcv-app nhưng CHƯA có file đính kèm (attachments rỗng/null) —
+        dùng để bổ sung lại file cho các văn bản lỡ đồng bộ trước khi tính năng tải file được sửa đúng."""
+        resp = requests.get(
+            f"{self.base}/rest/v1/documents?select=doc_number,attachments&type=eq.incoming",
+            headers=self.read_headers,
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return set()
+        out = set()
+        for d in resp.json():
+            atts = d.get("attachments")
+            if not d.get("doc_number"):
+                continue
+            if not atts or atts in ("[]", "null"):
+                out.add(d["doc_number"])
+        return out
+
+    def update_attachments(self, doc_number: str, attachments: list[dict]) -> tuple[bool, str]:
+        """Vá lại cột attachments cho 1 văn bản ĐÃ tồn tại (không tạo dòng mới)."""
+        resp = requests.patch(
+            f"{self.base}/rest/v1/documents?type=eq.incoming&doc_number=eq.{requests.utils.quote(doc_number)}",
+            headers=self.write_headers,
+            json={"attachments": json.dumps(attachments)},
+            timeout=15,
+        )
+        if resp.status_code in (200, 204):
+            return True, "OK"
+        return False, f"HTTP {resp.status_code}: {resp.text[:120]}"
+
+    @staticmethod
+    def _safe_storage_key(filename: str) -> str:
+        """Supabase Storage từ chối key có dấu tiếng Việt/khoảng trắng/dấu phẩy/ngoặc
+        (lỗi 'InvalidKey') — chuẩn hoá lại key lưu trữ, tên gốc vẫn giữ nguyên để hiển thị."""
+        import re
+        import unicodedata
+        base, ext = os.path.splitext(os.path.basename(filename))
+        base = unicodedata.normalize("NFD", base)
+        base = "".join(c for c in base if unicodedata.category(c) != "Mn")
+        base = base.replace("đ", "d").replace("Đ", "D")
+        base = re.sub(r"[^A-Za-z0-9_-]+", "_", base).strip("_") or "file"
+        ext = re.sub(r"[^A-Za-z0-9.]+", "", ext)
+        return f"{base}{ext}"
+
+    def upload_attachment(self, local_path: str, filename: str) -> dict | None:
+        """Upload 1 file lên Supabase Storage bucket 'attachments' (cùng bucket app đang dùng),
+        trả về {name, url} để gắn vào cột attachments của bảng documents."""
+        safe_name = f"{int(datetime.now().timestamp()*1000)}_{self._safe_storage_key(filename)}"
+        try:
+            with open(local_path, "rb") as f:
+                data = f.read()
+        except OSError as e:
+            print(f"       ⚠ Không đọc được file tạm '{local_path}': {e}")
+            return None
+        resp = requests.post(
+            f"{self.base}/storage/v1/object/attachments/{safe_name}",
+            headers={
+                "apikey": CONFIG["SUPABASE_SERVICE_KEY"],
+                "Authorization": f"Bearer {CONFIG['SUPABASE_SERVICE_KEY']}",
+                "Content-Type": "application/octet-stream",
+            },
+            data=data,
+            timeout=30,
+        )
+        if resp.status_code in (200, 201):
+            return {"name": filename, "url": f"{self.base}/storage/v1/object/public/attachments/{safe_name}"}
+        print(f"       ⚠ Upload file '{filename}' lỗi: HTTP {resp.status_code}: {resp.text[:120]}")
+        return None
+
     @staticmethod
     def _parse_date(date_str: str) -> str | None:
         if not date_str:
@@ -438,7 +564,7 @@ class QLCVInserter:
             return False, "Đã tồn tại"
 
         # Cột thực tế trong bảng documents:
-        # id, doc_number, type, title, sender, doc_date, note, created_by
+        # id, doc_number, type, title, sender, doc_date, note, created_by, attachments
         note_parts = []
         if doc.get("do_khan"):
             note_parts.append(f"Độ khẩn: {doc['do_khan']}")
@@ -450,6 +576,19 @@ class QLCVInserter:
         # Sinh ID theo định dạng của qlcv-app: "d" + timestamp milliseconds
         doc_id = f"d{int(datetime.now().timestamp() * 1000)}"
 
+        # Upload file đính kèm (nếu có tải được từ trang chi tiết iOffice) lên Storage,
+        # rồi gắn vào cột attachments dạng JSON [{name,url}] giống Documents.jsx đang dùng
+        attachments = []
+        if not dry_run:
+            for f in doc.get("_attachment_files", []):
+                up = self.upload_attachment(f["path"], f["name"])
+                if up:
+                    attachments.append(up)
+                try:
+                    os.remove(f["path"])  # dọn file tạm sau khi đã upload (hoặc thử upload xong)
+                except OSError:
+                    pass
+
         payload = {
             "id":          doc_id,
             "doc_number":  so_hieu,
@@ -460,12 +599,15 @@ class QLCVInserter:
             "note":        " | ".join(note_parts) if note_parts else None,
             "type":        "incoming",
             "created_by":  self.user_id,
+            "attachments": json.dumps(attachments) if attachments else None,
         }
         # Xóa các trường None
         payload = {k: v for k, v in payload.items() if v is not None}
 
         if dry_run:
-            print(f"     [DRY RUN] Sẽ thêm: {so_hieu} — {doc['trich_yeu'][:55]}")
+            n_files = len(doc.get("_attachment_files", []))
+            extra = f" (+{n_files} file đính kèm)" if n_files else ""
+            print(f"     [DRY RUN] Sẽ thêm: {so_hieu} — {doc['trich_yeu'][:55]}{extra}")
             return True, "dry_run"
 
         resp = requests.post(
@@ -514,7 +656,9 @@ async def main():
     # ── Bước 2: Lấy danh sách văn bản đã có ─────────────────
     print("[2/4] Lấy danh sách văn bản đã có trong qlcv-app...")
     existing = qlcv.get_existing_doc_numbers()
-    print(f"     → Đã có: {len(existing)} văn bản")
+    missing_attachments = qlcv.get_existing_missing_attachments()
+    print(f"     → Đã có: {len(existing)} văn bản"
+          f"{f' ({len(missing_attachments)} văn bản đang thiếu file đính kèm, sẽ bổ sung lại)' if missing_attachments else ''}")
 
     # ── Bước 3: Lấy dữ liệu từ iOffice ─────────────────────
     print("\n[3/4] Lấy văn bản đến từ iOffice...")
@@ -524,7 +668,9 @@ async def main():
         extractor = IOfficeExtractor(page)
 
         await extractor.login()
-        all_docs = await extractor.get_all_vanban_den()
+        all_docs = await extractor.get_all_vanban_den(
+            existing, missing_attachments, fetch_attachments="--no-attachments" not in sys.argv
+        )
         await browser.close()
 
     # Loại trùng theo số hiệu
@@ -534,25 +680,55 @@ async def main():
     unique_docs = list(unique.values())
     print(f"\n     → Tổng văn bản duy nhất: {len(unique_docs)}")
 
-    # ── Bước 4: Chèn vào qlcv-app ───────────────────────────
+    # ── Bước 4: Chèn vào qlcv-app (hoặc vá lại attachments cho văn bản đã có) ─
     print(f"\n[4/4] Đồng bộ vào qlcv-app{'  (DRY RUN)' if dry_run else ''}...")
-    added = skipped = errors = 0
+    added = skipped = errors = patched = 0
     for doc in unique_docs:
+        so_hieu = doc["so_ky_hieu"]
+        if so_hieu in existing:
+            # Văn bản đã có sẵn — chỉ vá lại attachments nếu vừa tải bổ sung được file
+            files = doc.get("_attachment_files", [])
+            if not files:
+                skipped += 1
+                continue
+            if dry_run:
+                print(f"     [DRY RUN] Sẽ vá attachments cho: {so_hieu} (+{len(files)} file)")
+                patched += 1
+                continue
+            uploaded = []
+            for f in files:
+                up = qlcv.upload_attachment(f["path"], f["name"])
+                if up:
+                    uploaded.append(up)
+                try:
+                    os.remove(f["path"])
+                except OSError:
+                    pass
+            if uploaded:
+                ok, msg = qlcv.update_attachments(so_hieu, uploaded)
+                if ok:
+                    patched += 1
+                    print(f"   🔧 Đã vá file đính kèm: {so_hieu}")
+                else:
+                    errors += 1
+                    print(f"   ✗ {so_hieu} — LỖI vá attachments: {msg}")
+            continue
+
         ok, msg = qlcv.insert(doc, existing, dry_run)
         if ok:
             added += 1
             if not dry_run:
-                print(f"   ✓ {doc['so_ky_hieu']} — {doc['trich_yeu'][:55]}")
-        elif msg == "Đã tồn tại":
-            skipped += 1
+                print(f"   ✓ {so_hieu} — {doc['trich_yeu'][:55]}")
         else:
             errors += 1
-            print(f"   ✗ {doc['so_ky_hieu']} — LỖI: {msg}")
+            print(f"   ✗ {so_hieu} — LỖI: {msg}")
 
     # ── Tổng kết ─────────────────────────────────────────────
     print("\n" + "=" * 60)
     print(f"  ✓ Đã thêm mới : {added} văn bản")
-    print(f"  - Bỏ qua      : {skipped} (đã tồn tại)")
+    if patched:
+        print(f"  🔧 Đã vá file đính kèm cho : {patched} văn bản đã tồn tại")
+    print(f"  - Bỏ qua      : {skipped} (đã tồn tại, không cần vá)")
     if errors:
         print(f"  ✗ Lỗi         : {errors} văn bản")
     print("=" * 60)

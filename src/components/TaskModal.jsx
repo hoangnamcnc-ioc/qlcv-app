@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { DEPT_COLOR, RATING, LATE_REASONS } from "../constants";
-import { parseJSON, getFileIcon } from "../helpers";
+import { parseJSON, getFileIcon, getPreviewUrl } from "../helpers";
 import { ProgressBar, RatingBadge, Chip, PChip } from "./ui";
 
 const IMG_EXT = ["jpg", "jpeg", "png", "gif", "webp"];
@@ -190,7 +190,7 @@ export default function TaskModal({
                       <span style={{ fontSize: 11, color: "#6b7280", flexShrink: 0 }}>👁️ Xem trước</span>
                     </div>
                   ) : (
-                    <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#f1f5f9", borderRadius: 8, textDecoration: "none", color: "#1e40af", fontSize: 13 }}>
+                    <a key={i} href={getPreviewUrl(att.url, att.name)} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#f1f5f9", borderRadius: 8, textDecoration: "none", color: "#1e40af", fontSize: 13 }}>
                       <span style={{ fontSize: 18 }}>{att.url && att.url.startsWith("http") && !att.url.includes("supabase") ? "🔗" : getFileIcon(att.name)}</span>
                       <span style={{ flex: 1, whiteSpace: "normal", wordBreak: "break-word" }}>{att.name}</span>
                       <span style={{ fontSize: 11, color: "#6b7280", flexShrink: 0 }}>{att.url && att.url.startsWith("http") && !att.url.includes("supabase") ? "↗" : "⬇"}</span>
@@ -230,7 +230,7 @@ export default function TaskModal({
                       <span style={{ fontSize: 11, color: "#9ca3af" }}>{timeStr}</span>
                     </div>
                     {c.content && <div style={{ fontSize: 13 }}>{c.content}</div>}
-                    {files.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>{files.map((f, i) => <a key={i} href={f.url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid #d1d5db", borderRadius: 6, padding: "3px 8px", fontSize: 11, color: "#4f46e5", textDecoration: "none" }}>📎 {f.name}</a>)}</div>}
+                    {files.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>{files.map((f, i) => <a key={i} href={getPreviewUrl(f.url, f.name)} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid #d1d5db", borderRadius: 6, padding: "3px 8px", fontSize: 11, color: "#4f46e5", textDecoration: "none" }}>📎 {f.name}</a>)}</div>}
                   </div>
                 );
               })}

@@ -36,3 +36,11 @@ export const sanitizeFileName = n => n
   .replace(/[đĐ]/g, m => m === "đ" ? "d" : "D")      // NFD không tách được đ/Đ
   .replace(/[^a-zA-Z0-9._-]/g, "_")                  // ký tự lạ khác -> _
   .replace(/_+/g, "_");
+// Word/Excel/PowerPoint trình duyệt không tự hiển thị được, phải mở qua Google Docs Viewer
+// mới xem trực tiếp trên tab mới thay vì bắt buộc tải về; PDF/ảnh trình duyệt đã tự hiển thị sẵn.
+// .zip/.rar/khác thì không có cách xem trước, vẫn phải tải về.
+export const getPreviewUrl = (url, name = "") => {
+  const ext = name.split(".").pop().toLowerCase();
+  if (["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext)) return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+  return url;
+};

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { getPreviewUrl } from "./helpers";
 
 const DEPTS = ["HCTH","QL-KTDL","HT-NTS"];
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
@@ -199,7 +200,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
                   {s.status==="pending_approval"&&s.requested_by&&<div style={{fontSize:12,color:"#92400e",marginTop:3,background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>📨 {s.requested_by} yêu cầu duyệt · {s.requested_at}</div>}
                   {s.ext_proposed&&<div style={{fontSize:12,color:"#1d4ed8",marginTop:3,background:"#eff6ff",padding:"4px 10px",borderRadius:6}}>📅 {s.ext_requested_by} đề xuất gia hạn đến {s.ext_proposed}{s.ext_reason?` — "${s.ext_reason}"`:""}</div>}
                   {s.status==="done"&&s.quality_note&&<div style={{fontSize:12,color:"#15803d",marginTop:3,background:"#f0fdf4",padding:"4px 10px",borderRadius:6}}>✅ Đánh giá: {s.quality_note}{s.approved_by&&<span style={{opacity:0.7}}> — duyệt bởi {s.approved_by} · {s.approved_at}</span>}</div>}
-                  {(s.attachments||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{(s.attachments||[]).map((f,fi)=><a key={fi} href={f.url} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
+                  {(s.attachments||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{(s.attachments||[]).map((f,fi)=><a key={fi} href={getPreviewUrl(f.url,f.name)} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flexShrink:0}}>
                   <span style={{fontSize:12,background:INV_STEP_STATUS[s.status]?.bg,color:INV_STEP_STATUS[s.status]?.col,padding:"3px 8px",borderRadius:8,fontWeight:600}}>{INV_STEP_STATUS[s.status]?.label}</span>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabase";
+import { getPreviewUrl } from "./helpers";
 
 const nowStr=()=>new Date().toLocaleString("vi-VN");
 const todayStr=new Date().toISOString().split("T")[0];
@@ -56,7 +57,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
           <div style={{fontSize:14,fontWeight:500,marginBottom:4}}>{d.title}</div>
           {d.sender&&<div style={{fontSize:12,color:"#6b7280",marginBottom:4}}>{isIncoming(d)?"Nơi gửi":"Nơi nhận"}: {d.sender}</div>}
           {d.note&&<div style={{fontSize:12,color:"#475569",fontStyle:"italic",marginBottom:4}}>📝 {d.note}</div>}
-          {atts.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{atts.map((f,fi)=><a key={fi} href={f.url} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
+          {atts.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{atts.map((f,fi)=><a key={fi} href={getPreviewUrl(f.url,f.name)} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
           {linkedTask&&<div onClick={()=>onOpenTask&&onOpenTask(linkedTask)} style={{marginTop:8,padding:"6px 10px",background:"#f8fafc",borderRadius:8,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:6,color:"#4338ca"}}>🔗 Liên kết nhiệm vụ: <b>{linkedTask.title}</b></div>}
         </div>);})}
     </div>}
