@@ -24,6 +24,9 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
   const isTop = currentUser?.role==="admin" || currentUser?.is_top_director===true;
   const canForwardRole = isTop || currentUser?.role==="director"; // GĐ + PGĐ được chuyển tiếp; TP/PTP chỉ được giao việc
   const canSeeIncoming = d => { if (!isIncoming(d)) return true; if (isTop) return true; if (d.created_by===currentUser?.full_name) return true; return parseJSON(d.forwards,[]).some(f=>f.to_id===currentUser?.id); };
+  // Văn bản đến: chỉ GĐ/PGĐ (canForwardRole) mới Sửa/Xóa/Chuyển được — TP/PTP chỉ Tạo nhiệm vụ.
+  // Văn bản đi giữ nguyên như cũ (mọi người trong canManage đều Sửa/Xóa được).
+  const canManageDoc = d => !isIncoming(d) || canForwardRole;
   // Người nhận hợp lệ khi chuyển tiếp: GĐ chuyển được cho PGĐ (director khác) + TP/PTP mọi phòng;
   // PGĐ chỉ chuyển được cho TP/PTP (không chuyển ngang cho PGĐ khác, không chuyển ngược lên GĐ).
   const forwardTargets = useMemo(()=>{
@@ -59,15 +62,19 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
   const remove=async id=>{if(!window.confirm("Xóa văn bản này?"))return;await supabase.from("documents").delete().eq("id",id);setItems(p=>p.filter(x=>x.id!==id));};
 
   const toggleSelect=id=>setSelected(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
-  const toggleSelectAll=()=>setSelected(p=>p.size===filtered.length?new Set():new Set(filtered.map(d=>d.id)));
+  // Chỉ chọn/xóa hàng loạt được các văn bản mình THỰC SỰ có quyền xóa (canManageDoc) — tránh TP/PTP
+  // lách qua chế độ chọn nhiều để xóa văn bản đến mà nút Xóa từng dòng đã ẩn với họ.
+  const selectableIds=()=>filtered.filter(canManageDoc).map(d=>d.id);
+  const toggleSelectAll=()=>setSelected(p=>{const ids=selectableIds();return p.size===ids.length?new Set():new Set(ids);});
   const exitSelectMode=()=>{setSelectMode(false);setSelected(new Set());};
   const removeSelected=async()=>{
-    if(selected.size===0)return;
-    if(!window.confirm(`Xóa ${selected.size} văn bản đã chọn?`))return;
-    const ids=[...selected];
+    const allowed=new Set(selectableIds());
+    const ids=[...selected].filter(id=>allowed.has(id));
+    if(ids.length===0)return;
+    if(!window.confirm(`Xóa ${ids.length} văn bản đã chọn?`))return;
     const{error}=await supabase.from("documents").delete().in("id",ids);
     if(error){showToast&&showToast("Lỗi: "+(error.message||""),"error");return;}
-    setItems(p=>p.filter(x=>!selected.has(x.id)));
+    setItems(p=>p.filter(x=>!ids.includes(x.id)));
     showToast&&showToast(`Đã xóa ${ids.length} văn bản`);
     exitSelectMode();
   };
@@ -87,7 +94,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
       {canManage&&<button onClick={openCreate} style={{background:"#4f46e5",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:13,cursor:"pointer",fontWeight:500}}>+ Thêm văn bản</button>}
     </div>
     {selectMode&&<div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"#eef2ff",border:"1px solid #c7d2fe",borderRadius:8,padding:"8px 12px"}}>
-      <label style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={filtered.length>0&&selected.size===filtered.length} onChange={toggleSelectAll}/>Chọn tất cả ({filtered.length})</label>
+      <label style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={selectableIds().length>0&&selected.size===selectableIds().length} onChange={toggleSelectAll}/>Chọn tất cả ({selectableIds().length})</label>
       <span style={{fontSize:13,color:"#4338ca",fontWeight:500}}>Đã chọn: {selected.size}</span>
       <button onClick={removeSelected} disabled={selected.size===0} style={{marginLeft:"auto",background:selected.size===0?"#f3f4f6":"#fee2e2",color:selected.size===0?"#9ca3af":"#dc2626",border:"1px solid "+(selected.size===0?"#e5e7eb":"#fca5a5"),borderRadius:8,padding:"6px 14px",fontSize:13,cursor:selected.size===0?"default":"pointer",fontWeight:500}}>🗑️ Xóa đã chọn</button>
       <button onClick={exitSelectMode} style={{background:"#fff",border:"1px solid #d1d5db",borderRadius:8,padding:"6px 14px",fontSize:13,cursor:"pointer"}}>Hủy</button>
@@ -96,7 +103,8 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {filtered.map(d=>{const T=isIncoming(d)?TYPES.den:TYPES.di;const linkedTask=d.task_id?(tasks||[]).find(t=>t.id===d.task_id):null;const atts=d.attachments?(typeof d.attachments==="string"?JSON.parse(d.attachments||"[]"):d.attachments):[];return(
         <div key={d.id} style={{background:"#fff",borderRadius:10,border:"1px solid "+(selectMode&&selected.has(d.id)?"#6366f1":"#e5e7eb"),borderLeft:"4px solid "+T.col,padding:14,display:"flex",gap:10}}>
-          {selectMode&&<input type="checkbox" checked={selected.has(d.id)} onChange={()=>toggleSelect(d.id)} style={{marginTop:3,flexShrink:0,width:16,height:16,cursor:"pointer"}}/>}
+          {selectMode&&canManageDoc(d)&&<input type="checkbox" checked={selected.has(d.id)} onChange={()=>toggleSelect(d.id)} style={{marginTop:3,flexShrink:0,width:16,height:16,cursor:"pointer"}}/>}
+          {selectMode&&!canManageDoc(d)&&<span style={{width:16,flexShrink:0}}/>}
           <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6,flexWrap:"wrap"}}>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
