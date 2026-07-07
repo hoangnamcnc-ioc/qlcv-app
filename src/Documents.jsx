@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabase";
-import { getPreviewUrl } from "./helpers";
+import { getPreviewUrl, parseJSON } from "./helpers";
 
 const nowStr=()=>new Date().toLocaleString("vi-VN");
 const todayStr=new Date().toISOString().split("T")[0];
 const TYPES={den:{label:"Văn bản đến",icon:"📥",bg:"#dbeafe",col:"#1d4ed8"},di:{label:"Văn bản đi",icon:"📤",bg:"#dcfce7",col:"#15803d"}};
 const isIncoming=d=>d.type==="den"||d.type==="incoming";
 
-export default function Documents({ currentUser, isMobile, inp, showToast, canManage, tasks, getTaskTitle, onOpenTask, onCreateTask, uploadFiles, uploadingFiles }){
+export default function Documents({ currentUser, isMobile, inp, showToast, canManage, tasks, users, getTaskTitle, onOpenTask, onCreateTask, uploadFiles, uploadingFiles }){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
@@ -17,8 +17,35 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
   const [saving,setSaving]=useState(false);
   const [selectMode,setSelectMode]=useState(false);
   const [selected,setSelected]=useState(()=>new Set());
+  const [forwardModal,setForwardModal]=useState(null); // {doc, to_id, note}
 
-  useEffect(()=>{(async()=>{setLoading(true);try{const{data}=await supabase.from("documents").select("*").order("doc_date",{ascending:false});setItems(data||[]);}catch{}setLoading(false);})();},[]);
+  // Giám đốc (is_top_director) + Admin xem toàn bộ văn bản đến; còn lại chỉ thấy văn bản do chính mình
+  // tạo hoặc đã được chuyển tới mình (nằm trong lịch sử "forwards") — đúng luồng chuyển văn bản nội bộ.
+  const isTop = currentUser?.role==="admin" || currentUser?.is_top_director===true;
+  const canForwardRole = isTop || currentUser?.role==="director"; // GĐ + PGĐ được chuyển tiếp; TP/PTP chỉ được giao việc
+  const canSeeIncoming = d => { if (!isIncoming(d)) return true; if (isTop) return true; if (d.created_by===currentUser?.full_name) return true; return parseJSON(d.forwards,[]).some(f=>f.to_id===currentUser?.id); };
+  // Người nhận hợp lệ khi chuyển tiếp: GĐ chuyển được cho PGĐ (director khác) + TP/PTP mọi phòng;
+  // PGĐ chỉ chuyển được cho TP/PTP (không chuyển ngang cho PGĐ khác, không chuyển ngược lên GĐ).
+  const forwardTargets = useMemo(()=>{
+    if (!canForwardRole || !users) return [];
+    if (isTop) return users.filter(u=>u.id!==currentUser.id && ["director","manager","deputy_manager","manager_hcth"].includes(u.role));
+    return users.filter(u=>["manager","deputy_manager","manager_hcth"].includes(u.role));
+  },[users,currentUser,isTop,canForwardRole]);
+
+  useEffect(()=>{(async()=>{setLoading(true);try{const{data}=await supabase.from("documents").select("*").order("doc_date",{ascending:false});setItems((data||[]).filter(canSeeIncoming));}catch{}setLoading(false);})();},[]);
+
+  const openForward=d=>setForwardModal({doc:d,to_id:"",note:""});
+  const submitForward=async()=>{
+    const {doc,to_id,note}=forwardModal;
+    const target=(users||[]).find(u=>u.id===to_id);
+    if(!target){showToast&&showToast("Chọn người nhận","error");return;}
+    const chain=[...parseJSON(doc.forwards,[]),{to_id:target.id,to_name:target.full_name,to_role:target.role,by_id:currentUser.id,by_name:currentUser.full_name,at:nowStr(),note:note.trim()}];
+    const{error}=await supabase.from("documents").update({forwards:JSON.stringify(chain)}).eq("id",doc.id);
+    if(error){showToast&&showToast("Lỗi: "+(error.message||""),"error");return;}
+    setItems(p=>p.map(x=>x.id===doc.id?{...x,forwards:JSON.stringify(chain)}:x));
+    showToast&&showToast(`Đã chuyển văn bản cho ${target.full_name}`);
+    setForwardModal(null);
+  };
 
   const openCreate=()=>setForm({id:null,type:"den",doc_number:"",doc_date:todayStr,title:"",sender:"",task_id:"",note:"",attachments:[]});
   const openEdit=d=>setForm({...d,attachments:d.attachments||[]});
@@ -77,12 +104,18 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
               <span style={{fontWeight:700,fontSize:13}}>{d.doc_number}</span>
               <span style={{fontSize:11,color:"#9ca3af"}}>{d.doc_date}</span>
             </div>
-            {canManage&&!selectMode&&<div style={{display:"flex",gap:6}}>{isIncoming(d)&&!d.task_id&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}<button onClick={()=>openEdit(d)} style={{padding:"3px 9px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11}}>✏️ Sửa</button><button onClick={()=>remove(d.id)} style={{padding:"3px 9px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:11,color:"#dc2626"}}>🗑️</button></div>}
+            {canManage&&!selectMode&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {isIncoming(d)&&!d.task_id&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}
+              {isIncoming(d)&&canForwardRole&&forwardTargets.length>0&&<button onClick={()=>openForward(d)} style={{padding:"3px 9px",border:"1px solid #c4b5fd",borderRadius:6,background:"#f5f3ff",cursor:"pointer",fontSize:11,color:"#6d28d9",fontWeight:500}}>↪️ Chuyển</button>}
+              {(!isIncoming(d)||canForwardRole)&&<button onClick={()=>openEdit(d)} style={{padding:"3px 9px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11}}>✏️ Sửa</button>}
+              {(!isIncoming(d)||canForwardRole)&&<button onClick={()=>remove(d.id)} style={{padding:"3px 9px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:11,color:"#dc2626"}}>🗑️</button>}
+            </div>}
           </div>
           <div style={{fontSize:14,fontWeight:500,marginBottom:4}}>{d.title}</div>
           {d.sender&&<div style={{fontSize:12,color:"#6b7280",marginBottom:4}}>{isIncoming(d)?"Nơi gửi":"Nơi nhận"}: {d.sender}</div>}
           {d.note&&<div style={{fontSize:12,color:"#475569",fontStyle:"italic",marginBottom:4}}>📝 {d.note}</div>}
           {atts.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{atts.map((f,fi)=><a key={fi} href={getPreviewUrl(f.url,f.name)} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
+          {isIncoming(d)&&parseJSON(d.forwards,[]).length>0&&<div style={{fontSize:11,color:"#6d28d9",marginTop:6}}>↪️ Đã chuyển: {parseJSON(d.forwards,[]).map(f=>f.to_name).join(" → ")}</div>}
           {linkedTask&&<div onClick={()=>onOpenTask&&onOpenTask(linkedTask)} style={{marginTop:8,padding:"6px 10px",background:"#f8fafc",borderRadius:8,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:6,color:"#4338ca"}}>🔗 Liên kết nhiệm vụ: <b>{linkedTask.title}</b></div>}
           </div>
         </div>);})}
@@ -106,6 +139,21 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
         </div>
       </div>
       <div style={{padding:"0 18px 18px",display:"flex",gap:10,justifyContent:"flex-end"}}><button onClick={()=>setForm(null)} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={save} disabled={saving} style={{padding:"8px 16px",background:"#4f46e5",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>{saving?"Đang lưu…":"Lưu"}</button></div>
+    </div></div>)}
+
+    {forwardModal&&(<div onClick={()=>setForwardModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:isMobile?"12px 8px":16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:420,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+      <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>↪️ Chuyển văn bản</span><button onClick={()=>setForwardModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div>
+      <div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{fontSize:13,color:"#374151"}}><b>{forwardModal.doc.doc_number}</b> — {forwardModal.doc.title}</div>
+        <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Chuyển cho *</label>
+          <select value={forwardModal.to_id} onChange={e=>setForwardModal(f=>({...f,to_id:e.target.value}))} style={inp}>
+            <option value="">— Chọn người nhận —</option>
+            {forwardTargets.map(u=><option key={u.id} value={u.id}>{u.full_name} ({u.role==="director"?"Phó Giám đốc":u.role==="manager_hcth"?"TP.HCTH":u.role==="manager"?"Trưởng phòng":"Phó trưởng phòng"})</option>)}
+          </select>
+        </div>
+        <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Ghi chú chỉ đạo (tùy chọn)</label><textarea value={forwardModal.note} onChange={e=>setForwardModal(f=>({...f,note:e.target.value}))} rows={2} style={{...inp,resize:"vertical"}}/></div>
+      </div>
+      <div style={{padding:"0 18px 18px",display:"flex",gap:10,justifyContent:"flex-end"}}><button onClick={()=>setForwardModal(null)} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={submitForward} style={{padding:"8px 16px",background:"#6d28d9",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Chuyển</button></div>
     </div></div>)}
   </div>);
 }
