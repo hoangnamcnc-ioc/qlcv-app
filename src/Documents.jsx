@@ -24,9 +24,10 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
   const isTop = currentUser?.role==="admin" || currentUser?.is_top_director===true;
   const canForwardRole = isTop || currentUser?.role==="director"; // GĐ + PGĐ được chuyển tiếp; TP/PTP chỉ được giao việc
   const canSeeIncoming = d => { if (!isIncoming(d)) return true; if (isTop) return true; if (d.created_by===currentUser?.full_name) return true; return parseJSON(d.forwards,[]).some(f=>f.to_id===currentUser?.id); };
-  // Văn bản đến: chỉ GĐ/PGĐ (canForwardRole) mới Sửa/Xóa/Chuyển được — TP/PTP chỉ Tạo nhiệm vụ.
-  // Văn bản đi giữ nguyên như cũ (mọi người trong canManage đều Sửa/Xóa được).
-  const canManageDoc = d => !isIncoming(d) || canForwardRole;
+  // Sửa/Xóa văn bản (kể cả văn bản đến): giữ nguyên như trước — ai canManage cũng xóa được (kể cả
+  // TP/PTP), để dọn bớt văn bản đã giao xong nhiệm vụ, tránh chiếm dung lượng. Chỉ riêng "Chuyển" mới
+  // giới hạn theo canForwardRole (GĐ/PGĐ) — TP/PTP không chuyển tiếp được, chỉ tạo nhiệm vụ.
+  const canManageDoc = () => true;
   // Người nhận hợp lệ khi chuyển tiếp: GĐ chuyển được cho PGĐ (director khác) + TP/PTP mọi phòng;
   // PGĐ chỉ chuyển được cho TP/PTP (không chuyển ngang cho PGĐ khác, không chuyển ngược lên GĐ).
   const forwardTargets = useMemo(()=>{
@@ -115,8 +116,8 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
             {canManage&&!selectMode&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {isIncoming(d)&&!d.task_id&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}
               {isIncoming(d)&&canForwardRole&&forwardTargets.length>0&&<button onClick={()=>openForward(d)} style={{padding:"3px 9px",border:"1px solid #c4b5fd",borderRadius:6,background:"#f5f3ff",cursor:"pointer",fontSize:11,color:"#6d28d9",fontWeight:500}}>↪️ Chuyển</button>}
-              {(!isIncoming(d)||canForwardRole)&&<button onClick={()=>openEdit(d)} style={{padding:"3px 9px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11}}>✏️ Sửa</button>}
-              {(!isIncoming(d)||canForwardRole)&&<button onClick={()=>remove(d.id)} style={{padding:"3px 9px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:11,color:"#dc2626"}}>🗑️</button>}
+              <button onClick={()=>openEdit(d)} style={{padding:"3px 9px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11}}>✏️ Sửa</button>
+              <button onClick={()=>remove(d.id)} style={{padding:"3px 9px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:11,color:"#dc2626"}}>🗑️</button>
             </div>}
           </div>
           <div style={{fontSize:14,fontWeight:500,marginBottom:4}}>{d.title}</div>
