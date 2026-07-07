@@ -25,7 +25,10 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // Duyệt hoàn thành: đúng người đã giao việc, hoặc người đang được ủy quyền duyệt thay, mới được duyệt & nhận xét —
   // Admin/BGĐ vẫn giữ quyền duyệt thay (nút bấm) để tránh việc bị kẹt khi người giao việc vắng mặt,
   // nhưng KHÔNG được chủ động báo qua chuông/popup đăng nhập (xem isAssigner ở trên).
-  const canApprove = (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (isAssigner(t)) return true; return isDelegatedApprover(t); };
+  // Riêng nhiệm vụ tự sinh từ mẫu định kỳ (t.template_id): TP/PTP của PHÒNG NGƯỜI THỰC HIỆN luôn duyệt được,
+  // bất kể ai đứng tên tạo mẫu — vì đây là việc thường quy của phòng, TP/PTP quản lý người đó phải chốt được.
+  const isDeptManagerOf = (t) => !!currentUser && ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role) && t.dept === userDept;
+  const canApprove = (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (isAssigner(t)) return true; if (t.template_id && isDeptManagerOf(t)) return true; return isDelegatedApprover(t); };
   const canForward = (t) => { if (!currentUser) return false; if (t.completed || isCompletedStatus(t.status)) return false; return ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role) && t.dept === userDept; };
   const canSetLateReason = (t) => isLateStatus(t.status) && (currentUser?.employee_id === t.eid || parseJSON(t.collab_eids, []).includes(currentUser?.employee_id) || canCreate);
   // Đề xuất gia hạn deadline: chỉ đúng người được giao chính (không tính người phối hợp) mới đề xuất được,
