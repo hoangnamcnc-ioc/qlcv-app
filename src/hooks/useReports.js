@@ -167,23 +167,43 @@ export default function useReports({ computed, employees, currentUser, overloadT
 
   const repMonthTrend = useMemo(() => { const months = []; for (let i = 5; i >= 0; i--) { const d = new Date(repYear, repMonth - i, 1); const m = d.getMonth(), y = d.getFullYear(); const mt = computed.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === y && td.getMonth() === m; }); months.push({ name: `T${m + 1}`, done: mt.filter(t => isCompletedStatus(t.status)).length, total: mt.length }); } return months; }, [computed, repYear, repMonth]);
 
-  const leaderboard = useMemo(() => (employees || []).map(emp => {
-    const monthly = [...Array(12)].map((_, m) => calcMonthPerf(emp.id, rankYear, m));
-    const eligibleMonths = monthly.filter(m => m.eligible);
-    const total = monthly.reduce((s, m) => s + m.total, 0);
-    const done = monthly.reduce((s, m) => s + m.done, 0);
-    const over = monthly.reduce((s, m) => s + (m.over || 0), 0);
-    const completedLate = monthly.reduce((s, m) => s + (m.completedLate || 0), 0);
-    const avgScore = eligibleMonths.length ? Math.round(eligibleMonths.reduce((s, m) => s + m.perfScore, 0) / eligibleMonths.length) : null;
-    const collabTotal = monthly.reduce((s, m) => s + (m.collabTotal || 0), 0);
-    const collabDone = monthly.reduce((s, m) => s + (m.collabDone || 0), 0);
-    return { ...emp, total, done, completedLate, over, collabTotal, collabDone, eligibleMonths: eligibleMonths.length, score: avgScore, rate: total ? Math.round(done / total * 100) : 0, monthly };
-  }).filter(e => e.total > 0).sort((a, b) => {
-    const aHas = a.score !== null, bHas = b.score !== null;
-    if (aHas !== bHas) return aHas ? -1 : 1;
-    if (aHas && bHas && b.score !== a.score) return b.score - a.score;
-    return b.rate - a.rate;
-  }), [computed, employees, rankYear, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
+  const leaderboard = useMemo(() => {
+    const raw = (employees || []).map(emp => {
+      const monthly = [...Array(12)].map((_, m) => calcMonthPerf(emp.id, rankYear, m));
+      const eligibleMonths = monthly.filter(m => m.eligible);
+      const total = monthly.reduce((s, m) => s + m.total, 0);
+      const done = monthly.reduce((s, m) => s + m.done, 0);
+      const over = monthly.reduce((s, m) => s + (m.over || 0), 0);
+      const completedLate = monthly.reduce((s, m) => s + (m.completedLate || 0), 0);
+      const rawScore = eligibleMonths.length ? eligibleMonths.reduce((s, m) => s + m.perfScore, 0) / eligibleMonths.length : null;
+      const collabTotal = monthly.reduce((s, m) => s + (m.collabTotal || 0), 0);
+      const collabDone = monthly.reduce((s, m) => s + (m.collabDone || 0), 0);
+      return { ...emp, total, done, completedLate, over, collabTotal, collabDone, eligibleMonths: eligibleMonths.length, rawScore, rate: total ? Math.round(done / total * 100) : 0, monthly };
+    }).filter(e => e.total > 0);
+
+    // ── Làm công bằng hơn cho người có ÍT tháng đủ điều kiện: dùng "trung bình có điều chỉnh"
+    // (Bayesian/weighted average, giống cách IMDB xếp hạng phim) thay vì trung bình cộng thô.
+    // Lý do: 1 tháng điểm cao là mẫu quá nhỏ, không đủ tin cậy để xếp trên người có 2-3 tháng ổn định.
+    // Công thức: score = (v/(v+PRIOR)) × rawScore + (PRIOR/(v+PRIOR)) × baseline
+    //   v = số tháng đủ điều kiện của người đó, baseline = điểm TB chung của TẤT CẢ tháng đủ điều kiện
+    //   trong năm (mọi nhân viên gộp lại), PRIOR = "trọng số ảo" kéo điểm về baseline khi v nhỏ.
+    // Càng ít tháng dữ liệu, điểm càng bị kéo gần baseline hơn — công bằng dần khi có thêm dữ liệu thật.
+    const PRIOR_MONTHS = 2;
+    let sumAll = 0, cntAll = 0;
+    raw.forEach(e => e.monthly.filter(m => m.eligible).forEach(m => { sumAll += m.perfScore; cntAll++; }));
+    const baseline = cntAll ? sumAll / cntAll : 0;
+
+    return raw.map(e => {
+      const v = e.eligibleMonths;
+      const score = v ? Math.round((v / (v + PRIOR_MONTHS)) * e.rawScore + (PRIOR_MONTHS / (v + PRIOR_MONTHS)) * baseline) : null;
+      return { ...e, rawScore: v ? Math.round(e.rawScore) : null, baseline: Math.round(baseline), score };
+    }).sort((a, b) => {
+      const aHas = a.score !== null, bHas = b.score !== null;
+      if (aHas !== bHas) return aHas ? -1 : 1;
+      if (aHas && bHas && b.score !== a.score) return b.score - a.score;
+      return b.rate - a.rate;
+    });
+  }, [computed, employees, rankYear, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
 
   const lateReasonStats = useMemo(() => { const lt = computed.filter(t => t.late_reason); const total = lt.length; return LATE_REASONS.map(r => { const tasksForReason = lt.filter(t => t.late_reason === r.value); return { ...r, count: tasksForReason.length, pct: total ? Math.round(tasksForReason.length / total * 100) : 0, tasks: tasksForReason }; }).filter(r => r.count > 0).sort((a, b) => b.count - a.count); }, [computed]);
   const overloadedEmps = useMemo(() => (employees || []).map(emp => { const active = computed.filter(t => t.eid === emp.id && !isCompletedStatus(t.status)); return { ...emp, activeCount: active.length }; }).filter(e => e.activeCount >= overloadThreshold), [employees, computed, overloadThreshold]);

@@ -134,7 +134,7 @@ export default function Reports({
           <select value={rankYear} onChange={e => setRankYear(Number(e.target.value))} style={{ ...inp, width: 100, padding: "6px 10px" }}>{[2023,2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
         </div>
         <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
-          <div style={{ padding: "8px 16px", borderBottom: "1px solid #e5e7eb", fontSize: 11, color: "#9ca3af" }}>Điểm TB năm = trung bình điểm các tháng đủ ĐK (≥5 việc đến hạn) · Thời hạn(60%) + Chất lượng(40%) − Phạt + Thưởng KL + Thưởng PH</div>
+          <div style={{ padding: "8px 16px", borderBottom: "1px solid #e5e7eb", fontSize: 11, color: "#9ca3af" }}>Điểm TB năm = trung bình có điều chỉnh theo số tháng đủ ĐK (≥5 việc đến hạn) — càng ít tháng dữ liệu, điểm càng được kéo gần về mức trung bình chung để tránh 1 tháng may mắn xếp trên người có nhiều tháng ổn định. Bấm ℹ️ để xem chi tiết.</div>
           {isMobile ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
               {leaderboard.length === 0 && <div style={{ padding: 24, textAlign: "center", color: "#9ca3af" }}>Chưa có dữ liệu</div>}
@@ -279,7 +279,7 @@ export default function Reports({
                 </div>
                 <button onClick={() => setWhyYear(null)} style={{ background: "#f3f4f6", border: "none", cursor: "pointer", fontSize: 16, color: "#374151", width: 28, height: 28, borderRadius: "50%" }}>✕</button>
               </div>
-              <div style={{ padding: "10px 18px 0", fontSize: 11.5, color: "#9ca3af" }}>Điểm TB năm = trung bình điểm của {eligibleRows.length} tháng đủ điều kiện (≥5 việc đến hạn trong tháng đó). Các tháng còn lại không tính vào trung bình.</div>
+              <div style={{ padding: "10px 18px 0", fontSize: 11.5, color: "#9ca3af" }}>{eligibleRows.length} tháng đủ điều kiện (≥5 việc đến hạn) trong năm — các tháng còn lại không tính vào điểm.</div>
               <div style={{ padding: "8px 18px 0" }}>
                 {eligibleRows.map(m => (
                   <div key={m.monthIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
@@ -288,8 +288,13 @@ export default function Reports({
                   </div>
                 ))}
               </div>
-              <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f8fafc", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>Điểm TB năm <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400 }}>(TB {eligibleRows.length} tháng)</span></span>
+              <div style={{ margin: "12px 18px", padding: "12px 14px", background: "#f8fafc", borderRadius: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 6 }}><span>Điểm trung bình thô ({eligibleRows.length} tháng)</span><span style={{ fontWeight: 600 }}>{e.rawScore}đ</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 6 }}><span>Mức trung bình chung toàn cơ quan</span><span style={{ fontWeight: 600 }}>{e.baseline}đ</span></div>
+                <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.5 }}>Vì chỉ có {eligibleRows.length} tháng dữ liệu (còn ít so với 12 tháng), điểm thô được kéo gần hơn về mức trung bình chung để công bằng — có càng nhiều tháng đủ điều kiện, điểm càng phản ánh đúng năng lực thật, ít bị ảnh hưởng bởi 1 tháng may/rủi.</div>
+              </div>
+              <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#eef2ff", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Điểm TB năm <span style={{ fontSize: 11, color: "#6366f1", fontWeight: 400 }}>(đã điều chỉnh công bằng)</span></span>
                 <span style={{ fontSize: 22, fontWeight: 800, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ</span>
               </div>
             </div>
