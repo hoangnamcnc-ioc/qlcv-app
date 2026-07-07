@@ -410,7 +410,7 @@ export default function App() {
   const [rateReminderModal,setRateReminderModal]=useState(false);
   const openCreateTask=()=>{if(unratedTasks.length>0){setRateReminderModal(true);return;}setTaskForm({data:emptyTaskData(),editId:null});};
   const [pendingDocLink,setPendingDocLink]=useState(null); // văn bản đang chờ gán nhiệm vụ vừa tạo
-  const openCreateTaskFromDoc=(doc)=>{if(unratedTasks.length>0){setRateReminderModal(true);return;}const base=emptyTaskData();setTaskForm({data:{...base,title:`[${doc.doc_number}] ${doc.title}`,description:doc.note||""},editId:null});setPendingDocLink(doc.id);};
+  const openCreateTaskFromDoc=(doc)=>{if(unratedTasks.length>0){setRateReminderModal(true);return;}const base=emptyTaskData();setTaskForm({data:{...base,title:`[${doc.doc_number}] ${doc.title}`,description:doc.note||"",attachments:doc.attachments||"[]"},editId:null});setPendingDocLink(doc.id);};
   const openEditTask=t=>setTaskForm({data:{title:t.title,description:t.description||"",dept:t.dept,eid:t.eid,prio:t.prio,deadline:t.deadline,attachments:t.attachments||"[]",progress:t.progress||0,collab_eids:t.collab_eids||"[]",collab_note:t.collab_note||""},editId:t.id});
   // Sửa các trường khác vẫn theo canEditTask (Trưởng/Phó phòng trong phòng ban) như cũ — riêng ô Hạn chót
   // chỉ người giao việc (hoặc Admin/BGĐ) mới đổi trực tiếp được, tránh việc dời hạn tùy tiện không qua người giao việc.
