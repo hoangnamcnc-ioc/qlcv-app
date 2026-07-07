@@ -13,7 +13,11 @@ export default class ErrorBoundary extends React.Component {
   componentDidCatch(error, info) {
     console.error("ErrorBoundary caught:", error, info);
   }
-  reset = () => this.setState({ error: null });
+  // "Thử lại" chỉ reset state lỗi cục bộ — nếu nguyên nhân là DỮ LIỆU truyền vào (props) vẫn hỏng
+  // (VD: modal đang mở là 1 task thiếu field), re-render với y nguyên props sẽ lập tức crash lại,
+  // khiến người dùng thấy "bấm Thử lại không ăn thua". onRetry cho phép cha dọn luôn state gây lỗi
+  // (VD: đóng modal) trước khi bỏ màn hình lỗi, để lần render sau chắc chắn khác đi.
+  reset = () => { this.props.onRetry?.(); this.setState({ error: null }); };
 
   render() {
     if (this.state.error) {
