@@ -36,14 +36,34 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
     return users.filter(u=>["manager","deputy_manager","manager_hcth"].includes(u.role));
   },[users,currentUser,isTop,canForwardRole]);
 
-  useEffect(()=>{(async()=>{setLoading(true);try{const{data}=await supabase.from("documents").select("*").order("doc_date",{ascending:false});setItems((data||[]).filter(canSeeIncoming));}catch{}setLoading(false);})();},[]);
+  // Đánh dấu "đã xem" cho bước chuyển gần nhất tới ĐÚNG mình — tự động khi mở danh sách,
+  // giống cách task đánh dấu viewed_at khi mở modal (không cần bấm gì thêm).
+  const markForwardViewed=async(data)=>{
+    const toPatch=[];
+    for(const d of data){
+      if(!isIncoming(d))continue;
+      const chain=parseJSON(d.forwards,[]);
+      if(!chain.length)continue;
+      const last=chain[chain.length-1];
+      if(last.to_id===currentUser?.id&&!last.viewed_at){
+        last.viewed_at=nowStr();
+        toPatch.push({id:d.id,forwards:JSON.stringify(chain)});
+      }
+    }
+    if(!toPatch.length)return data;
+    await Promise.all(toPatch.map(p=>supabase.from("documents").update({forwards:p.forwards}).eq("id",p.id)));
+    const patchMap=Object.fromEntries(toPatch.map(p=>[p.id,p.forwards]));
+    return data.map(d=>patchMap[d.id]?{...d,forwards:patchMap[d.id]}:d);
+  };
+
+  useEffect(()=>{(async()=>{setLoading(true);try{const{data}=await supabase.from("documents").select("*").order("doc_date",{ascending:false});const visible=(data||[]).filter(canSeeIncoming);const marked=await markForwardViewed(visible);setItems(marked);}catch{}setLoading(false);})();},[]);
 
   const openForward=d=>setForwardModal({doc:d,to_id:"",note:""});
   const submitForward=async()=>{
     const {doc,to_id,note}=forwardModal;
     const target=(users||[]).find(u=>u.id===to_id);
     if(!target){showToast&&showToast("Chọn người nhận","error");return;}
-    const chain=[...parseJSON(doc.forwards,[]),{to_id:target.id,to_name:target.full_name,to_role:target.role,by_id:currentUser.id,by_name:currentUser.full_name,at:nowStr(),note:note.trim()}];
+    const chain=[...parseJSON(doc.forwards,[]),{to_id:target.id,to_name:target.full_name,to_role:target.role,by_id:currentUser.id,by_name:currentUser.full_name,at:nowStr(),note:note.trim(),viewed_at:null}];
     const{error}=await supabase.from("documents").update({forwards:JSON.stringify(chain)}).eq("id",doc.id);
     if(error){showToast&&showToast("Lỗi: "+(error.message||""),"error");return;}
     setItems(p=>p.map(x=>x.id===doc.id?{...x,forwards:JSON.stringify(chain)}:x));
@@ -82,6 +102,19 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
 
   const filtered=useMemo(()=>items.filter(d=>{if(filterType==="den"&&!isIncoming(d))return false;if(filterType==="di"&&isIncoming(d))return false;if(search){const q=search.toLowerCase();if(!d.doc_number.toLowerCase().includes(q)&&!d.title.toLowerCase().includes(q)&&!(d.sender||"").toLowerCase().includes(q))return false;}return true;}),[items,filterType,search]);
   const counts=useMemo(()=>({den:items.filter(isIncoming).length,di:items.filter(d=>!isIncoming(d)).length}),[items]);
+  // Dashboard trạng thái văn bản đến: xem theo bước chuyển GẦN NHẤT (ai đang giữ văn bản để xử lý) —
+  // đã giao việc = đã có task_id liên kết, bất kể đã chuyển tới ai.
+  const docStats=useMemo(()=>{
+    const incoming=items.filter(isIncoming);
+    let unviewed=0,hasTask=0;
+    for(const d of incoming){
+      const chain=parseJSON(d.forwards,[]);
+      const last=chain[chain.length-1];
+      if(last&&!last.viewed_at)unviewed++;
+      if(d.task_id)hasTask++;
+    }
+    return{total:incoming.length,unviewed,viewed:incoming.length-unviewed,hasTask,noTask:incoming.length-hasTask};
+  },[items]);
 
   return(<div style={{display:"flex",flexDirection:"column",gap:14}}>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:10}}>
@@ -89,6 +122,12 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
       <div onClick={()=>setFilterType("den")} style={{background:filterType==="den"?"#bfdbfe":"#eff6ff",borderRadius:10,border:"1.5px solid "+(filterType==="den"?"#1d4ed8":"#bfdbfe"),padding:14,cursor:"pointer"}}><div style={{fontSize:11,color:"#1d4ed8"}}>📥 Văn bản đến</div><div style={{fontSize:22,fontWeight:700,color:"#1d4ed8"}}>{counts.den}</div></div>
       <div onClick={()=>setFilterType("di")} style={{background:filterType==="di"?"#bbf7d0":"#f0fdf4",borderRadius:10,border:"1.5px solid "+(filterType==="di"?"#16a34a":"#bbf7d0"),padding:14,cursor:"pointer"}}><div style={{fontSize:11,color:"#15803d"}}>📤 Văn bản đi</div><div style={{fontSize:22,fontWeight:700,color:"#15803d"}}>{counts.di}</div></div>
     </div>
+    {docStats.total>0&&<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:10}}>
+      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 14px"}}><div style={{fontSize:11,color:"#b91c1c"}}>🔴 Chưa xem</div><div style={{fontSize:20,fontWeight:700,color:"#b91c1c"}}>{docStats.unviewed}</div></div>
+      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 14px"}}><div style={{fontSize:11,color:"#15803d"}}>👁️ Đã xem</div><div style={{fontSize:20,fontWeight:700,color:"#15803d"}}>{docStats.viewed}</div></div>
+      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 14px"}}><div style={{fontSize:11,color:"#92400e"}}>⏳ Chưa giao việc</div><div style={{fontSize:20,fontWeight:700,color:"#92400e"}}>{docStats.noTask}</div></div>
+      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 14px"}}><div style={{fontSize:11,color:"#1d4ed8"}}>📋 Đã giao việc</div><div style={{fontSize:20,fontWeight:700,color:"#1d4ed8"}}>{docStats.hasTask}</div></div>
+    </div>}
     <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Tìm theo số văn bản, trích yếu, nơi gửi..." style={{...inp,flex:1,minWidth:160}}/>
       {canManage&&!selectMode&&<button onClick={()=>setSelectMode(true)} style={{background:"#f9fafb",color:"#374151",border:"1px solid #d1d5db",borderRadius:8,padding:"8px 16px",fontSize:13,cursor:"pointer",fontWeight:500}}>☑️ Chọn</button>}
@@ -121,10 +160,15 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
             </div>}
           </div>
           <div style={{fontSize:14,fontWeight:500,marginBottom:4}}>{d.title}</div>
+          {isIncoming(d)&&(()=>{const chain=parseJSON(d.forwards,[]);const last=chain[chain.length-1];return(
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
+              {last&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:8,fontWeight:500,background:last.viewed_at?"#dcfce7":"#fee2e2",color:last.viewed_at?"#15803d":"#b91c1c"}}>{last.viewed_at?"👁️ Đã xem":"🔴 Chưa xem"}</span>}
+              <span style={{fontSize:11,padding:"2px 8px",borderRadius:8,fontWeight:500,background:d.task_id?"#dbeafe":"#fef9c3",color:d.task_id?"#1d4ed8":"#92400e"}}>{d.task_id?"📋 Đã giao việc":"⏳ Chưa giao việc"}</span>
+            </div>);})()}
           {d.sender&&<div style={{fontSize:12,color:"#6b7280",marginBottom:4}}>{isIncoming(d)?"Nơi gửi":"Nơi nhận"}: {d.sender}</div>}
           {d.note&&<div style={{fontSize:12,color:"#475569",fontStyle:"italic",marginBottom:4}}>📝 {d.note}</div>}
           {atts.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{atts.map((f,fi)=><a key={fi} href={getPreviewUrl(f.url,f.name)} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
-          {isIncoming(d)&&parseJSON(d.forwards,[]).length>0&&<div style={{fontSize:11,color:"#6d28d9",marginTop:6}}>↪️ Đã chuyển: {parseJSON(d.forwards,[]).map(f=>f.to_name).join(" → ")}</div>}
+          {isIncoming(d)&&parseJSON(d.forwards,[]).length>0&&<div style={{fontSize:11,color:"#6d28d9",marginTop:6}}>↪️ Đã chuyển: {parseJSON(d.forwards,[]).map(f=>`${f.to_name}${f.viewed_at?" (👁️ đã xem)":" (🔴 chưa xem)"}`).join(" → ")}</div>}
           {linkedTask&&<div onClick={()=>onOpenTask&&onOpenTask(linkedTask)} style={{marginTop:8,padding:"6px 10px",background:"#f8fafc",borderRadius:8,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:6,color:"#4338ca"}}>🔗 Liên kết nhiệm vụ: <b>{linkedTask.title}</b></div>}
           </div>
         </div>);})}
