@@ -57,7 +57,7 @@ export default function Reports({
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
             <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
               <span style={{ fontWeight: 600, fontSize: 13 }}>Hiệu suất nhân viên</span>
-              {!isMobile && <span style={{ fontSize: 11, color: "#9ca3af" }}>Điểm = Thời hạn(60%) + Chất lượng(40%) − Phạt + Thưởng KL + Thưởng PH · Phạt 2đ/việc trễ & quá hạn · Thưởng KL: +1đ/việc vượt 5, tối đa +10đ · Tính trên việc đã đến hạn ≥5</span>}
+              {!isMobile && <span style={{ fontSize: 11, color: "#9ca3af" }}>Điểm = Thời hạn(60%) + Chất lượng(40%) − Phạt + Thưởng KL + Thưởng PH · Phạt 2đ/việc trễ & quá hạn · Thưởng KL: +1đ/việc vượt 5, tối đa +10đ · Chỉ tính trên việc ĐÃ ĐẾN HẠN (≥5) — việc chưa đến hạn không tính vào điểm, xem cột "Chưa đến hạn"</span>}
             </div>
             {isMobile ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
@@ -86,6 +86,7 @@ export default function Reports({
                         <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>HT: {e.done - (e.completedLate || 0)}</span>
                         {e.completedLate > 0 && <span style={{ background: "#fff1f2", color: "#991b1b", fontSize: 11, padding: "2px 7px", borderRadius: 8, fontWeight: 700 }}>⏰ HT trễ: {e.completedLate}</span>}
                         {e.over > 0 && <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 11, padding: "2px 7px", borderRadius: 8, fontWeight: 700 }}>QH: {e.over}</span>}
+                        {Math.round((e.total - e.resolved) * 100) / 100 > 0 && <span style={{ background: "#f3f4f6", color: "#6b7280", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>⏳ Chưa đến hạn: {Math.round((e.total - e.resolved) * 100) / 100}</span>}
                         {e.collabTotal > 0 && <span style={{ background: "#ede9fe", color: "#7c3aed", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span>}
                       </div>
                     </div>
@@ -95,7 +96,7 @@ export default function Reports({
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 560 }}>
-                  <thead><tr style={{ background: "#f9fafb" }}>{["","Nhân viên","Phòng","Tổng","HT","HT quá hạn","QH","Phối hợp","Điểm hiệu suất"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{h}</th>)}</tr></thead>
+                  <thead><tr style={{ background: "#f9fafb" }}>{["","Nhân viên","Phòng","Tổng","HT","HT quá hạn","QH","Chưa đến hạn","Phối hợp","Điểm hiệu suất"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{h}</th>)}</tr></thead>
                   <tbody>{repEmpData.map(e => {
                     const eligibleRank = e.eligible ? repEmpData.filter(x => x.eligible).findIndex(x => x.id === e.id) : -1;
                     const medal = eligibleRank === 0 ? "🥇" : eligibleRank === 1 ? "🥈" : eligibleRank === 2 ? "🥉" : "";
@@ -108,6 +109,7 @@ export default function Reports({
                         <td style={{ padding: "9px 12px", color: "#15803d", fontWeight: 500 }}>{e.done - (e.completedLate || 0)}</td>
                         <td style={{ padding: "9px 12px", color: e.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: e.completedLate > 0 ? 700 : 400 }}>{e.completedLate || 0}</td>
                         <td style={{ padding: "9px 12px", color: e.over > 0 ? "#b91c1c" : "#6b7280", fontWeight: e.over > 0 ? 600 : 400 }}>{e.over}</td>
+                        <td style={{ padding: "9px 12px", color: "#9ca3af" }}>{Math.round((e.total - e.resolved) * 100) / 100 || 0}</td>
                         <td style={{ padding: "9px 12px" }}>{e.collabTotal > 0 ? <span style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span> : <span style={{ color: "#9ca3af" }}>–</span>}</td>
                         <td style={{ padding: "9px 12px" }}>
                           {!e.eligible ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa đủ ĐK <span style={{ fontSize: 10 }}>(cần ≥5 việc, hiện {e.total})</span></span> : (
@@ -165,6 +167,7 @@ export default function Reports({
                       <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>HT: {e.done - (e.completedLate||0)}</span>
                       {e.completedLate > 0 && <span style={{ background: "#fff1f2", color: "#991b1b", fontSize: 11, padding: "2px 7px", borderRadius: 8, fontWeight: 700 }}>⏰ {e.completedLate}</span>}
                       {e.over > 0 && <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 11, padding: "2px 7px", borderRadius: 8, fontWeight: 700 }}>QH: {e.over}</span>}
+                      {Math.round((e.total - e.resolved) * 100) / 100 > 0 && <span style={{ background: "#f3f4f6", color: "#6b7280", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>⏳ {Math.round((e.total - e.resolved) * 100) / 100}</span>}
                       {e.collabTotal > 0 && <span style={{ background: "#ede9fe", color: "#7c3aed", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span>}
                     </div>
                   </div>
@@ -174,9 +177,9 @@ export default function Reports({
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 560 }}>
-                <thead><tr style={{ background: "#f9fafb" }}>{["Hạng","Nhân viên","Phòng","Tổng","HT","HT quá hạn","QH","Phối hợp","Số tháng có việc","Điểm TB năm","Tỷ lệ HT"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+                <thead><tr style={{ background: "#f9fafb" }}>{["Hạng","Nhân viên","Phòng","Tổng","HT","HT quá hạn","QH","Chưa đến hạn","Phối hợp","Số tháng có việc","Điểm TB năm","Tỷ lệ HT"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {leaderboard.length === 0 && <tr><td colSpan={11} style={{ padding: 24, textAlign: "center", color: "#9ca3af" }}>Chưa có dữ liệu</td></tr>}
+                  {leaderboard.length === 0 && <tr><td colSpan={12} style={{ padding: 24, textAlign: "center", color: "#9ca3af" }}>Chưa có dữ liệu</td></tr>}
                   {leaderboard.map((e, i) => {
                     const ranked = e.score !== null;
                     const medal = ranked && i === 0 ? "🥇" : ranked && i === 1 ? "🥈" : ranked && i === 2 ? "🥉" : `${i + 1}`;
@@ -189,6 +192,7 @@ export default function Reports({
                         <td style={{ padding: "10px 12px", color: "#15803d", fontWeight: 500 }}>{e.done - (e.completedLate || 0)}</td>
                         <td style={{ padding: "10px 12px", color: e.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: e.completedLate > 0 ? 700 : 400 }}>{e.completedLate || 0}</td>
                         <td style={{ padding: "10px 12px", color: e.over > 0 ? "#b91c1c" : "#6b7280", fontWeight: e.over > 0 ? 600 : 400 }}>{e.over}</td>
+                        <td style={{ padding: "10px 12px", color: "#9ca3af" }}>{Math.round((e.total - e.resolved) * 100) / 100 || 0}</td>
                         <td style={{ padding: "10px 12px" }}>{e.collabTotal > 0 ? <span style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span> : <span style={{ color: "#9ca3af" }}>–</span>}</td>
                         <td style={{ padding: "10px 12px", textAlign: "center" }}>{e.eligibleMonths}/12</td>
                         <td style={{ padding: "10px 12px" }}>{e.score === null ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa có dữ liệu</span> : <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 15, fontWeight: 700, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ</span><button onClick={() => setWhyYear(e)} title="Vì sao điểm này?" style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 6, padding: "1px 6px", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>ℹ️</button></span>}</td>

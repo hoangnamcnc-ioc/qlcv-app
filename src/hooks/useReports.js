@@ -172,13 +172,14 @@ export default function useReports({ computed, employees, currentUser, overloadT
       const monthly = [...Array(12)].map((_, m) => calcMonthPerf(emp.id, rankYear, m));
       const eligibleMonths = monthly.filter(m => m.eligible);
       const total = monthly.reduce((s, m) => s + m.total, 0);
+      const resolved = monthly.reduce((s, m) => s + (m.resolved || 0), 0); // việc đã đến hạn (dùng để tính điểm) — total còn gồm cả việc chưa đến hạn
       const done = monthly.reduce((s, m) => s + m.done, 0);
       const over = monthly.reduce((s, m) => s + (m.over || 0), 0);
       const completedLate = monthly.reduce((s, m) => s + (m.completedLate || 0), 0);
       const rawScore = eligibleMonths.length ? eligibleMonths.reduce((s, m) => s + m.perfScore, 0) / eligibleMonths.length : null;
       const collabTotal = monthly.reduce((s, m) => s + (m.collabTotal || 0), 0);
       const collabDone = monthly.reduce((s, m) => s + (m.collabDone || 0), 0);
-      return { ...emp, total, done, completedLate, over, collabTotal, collabDone, eligibleMonths: eligibleMonths.length, rawScore, rate: total ? Math.round(done / total * 100) : 0, monthly };
+      return { ...emp, total, resolved, done, completedLate, over, collabTotal, collabDone, eligibleMonths: eligibleMonths.length, rawScore, rate: total ? Math.round(done / total * 100) : 0, monthly };
     }).filter(e => e.total > 0);
 
     // ── Làm công bằng hơn cho người có ÍT tháng đủ điều kiện: dùng "trung bình có điều chỉnh"
