@@ -358,24 +358,44 @@ class IOfficeExtractor:
     async def download_all_files(self, download_href: str, so_ky_hieu: str) -> list[dict]:
         """Gọi thẳng hàm JS của link 'Tải file' (href dạng javascript:allFileDownload(id))
         để kích hoạt tải toàn bộ file đính kèm của văn bản, không cần click/mở trang chi tiết.
-        Trả về [{name, path}] (file tạm cục bộ, có thể là 1 file lẻ hoặc 1 file .zip gộp nhiều file)."""
+        Trả về [{name, path}] (file tạm cục bộ).
+
+        QUAN TRỌNG: nút "Tải TẤT CẢ file" của 1 văn bản có thể bắn ra NHIỀU download nối tiếp
+        nhau (nếu văn bản có >1 file đính kèm), không chỉ 1. Trước đây dùng expect_download()
+        chỉ bắt ĐÚNG 1 download đầu tiên rồi coi như xong — nếu file thứ 2 của văn bản A bắn ra
+        hơi trễ, nó rơi vào lúc văn bản B đã bắt đầu chờ, khiến B nhận nhầm file của A. Giờ dùng
+        listener bắt HẾT mọi download trong 1 khoảng thời gian chờ cố định, rồi mới ngắt kết nối
+        trước khi chuyển sang văn bản tiếp theo — không để download nào "rơi rớt" sang lượt sau."""
         if not download_href:
             return []
+        collected = []
+        on_download = lambda d: collected.append(d)
+        self.page.on("download", on_download)
         js_call = download_href.replace("javascript:", "", 1)
         try:
-            async with self.page.expect_download(timeout=15000) as dl_info:
-                await self.page.evaluate(js_call)
-            download = await dl_info.value
-            name = download.suggested_filename or f"{so_ky_hieu.replace('/', '_')}.zip"
-            # Lưu ra thư mục tạm CỐ ĐỊNH (không dùng download.path()) vì Playwright sẽ xoá
-            # file tạm của nó ngay khi đóng trình duyệt, trước cả lúc mình kịp upload lên Supabase.
-            dest = os.path.join(ATTACHMENT_TMP_DIR, f"{int(datetime.now().timestamp()*1000)}_{name}")
-            await download.save_as(dest)
-            print(f"       📎 Tải được: {name}")
-            return [{"name": name, "path": dest}]
+            await self.page.evaluate(js_call)
+            # Chờ đủ lâu để MỌI file của văn bản này (nếu có nhiều hơn 1) kịp bắn ra hết
+            await asyncio.sleep(4)
         except Exception as e:
-            print(f"       ⚠ Không tải được file đính kèm cho {so_ky_hieu}: {e}")
-            return []
+            print(f"       ⚠ Lỗi khi gọi tải file cho {so_ky_hieu}: {e}")
+        finally:
+            self.page.remove_listener("download", on_download)
+
+        results = []
+        for i, download in enumerate(collected):
+            try:
+                name = download.suggested_filename or f"{so_ky_hieu.replace('/', '_')}_{i+1}.zip"
+                # Lưu ra thư mục tạm CỐ ĐỊNH (không dùng download.path()) vì Playwright sẽ xoá
+                # file tạm của nó ngay khi đóng trình duyệt, trước cả lúc mình kịp upload lên Supabase.
+                dest = os.path.join(ATTACHMENT_TMP_DIR, f"{int(datetime.now().timestamp()*1000)}_{i}_{name}")
+                await download.save_as(dest)
+                print(f"       📎 Tải được: {name}")
+                results.append({"name": name, "path": dest})
+            except Exception as e:
+                print(f"       ⚠ Lỗi lưu file đính kèm cho {so_ky_hieu}: {e}")
+        if not results:
+            print(f"       (không tìm thấy file đính kèm cho {so_ky_hieu})")
+        return results
 
     async def get_all_vanban_den(self, existing: set[str], missing_attachments: set[str] = frozenset(),
                                   fetch_attachments: bool = True) -> list[dict]:
