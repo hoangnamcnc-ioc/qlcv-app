@@ -10,6 +10,7 @@ const Feedback = lazy(()=>import("./Feedback"));
 const Documents = lazy(()=>import("./Documents"));
 const SupportCases = lazy(()=>import("./SupportCases"));
 const MyQueue = lazy(()=>import("./MyQueue"));
+const Chat = lazy(()=>import("./Chat"));
 import { DEPTS, DEPT_COLOR, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
 import { addDays, today, todayStr, nowStr, parseNowStr, getNextDate, freqWeight, isCompletedLateByDate, getStatus, isCompletedStatus, isLateStatus, parseJSON, hashPwd, getFileIcon, sanitizeFileName } from "./helpers";
 import { ProgressBar, RoleBadge, RatingBadge, Chip, PChip } from "./components/ui";
@@ -432,7 +433,7 @@ export default function App() {
   const myQueueTotal=myPendingTaskApprovals.length+myPendingExtRequests.length+unratedTasks.length+unreadCommentTasks.length+myPendingApprovals.length+myPendingProjectSteps.length+myPendingProjectExt.length+myPendingProjectStepExt.length;
   // Tab Văn bản: chỉ Admin/BGĐ/TP.HCTH/TP/PTP thấy (Nhân viên không tham gia luồng chuyển văn bản nên ẩn hẳn)
   const canSeeDocumentsTab=["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role);
-  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"myqueue",icon:"🗂️",label:"Việc chờ xử lý",shortLabel:"Chờ xử lý",badge:myQueueTotal},{id:"work",icon:"💼",label:"Công việc"},{id:"calendar",icon:"🗓️",label:"Lịch (Deadline/Trực)",shortLabel:"Lịch"},...(canSeeDocumentsTab?[{id:"documents",icon:"📁",label:"Văn bản"}]:[]),{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
+  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"myqueue",icon:"🗂️",label:"Việc chờ xử lý",shortLabel:"Chờ xử lý",badge:myQueueTotal},{id:"work",icon:"💼",label:"Công việc"},{id:"calendar",icon:"🗓️",label:"Lịch (Deadline/Trực)",shortLabel:"Lịch"},...(canSeeDocumentsTab?[{id:"documents",icon:"📁",label:"Văn bản"}]:[]),{id:"chat",icon:"💬",label:"Chat"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
   const isWorkView=workSubviews.some(w=>w.id===view);
   const getViewMeta=id=>navItems.find(n=>n.id===id)||workSubviews.find(w=>w.id===id);
   // Nhớ tab con "Công việc" xem gần nhất (theo trình duyệt) để lần sau bấm "Công việc" vào thẳng đó,
@@ -750,6 +751,9 @@ export default function App() {
           )}
           {view==="documents"&&canSeeDocumentsTab&&(
             <Documents currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role)} tasks={tasks} users={users} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} onOpenTask={(t)=>{setView("tasks");const full=computed.find(x=>x.id===t.id)||t;setModal(full);loadComments(full.id);}} onCreateTask={openCreateTaskFromDoc}/>
+          )}
+          {view==="chat"&&(
+            <Chat currentUser={currentUser} users={users} isMobile={isMobile} inp={inp} showToast={showToast}/>
           )}
           {view==="security"&&currentUser?.role==="admin"&&(
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
