@@ -44,3 +44,18 @@ export const getPreviewUrl = (url, name = "") => {
   if (["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext)) return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
   return url;
 };
+// Ép tải file về máy bất kể content-type gốc — thẻ <a download> không có tác dụng với URL
+// khác domain (Supabase Storage), nên phải fetch về dạng blob (cùng domain giả) rồi mới tải.
+export const forceDownload = async (url, name) => {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl; a.download = name || "file";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    window.open(url, "_blank");
+  }
+};
