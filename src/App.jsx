@@ -707,7 +707,7 @@ export default function App() {
               leaderboard={leaderboard}
               lateReasonStats={lateReasonStats}
               getEmp={getEmp} setModal={setModal} loadComments={loadComments}
-              canExec={FULL_ACCESS.includes(currentUser?.role)} computed={computed} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} currentUser={currentUser}
+              canExec={FULL_ACCESS.includes(currentUser?.role)} computed={computed} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} currentUser={currentUser} overloadThreshold={overloadThreshold}
             />
           )}
 

@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { DEPTS, DEPT_COLOR, VI_MONTHS } from "../constants";
+import { DEPTS, DEPT_COLOR, VI_MONTHS, RATING } from "../constants";
 import { isCompletedStatus, parseNowStr } from "../helpers";
+const RATING_KEYS = ["xuat_sac", "tot", "tb", "kem"];
 
 // ── Ngưỡng xếp loại quý/năm (điểm trung bình các tháng đủ điều kiện) ──
 // Ngưỡng tham khảo, thống nhất với thang màu điểm đang dùng trong Báo cáo; có thể điều chỉnh theo quy chế cơ quan.
@@ -102,7 +103,7 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, curren
 }
 
 // ═════════ TAB "ĐIỀU HÀNH" — góc nhìn BGĐ toàn đơn vị ═════════
-export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments }) {
+export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, overloadThreshold = 5 }) {
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
   // So sánh tỷ lệ hoàn thành liên tháng giữa các phòng (6 tháng gần nhất)
@@ -144,6 +145,37 @@ export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments }) 
       .sort((a, b) => b.pending - a.pending || (b.avgH ?? 0) - (a.avgH ?? 0));
   }, [computed]);
   const fmtDur = h => h === null ? "—" : h < 1 ? "< 1 giờ" : h < 48 ? `${Math.round(h)} giờ` : `${Math.round(h / 24 * 10) / 10} ngày`;
+
+  // Phân bổ khối lượng đang xử lý theo người — ai đang ôm nhiều việc nhất toàn đơn vị, không cần
+  // mở từng trang Nhân viên riêng lẻ mới thấy được.
+  const workloadByEmp = useMemo(() => {
+    const map = new Map();
+    for (const t of computed) {
+      if (isCompletedStatus(t.status)) continue;
+      const emp = getEmp?.(t.eid);
+      if (!emp) continue;
+      let r = map.get(t.eid);
+      if (!r) { r = { eid: t.eid, name: emp.name, dept: emp.dept, count: 0 }; map.set(t.eid, r); }
+      r.count++;
+    }
+    return [...map.values()].sort((a, b) => b.count - a.count).slice(0, 12);
+  }, [computed, getEmp]);
+  const maxWorkload = workloadByEmp.length ? workloadByEmp[0].count : 1;
+
+  // Chất lượng đánh giá theo phòng — % Xuất sắc/Tốt/TB/Kém trong số việc đã chấm, bổ sung góc nhìn
+  // ngoài đúng/trễ hạn (1 phòng có thể đúng hạn cao nhưng chất lượng thấp mà biểu đồ trên không thấy được).
+  const qualityByDept = useMemo(() => DEPTS.map(dept => {
+    const rated = computed.filter(t => t.dept === dept && RATING[t.rating]);
+    const byKey = RATING_KEYS.map(k => ({ key: k, count: rated.filter(t => t.rating === k).length }));
+    return { dept, total: rated.length, byKey };
+  }), [computed]);
+
+  // Cảnh báo sớm: việc sắp đến hạn trong 7 ngày tới — nhìn về phía trước thay vì chỉ thấy khi đã quá hạn.
+  const upcoming7d = useMemo(() => computed.filter(t => !isCompletedStatus(t.status) && t.status !== "overdue")
+    .map(t => ({ ...t, daysLeft: Math.ceil((new Date(t.deadline) - today) / 86400000) }))
+    .filter(t => t.daysLeft >= 0 && t.daysLeft <= 7)
+    .sort((a, b) => a.daysLeft - b.daysLeft), [computed, today]);
+  const upcoming7dByDept = useMemo(() => DEPTS.map(d => ({ dept: d, count: upcoming7d.filter(t => t.dept === d).length })), [upcoming7d]);
 
   return (<>
     <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>
@@ -192,6 +224,80 @@ export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments }) 
           </table>
         )}
       </div>
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
+      <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>📊 Phân bổ khối lượng đang xử lý theo người</div>
+        <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 12 }}>Số việc chưa hoàn thành đang ôm — đỏ = từ {overloadThreshold} việc trở lên (ngưỡng quá tải).</div>
+        {workloadByEmp.length === 0 ? <div style={{ textAlign: "center", color: "#9ca3af", padding: 20, fontSize: 13 }}>Không có việc đang xử lý</div> : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {workloadByEmp.map(r => {
+              const over = r.count >= overloadThreshold;
+              return (
+                <div key={r.eid} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 108, flexShrink: 0, fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={r.name}>{r.name}</div>
+                  <div style={{ flex: 1, background: "#f3f4f6", borderRadius: 6, height: 16 }}>
+                    <div style={{ width: `${Math.max(4, r.count / maxWorkload * 100)}%`, height: "100%", borderRadius: 6, background: over ? "#dc2626" : DEPT_COLOR[r.dept] }} />
+                  </div>
+                  <div style={{ width: 22, textAlign: "right", fontSize: 12, fontWeight: 700, color: over ? "#dc2626" : "#374151" }}>{r.count}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>🌟 Chất lượng đánh giá theo phòng</div>
+        <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 12 }}>Tỷ lệ mức đánh giá trong số việc đã chấm — bổ sung góc nhìn ngoài đúng/trễ hạn.</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {qualityByDept.map(d => (
+            <div key={d.dept}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                <span style={{ fontWeight: 600, color: DEPT_COLOR[d.dept] }}>{d.dept}</span>
+                <span style={{ color: "#9ca3af" }}>{d.total} việc đã chấm</span>
+              </div>
+              {d.total === 0 ? <div style={{ fontSize: 11.5, color: "#d1d5db" }}>Chưa có việc nào được chấm điểm</div> : (
+                <div style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden" }}>
+                  {d.byKey.filter(k => k.count > 0).map(k => (
+                    <div key={k.key} title={`${RATING[k.key].label}: ${k.count}`} style={{ width: `${k.count / d.total * 100}%`, background: RATING[k.key].col }} />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12, borderTop: "1px dashed #e5e7eb", paddingTop: 10 }}>
+          {RATING_KEYS.map(k => <span key={k} style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4, color: "#6b7280" }}><span style={{ width: 8, height: 8, borderRadius: 2, background: RATING[k].col, display: "inline-block" }} />{RATING[k].label}</span>)}
+        </div>
+      </div>
+    </div>
+
+    <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>
+      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>⏳ Sắp đến hạn trong 7 ngày tới</div>
+      <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 12 }}>Cảnh báo sớm để chủ động phân bổ lại, thay vì chỉ biết khi đã quá hạn.</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {upcoming7dByDept.map(d => (
+          <div key={d.dept} style={{ flex: 1, textAlign: "center", padding: "8px 6px", borderRadius: 8, background: DEPT_COLOR[d.dept] + "15" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: DEPT_COLOR[d.dept] }}>{d.count}</div>
+            <div style={{ fontSize: 11, color: DEPT_COLOR[d.dept] }}>{d.dept}</div>
+          </div>
+        ))}
+      </div>
+      {upcoming7d.length === 0 ? <div style={{ textAlign: "center", color: "#9ca3af", padding: 12, fontSize: 13 }}>Không có việc nào sắp đến hạn trong 7 ngày tới</div> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {upcoming7d.slice(0, 8).map(t => (
+            <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #fde68a", background: "#fffbeb", cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 500, wordBreak: "break-word" }}>{t.title}</div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}><span style={{ color: DEPT_COLOR[t.dept] }}>{t.dept}</span> · {getEmp?.(t.eid)?.name || "–"} · Hạn: {t.deadline}</div>
+              </div>
+              <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, background: "#f59e0b", color: "#fff", padding: "2px 8px", borderRadius: 10 }}>{t.daysLeft === 0 ? "Hôm nay" : `${t.daysLeft} ngày`}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   </>);
 }

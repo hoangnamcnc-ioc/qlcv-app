@@ -12,7 +12,7 @@ export default function Reports({
   leaderboard,
   lateReasonStats,
   getEmp, setModal, loadComments,
-  canExec, computed, monthlyScores, snapshotMonth, currentUser,
+  canExec, computed, monthlyScores, snapshotMonth, currentUser, overloadThreshold,
 }) {
   const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm (tháng)
   const [whyYear, setWhyYear] = useState(null); // nhân viên đang xem giải thích điểm (năm/xếp hạng)
@@ -26,7 +26,7 @@ export default function Reports({
       </div>
 
       {repTab === "grading" && canExec && <GradingTab isMobile={isMobile} inp={inp} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} currentUser={currentUser} />}
-      {repTab === "exec" && canExec && <ExecTab isMobile={isMobile} computed={computed} getEmp={getEmp} setModal={setModal} loadComments={loadComments} />}
+      {repTab === "exec" && canExec && <ExecTab isMobile={isMobile} computed={computed} getEmp={getEmp} setModal={setModal} loadComments={loadComments} overloadThreshold={overloadThreshold} />}
 
       {repTab === "monthly" && (<>
         <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
