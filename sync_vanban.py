@@ -107,6 +107,7 @@ COL = {
 class IOfficeExtractor:
     def __init__(self, page):
         self.page = page
+        self.context = page.context
 
     async def login(self):
         url = CONFIG["IOFFICE_URL"]
@@ -406,18 +407,59 @@ class IOfficeExtractor:
             if await btn.count() == 0:
                 print(f"       (không thấy nút 'Nén và tải tất cả' cho {so_ky_hieu} — có thể văn bản không có file đính kèm)")
                 return []
-            # Nút này là <a id="zipall_popup"> ẩn (kích thước 0, không phải bị che), click()/force=True
-            # vẫn đòi hỏi tọa độ hiển thị nên luôn báo "Element is not visible". dispatch_event bắn
-            # thẳng sự kiện click vào DOM, không cần phần tử hiển thị, nên bấm được trong mọi trường hợp.
-            async with self.page.expect_download(timeout=20000) as dl_info:
-                await btn.first.dispatch_event("click")
-            download = await dl_info.value
+
+            # id="zipall_popup" gợi ý bấm vào sẽ mở 1 POPUP (modal hoặc tab mới) yêu cầu xác nhận
+            # thêm, chứ không tải ngay — nên phải lắng nghe cả sự kiện "trang mới mở" lẫn "download",
+            # rồi tìm nút xác nhận (Tải/Download/OK) bên trong popup đó để bấm tiếp.
+            new_page_holder = []
+            on_new_page = lambda p: new_page_holder.append(p)
+            self.context.on("page", on_new_page)
+            await btn.first.dispatch_event("click")
+            await asyncio.sleep(2)
+            self.context.remove_listener("page", on_new_page)
+
+            target_page = new_page_holder[0] if new_page_holder else self.page
+            if new_page_holder:
+                try:
+                    await target_page.wait_for_load_state("networkidle", timeout=8000)
+                except Exception:
+                    pass
+
+            download = None
+            # Thử tìm 1 nút xác nhận tải trong popup/modal (thường ghi "Tải"/"Download"/"OK"/"Xác nhận")
+            for text in ["Tải xuống", "Download", "Tải về", "Xác nhận", "OK", "Đồng ý"]:
+                confirm_btn = target_page.get_by_text(text, exact=False)
+                if await confirm_btn.count() > 0:
+                    try:
+                        async with target_page.expect_download(timeout=8000) as dl_info:
+                            await confirm_btn.first.click(force=True)
+                        download = await dl_info.value
+                        break
+                    except Exception:
+                        continue
+
+            if download is None:
+                # Không tìm ra nút xác nhận nào tự tải được — lưu lại HTML để chẩn đoán, không chặn cả script
+                try:
+                    dump_path = os.path.join(ATTACHMENT_TMP_DIR, f"debug_popup_{so_ky_hieu.replace('/', '_')}.html")
+                    html = await target_page.content()
+                    with open(dump_path, "w", encoding="utf-8") as f:
+                        f.write(html)
+                    print(f"       ⚠ Không tự tải được — đã lưu HTML popup để debug: {dump_path}")
+                except Exception:
+                    print(f"       ⚠ Không tự tải được file đính kèm cho {so_ky_hieu} (không rõ cấu trúc popup)")
+                if new_page_holder:
+                    await target_page.close()
+                return []
+
             name = download.suggested_filename or f"{so_ky_hieu.replace('/', '_')}.zip"
             # Lưu ra thư mục tạm CỐ ĐỊNH (không dùng download.path()) vì Playwright sẽ xoá
             # file tạm của nó ngay khi đóng trình duyệt, trước cả lúc mình kịp upload lên Supabase.
             dest = os.path.join(ATTACHMENT_TMP_DIR, f"{int(datetime.now().timestamp()*1000)}_{name}")
             await download.save_as(dest)
             print(f"       📎 Tải được (nén tất cả): {name}")
+            if new_page_holder:
+                await target_page.close()
             return [{"name": name, "path": dest}]
         except Exception as e:
             print(f"       ⚠ Không tải được file đính kèm cho {so_ky_hieu}: {e}")
