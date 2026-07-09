@@ -364,6 +364,20 @@ class IOfficeExtractor:
     async def open_detail_by_so_ky_hieu(self, frame, so_ky_hieu: str, max_pages: int = 20) -> bool:
         """Dò qua các trang tìm đúng dòng có số ký hiệu này, click vào dòng để mở trang chi tiết
         văn bản (nơi có nút "📥 Nén và tải tất cả")."""
+        # LUÔN bấm về trang 1 trước khi dò — biến page_num bên dưới đếm TƯƠNG ĐỐI (cứ không thấy
+        # là bấm sang trang kế), nhưng trang THỰC TẾ đang hiển thị có thể không phải trang 1 (ví
+        # dụ ngay sau read_table_all_pages() đang dừng ở trang cuối, hoặc "Quay lại" không reset
+        # về trang 1). Nếu không ép về trang 1 trước, thuật toán dò-tiến-only sẽ không bao giờ
+        # quay lại được các trang nhỏ hơn trang hiện tại -> bỏ sót vĩnh viễn văn bản ở trang đó.
+        for loc in [frame.locator('a.paginate_button:text-is("1")'), frame.locator('a:text-is("1")')]:
+            try:
+                if await loc.count() > 0:
+                    await loc.first.click(force=True)
+                    await asyncio.sleep(1.5)
+                    break
+            except Exception:
+                continue
+
         page_num = 1
         while page_num <= max_pages:
             row_loc = frame.locator("tr").filter(has_text=so_ky_hieu)
@@ -496,6 +510,8 @@ class IOfficeExtractor:
                             doc["_attachment_files"] = await self.download_attachments_from_detail(doc["so_ky_hieu"])
                             await self.back_to_list()
                             frame = await self._find_frame_with_table()
+                        else:
+                            print(f"     ⚠ Không tìm thấy/mở được dòng '{doc['so_ky_hieu']}' trong danh sách — bỏ qua file đính kèm")
                     except Exception as e:
                         print(f"       ⚠ Lỗi lấy file đính kèm cho {doc['so_ky_hieu']}: {e}")
 
