@@ -400,12 +400,17 @@ class IOfficeExtractor:
         của văn bản vào ĐÚNG 1 file .zip duy nhất, tránh hẳn tình trạng nhiều download rời rạc
         bị lẫn lộn giữa các văn bản (lỗi đã gặp với cách tải từng file trước đây)."""
         try:
-            btn = self.page.get_by_text("Nén và tải tất cả", exact=False)
+            btn = self.page.locator("#zipall_popup")
+            if await btn.count() == 0:
+                btn = self.page.get_by_text("Nén và tải tất cả", exact=False)
             if await btn.count() == 0:
                 print(f"       (không thấy nút 'Nén và tải tất cả' cho {so_ky_hieu} — có thể văn bản không có file đính kèm)")
                 return []
+            # Nút này là <a id="zipall_popup"> ẩn (kích thước 0, không phải bị che), click()/force=True
+            # vẫn đòi hỏi tọa độ hiển thị nên luôn báo "Element is not visible". dispatch_event bắn
+            # thẳng sự kiện click vào DOM, không cần phần tử hiển thị, nên bấm được trong mọi trường hợp.
             async with self.page.expect_download(timeout=20000) as dl_info:
-                await btn.first.click(force=True)
+                await btn.first.dispatch_event("click")
             download = await dl_info.value
             name = download.suggested_filename or f"{so_ky_hieu.replace('/', '_')}.zip"
             # Lưu ra thư mục tạm CỐ ĐỊNH (không dùng download.path()) vì Playwright sẽ xoá
@@ -619,7 +624,10 @@ class QLCVInserter:
         )
         if resp.status_code in (200, 201):
             return {"name": filename, "url": f"{self.base}/storage/v1/object/public/attachments/{safe_name}"}
-        print(f"       ⚠ Upload file '{filename}' lỗi: HTTP {resp.status_code}: {resp.text[:120]}")
+        if resp.status_code == 413 or "exceeded the maximum allowed size" in resp.text:
+            print(f"       ⚠ File '{filename}' vượt quá dung lượng cho phép của Storage (bỏ qua, văn bản vẫn được đồng bộ, chỉ thiếu file này)")
+        else:
+            print(f"       ⚠ Upload file '{filename}' lỗi: HTTP {resp.status_code}: {resp.text[:120]}")
         return None
 
     @staticmethod
