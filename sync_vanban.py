@@ -10,11 +10,12 @@ Cách dùng:
   python sync_vanban.py --dry-run       # Chỉ xem kết quả, không thay đổi (vẫn thử dò file đính kèm để kiểm tra)
   python sync_vanban.py --no-attachments  # Bỏ qua bước mở chi tiết/tải file đính kèm (nhanh hơn)
 
-Lưu ý về file đính kèm: mỗi văn bản MỚI (chưa có trong qlcv-app) sẽ được gọi link
-"Tải file" có sẵn ngay trên bảng danh sách (nút 📎 trong iOffice) để lấy toàn bộ file
-đính kèm, rồi upload lên cùng kho lưu trữ (Storage bucket "attachments") mà ứng dụng
-đang dùng. File tạm được lưu ở thư mục hệ thống (qlcv_sync_vanban_attachments) và tự
-xoá sau khi upload xong.
+Lưu ý về file đính kèm: mỗi văn bản MỚI (chưa có trong qlcv-app) sẽ được mở trang chi
+tiết trên iOffice rồi bấm nút "📥 Nén và tải tất cả" — gộp MỌI file đính kèm của văn
+bản đó vào ĐÚNG 1 file .zip duy nhất (thay vì tải rời từng file), tránh hẳn tình trạng
+nhiều download bị lẫn lộn giữa các văn bản. File zip được upload lên cùng kho lưu trữ
+(Storage bucket "attachments") mà ứng dụng đang dùng. File tạm lưu ở thư mục hệ thống
+(qlcv_sync_vanban_attachments) và tự xoá sau khi upload xong.
 
 Cài đặt:
   pip install playwright requests
@@ -355,47 +356,78 @@ class IOfficeExtractor:
             "loai_van_ban":    safe(12),
         }
 
-    async def download_all_files(self, download_href: str, so_ky_hieu: str) -> list[dict]:
-        """Gọi thẳng hàm JS của link 'Tải file' (href dạng javascript:allFileDownload(id))
-        để kích hoạt tải toàn bộ file đính kèm của văn bản, không cần click/mở trang chi tiết.
-        Trả về [{name, path}] (file tạm cục bộ).
-
-        QUAN TRỌNG: nút "Tải TẤT CẢ file" của 1 văn bản có thể bắn ra NHIỀU download nối tiếp
-        nhau (nếu văn bản có >1 file đính kèm), không chỉ 1. Trước đây dùng expect_download()
-        chỉ bắt ĐÚNG 1 download đầu tiên rồi coi như xong — nếu file thứ 2 của văn bản A bắn ra
-        hơi trễ, nó rơi vào lúc văn bản B đã bắt đầu chờ, khiến B nhận nhầm file của A. Giờ dùng
-        listener bắt HẾT mọi download trong 1 khoảng thời gian chờ cố định, rồi mới ngắt kết nối
-        trước khi chuyển sang văn bản tiếp theo — không để download nào "rơi rớt" sang lượt sau."""
-        if not download_href:
-            return []
-        collected = []
-        on_download = lambda d: collected.append(d)
-        self.page.on("download", on_download)
-        js_call = download_href.replace("javascript:", "", 1)
-        try:
-            await self.page.evaluate(js_call)
-            # Chờ đủ lâu để MỌI file của văn bản này (nếu có nhiều hơn 1) kịp bắn ra hết
-            await asyncio.sleep(4)
-        except Exception as e:
-            print(f"       ⚠ Lỗi khi gọi tải file cho {so_ky_hieu}: {e}")
-        finally:
-            self.page.remove_listener("download", on_download)
-
-        results = []
-        for i, download in enumerate(collected):
+    async def open_detail_by_so_ky_hieu(self, frame, so_ky_hieu: str, max_pages: int = 20) -> bool:
+        """Dò qua các trang tìm đúng dòng có số ký hiệu này, click vào dòng để mở trang chi tiết
+        văn bản (nơi có nút "📥 Nén và tải tất cả")."""
+        page_num = 1
+        while page_num <= max_pages:
+            row_loc = frame.locator("tr").filter(has_text=so_ky_hieu)
             try:
-                name = download.suggested_filename or f"{so_ky_hieu.replace('/', '_')}_{i+1}.zip"
-                # Lưu ra thư mục tạm CỐ ĐỊNH (không dùng download.path()) vì Playwright sẽ xoá
-                # file tạm của nó ngay khi đóng trình duyệt, trước cả lúc mình kịp upload lên Supabase.
-                dest = os.path.join(ATTACHMENT_TMP_DIR, f"{int(datetime.now().timestamp()*1000)}_{i}_{name}")
-                await download.save_as(dest)
-                print(f"       📎 Tải được: {name}")
-                results.append({"name": name, "path": dest})
-            except Exception as e:
-                print(f"       ⚠ Lỗi lưu file đính kèm cho {so_ky_hieu}: {e}")
-        if not results:
-            print(f"       (không tìm thấy file đính kèm cho {so_ky_hieu})")
-        return results
+                cnt = await row_loc.count()
+            except Exception:
+                cnt = 0
+            if cnt > 0:
+                row = row_loc.first
+                try:
+                    await row.click(force=True)
+                    await self.page.wait_for_load_state("networkidle", timeout=15000)
+                    await asyncio.sleep(1)
+                    return True
+                except Exception as e:
+                    print(f"       ⚠ Không mở được chi tiết '{so_ky_hieu}': {e}")
+                    return False
+            next_page = page_num + 1
+            clicked = False
+            for loc in [
+                frame.locator(f'a.paginate_button:text-is("{next_page}")'),
+                frame.locator(f'a:text-is("{next_page}")'),
+            ]:
+                try:
+                    if await loc.count() > 0:
+                        await loc.first.click(force=True)
+                        clicked = True
+                        break
+                except Exception:
+                    continue
+            if not clicked:
+                break
+            await asyncio.sleep(2)
+            page_num = next_page
+        return False
+
+    async def download_zip_from_detail(self, so_ky_hieu: str) -> list[dict]:
+        """Bấm nút "📥 Nén và tải tất cả" trên trang chi tiết đang mở — gộp MỌI file đính kèm
+        của văn bản vào ĐÚNG 1 file .zip duy nhất, tránh hẳn tình trạng nhiều download rời rạc
+        bị lẫn lộn giữa các văn bản (lỗi đã gặp với cách tải từng file trước đây)."""
+        try:
+            btn = self.page.get_by_text("Nén và tải tất cả", exact=False)
+            if await btn.count() == 0:
+                print(f"       (không thấy nút 'Nén và tải tất cả' cho {so_ky_hieu} — có thể văn bản không có file đính kèm)")
+                return []
+            async with self.page.expect_download(timeout=20000) as dl_info:
+                await btn.first.click(force=True)
+            download = await dl_info.value
+            name = download.suggested_filename or f"{so_ky_hieu.replace('/', '_')}.zip"
+            # Lưu ra thư mục tạm CỐ ĐỊNH (không dùng download.path()) vì Playwright sẽ xoá
+            # file tạm của nó ngay khi đóng trình duyệt, trước cả lúc mình kịp upload lên Supabase.
+            dest = os.path.join(ATTACHMENT_TMP_DIR, f"{int(datetime.now().timestamp()*1000)}_{name}")
+            await download.save_as(dest)
+            print(f"       📎 Tải được (nén tất cả): {name}")
+            return [{"name": name, "path": dest}]
+        except Exception as e:
+            print(f"       ⚠ Không tải được file đính kèm cho {so_ky_hieu}: {e}")
+            return []
+
+    async def back_to_list(self):
+        """Bấm nút "< Quay lại" để về danh sách văn bản đến sau khi xem chi tiết 1 văn bản."""
+        try:
+            btn = self.page.get_by_text("Quay lại", exact=False)
+            if await btn.count() > 0:
+                await btn.first.click(force=True)
+                await self.page.wait_for_load_state("networkidle", timeout=15000)
+                await asyncio.sleep(1)
+        except Exception as e:
+            print(f"       ⚠ Không quay lại được danh sách: {e}")
 
     async def get_all_vanban_den(self, existing: set[str], missing_attachments: set[str] = frozenset(),
                                   fetch_attachments: bool = True) -> list[dict]:
@@ -409,14 +441,21 @@ class IOfficeExtractor:
             print(f"   → Tìm thấy {len(docs)} văn bản")
 
             if fetch_attachments:
+                frame = await self._find_frame_with_table()
                 for doc in docs:
                     is_new = doc["so_ky_hieu"] not in existing
                     needs_backfill = doc["so_ky_hieu"] in missing_attachments
                     if not is_new and not needs_backfill:
                         continue  # đã có sẵn và đã có file rồi, không cần tải lại
-                    if not doc.get("_download_href"):
-                        continue  # văn bản không có link tải file (không có đính kèm)
-                    doc["_attachment_files"] = await self.download_all_files(doc["_download_href"], doc["so_ky_hieu"])
+                    try:
+                        opened = await self.open_detail_by_so_ky_hieu(frame, doc["so_ky_hieu"])
+                        if opened:
+                            print(f"     🔎 Mở chi tiết: {doc['so_ky_hieu']}")
+                            doc["_attachment_files"] = await self.download_zip_from_detail(doc["so_ky_hieu"])
+                            await self.back_to_list()
+                            frame = await self._find_frame_with_table()
+                    except Exception as e:
+                        print(f"       ⚠ Lỗi lấy file đính kèm cho {doc['so_ky_hieu']}: {e}")
 
             all_docs.extend(docs)
         return all_docs
