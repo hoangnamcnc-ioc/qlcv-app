@@ -11,11 +11,12 @@ Cách dùng:
   python sync_vanban.py --no-attachments  # Bỏ qua bước mở chi tiết/tải file đính kèm (nhanh hơn)
 
 Lưu ý về file đính kèm: mỗi văn bản MỚI (chưa có trong qlcv-app) sẽ được mở trang chi
-tiết trên iOffice rồi bấm nút "📥 Nén và tải tất cả" — gộp MỌI file đính kèm của văn
-bản đó vào ĐÚNG 1 file .zip duy nhất (thay vì tải rời từng file), tránh hẳn tình trạng
-nhiều download bị lẫn lộn giữa các văn bản. File zip được upload lên cùng kho lưu trữ
-(Storage bucket "attachments") mà ứng dụng đang dùng. File tạm lưu ở thư mục hệ thống
-(qlcv_sync_vanban_attachments) và tự xoá sau khi upload xong.
+tiết trên iOffice, lấy danh sách file đính kèm qua API nội bộ của trang (NEORemoting)
+rồi tải TỪNG file bằng 1 HTTP request riêng (giữ nguyên tên gốc, không gộp .zip) — cách
+này không bấm nút/không bắt sự kiện download nên không còn rủi ro lẫn file giữa các văn
+bản. File được upload lên cùng kho lưu trữ (Storage bucket "attachments") mà ứng dụng
+đang dùng. File tạm lưu ở thư mục hệ thống (qlcv_sync_vanban_attachments) và tự xoá sau
+khi upload xong.
 
 Cài đặt:
   pip install playwright requests
@@ -112,7 +113,10 @@ class IOfficeExtractor:
     async def login(self):
         url = CONFIG["IOFFICE_URL"]
         print(f"Đang mở iOffice: {url}")
-        await self.page.goto(url)
+        # Trang iOffice rất nặng (nhiều JS/ảnh inline) — đợi "load" mặc định (mọi tài nguyên
+        # xong hết) dễ vượt quá 30s trên mạng chậm/VPN. Chỉ cần đợi DOM dựng xong ở bước goto,
+        # bước wait_for_load_state("networkidle") ngay sau mới là mốc "trang thực sự sẵn sàng".
+        await self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
         await self.page.wait_for_load_state("networkidle", timeout=30000)
 
         # Kiểm tra thực sự: nếu có ô nhập mật khẩu thì chưa login
@@ -396,74 +400,65 @@ class IOfficeExtractor:
             page_num = next_page
         return False
 
-    async def download_zip_from_detail(self, so_ky_hieu: str) -> list[dict]:
-        """Bấm nút "📥 Nén và tải tất cả" trên trang chi tiết đang mở — gộp MỌI file đính kèm
-        của văn bản vào ĐÚNG 1 file .zip duy nhất, tránh hẳn tình trạng nhiều download rời rạc
-        bị lẫn lộn giữa các văn bản (lỗi đã gặp với cách tải từng file trước đây)."""
+    async def download_attachments_from_detail(self, so_ky_hieu: str) -> list[dict]:
+        """Lấy danh sách file đính kèm của văn bản đang mở chi tiết TRỰC TIẾP qua hàm nội bộ
+        của trang (NEORemoting.getRSet — API DWR mà chính trang dùng để vẽ danh sách file),
+        rồi tải TỪNG file bằng 1 HTTP request độc lập (context.request, tự có cookie đăng
+        nhập). Không bấm nút, không mở popup, không bắt sự kiện download — nên không còn rủi
+        ro lẫn/mất file giữa các văn bản như cách bấm UI trước đây, và giữ nguyên tên file gốc
+        thay vì gộp vào 1 file .zip."""
         try:
-            btn = self.page.locator("#zipall_popup")
-            if await btn.count() == 0:
-                btn = self.page.get_by_text("Nén và tải tất cả", exact=False)
-            if await btn.count() == 0:
-                print(f"       (không thấy nút 'Nén và tải tất cả' cho {so_ky_hieu} — có thể văn bản không có file đính kèm)")
-                return []
-
-            # id="zipall_popup" gợi ý bấm vào sẽ mở 1 POPUP (modal hoặc tab mới) yêu cầu xác nhận
-            # thêm, chứ không tải ngay — nên phải lắng nghe cả sự kiện "trang mới mở" lẫn "download",
-            # rồi tìm nút xác nhận (Tải/Download/OK) bên trong popup đó để bấm tiếp.
-            new_page_holder = []
-            on_new_page = lambda p: new_page_holder.append(p)
-            self.context.on("page", on_new_page)
-            await btn.first.dispatch_event("click")
-            await asyncio.sleep(2)
-            self.context.remove_listener("page", on_new_page)
-
-            target_page = new_page_holder[0] if new_page_holder else self.page
-            if new_page_holder:
-                try:
-                    await target_page.wait_for_load_state("networkidle", timeout=8000)
-                except Exception:
-                    pass
-
-            download = None
-            # Thử tìm 1 nút xác nhận tải trong popup/modal (thường ghi "Tải"/"Download"/"OK"/"Xác nhận")
-            for text in ["Tải xuống", "Download", "Tải về", "Xác nhận", "OK", "Đồng ý"]:
-                confirm_btn = target_page.get_by_text(text, exact=False)
-                if await confirm_btn.count() > 0:
-                    try:
-                        async with target_page.expect_download(timeout=8000) as dl_info:
-                            await confirm_btn.first.click(force=True)
-                        download = await dl_info.value
-                        break
-                    except Exception:
-                        continue
-
-            if download is None:
-                # Không tìm ra nút xác nhận nào tự tải được — lưu lại HTML để chẩn đoán, không chặn cả script
-                try:
-                    dump_path = os.path.join(ATTACHMENT_TMP_DIR, f"debug_popup_{so_ky_hieu.replace('/', '_')}.html")
-                    html = await target_page.content()
-                    with open(dump_path, "w", encoding="utf-8") as f:
-                        f.write(html)
-                    print(f"       ⚠ Không tự tải được — đã lưu HTML popup để debug: {dump_path}")
-                except Exception:
-                    print(f"       ⚠ Không tự tải được file đính kèm cho {so_ky_hieu} (không rõ cấu trúc popup)")
-                if new_page_holder:
-                    await target_page.close()
-                return []
-
-            name = download.suggested_filename or f"{so_ky_hieu.replace('/', '_')}.zip"
-            # Lưu ra thư mục tạm CỐ ĐỊNH (không dùng download.path()) vì Playwright sẽ xoá
-            # file tạm của nó ngay khi đóng trình duyệt, trước cả lúc mình kịp upload lên Supabase.
-            dest = os.path.join(ATTACHMENT_TMP_DIR, f"{int(datetime.now().timestamp()*1000)}_{name}")
-            await download.save_as(dest)
-            print(f"       📎 Tải được (nén tất cả): {name}")
-            if new_page_holder:
-                await target_page.close()
-            return [{"name": name, "path": dest}]
+            raw = await self.page.evaluate("""
+                () => new Promise((resolve) => {
+                    try {
+                        if (typeof current_id === 'undefined' || !current_id) { resolve([]); return; }
+                        var url = 'qlvb.van_ban_den.getFileAttachLst("' + current_id + '","' + (typeof config_sort_file !== 'undefined' ? config_sort_file : '') + '")';
+                        NEORemoting.getRSet(url, function(data) {
+                            try { resolve(eval(data) || []); } catch (e) { resolve([]); }
+                        });
+                    } catch (e) { resolve([]); }
+                })
+            """)
         except Exception as e:
-            print(f"       ⚠ Không tải được file đính kèm cho {so_ky_hieu}: {e}")
+            print(f"       ⚠ Không lấy được danh sách file đính kèm cho {so_ky_hieu}: {e}")
             return []
+
+        if not raw:
+            print(f"       (không có file đính kèm cho {so_ky_hieu})")
+            return []
+
+        results = []
+        for item in raw:
+            hdd_file = item.get("hdd_file")
+            name = item.get("name")
+            if not hdd_file or not name:
+                continue
+            try:
+                abs_url = await self.page.evaluate(
+                    """([path, name]) => {
+                        var type = 'vb';
+                        if (!path.includes('upload/')) { path = Base64_Coder.encode(path); }
+                        var rel = "smartoffice/jbm/download.jsp?5E1XCBS.=" + encodeURIComponent(Base64_Coder.encode(name))
+                            + "&5FpXTEW.=" + path + "&TFbm5O..=" + Base64_Coder.encode(type);
+                        return new URL(rel, document.baseURI).href;
+                    }""",
+                    [hdd_file, name],
+                )
+                resp = await self.context.request.get(abs_url, headers={"Referer": self.page.url})
+                if not resp.ok:
+                    print(f"       ⚠ Tải lỗi (HTTP {resp.status}) file '{name}' của {so_ky_hieu}")
+                    continue
+                body = await resp.body()
+                dest = os.path.join(ATTACHMENT_TMP_DIR, f"{int(datetime.now().timestamp()*1000)}_{name}")
+                with open(dest, "wb") as f:
+                    f.write(body)
+                results.append({"name": name, "path": dest})
+            except Exception as e:
+                print(f"       ⚠ Lỗi khi tải file '{name}' của {so_ky_hieu}: {e}")
+                continue
+
+        print(f"       📎 Tải được {len(results)}/{len(raw)} file đính kèm")
+        return results
 
     async def back_to_list(self):
         """Bấm nút "< Quay lại" để về danh sách văn bản đến sau khi xem chi tiết 1 văn bản."""
@@ -498,7 +493,7 @@ class IOfficeExtractor:
                         opened = await self.open_detail_by_so_ky_hieu(frame, doc["so_ky_hieu"])
                         if opened:
                             print(f"     🔎 Mở chi tiết: {doc['so_ky_hieu']}")
-                            doc["_attachment_files"] = await self.download_zip_from_detail(doc["so_ky_hieu"])
+                            doc["_attachment_files"] = await self.download_attachments_from_detail(doc["so_ky_hieu"])
                             await self.back_to_list()
                             frame = await self._find_frame_with_table()
                     except Exception as e:
