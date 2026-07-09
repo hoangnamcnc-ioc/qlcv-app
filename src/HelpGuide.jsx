@@ -237,7 +237,7 @@ const SECTIONS = [
         "Điểm thời hạn (tối đa 60đ): tỷ lệ việc đúng hạn/trễ hạn trong số việc đã đến hạn xử lý.",
         "Điểm chất lượng (tối đa 40đ): dựa trên mức đánh giá của các việc đã duyệt hoàn thành.",
         "Phạt trễ & quá hạn: trừ 2 điểm mỗi việc trễ/quá hạn.",
-        "Thưởng khối lượng: +1đ mỗi việc vượt mốc 5 việc/tháng, tối đa +10.",
+        "Thưởng khối lượng: +1đ mỗi việc vượt mốc 15 việc/tháng, tối đa +10.",
         "Thưởng phối hợp: cộng thêm khi hỗ trợ hoàn thành việc của người khác.",
       ]},
       { p: "Chỉ nhân viên có từ 5 việc trở lên trong tháng mới được tính điểm." },

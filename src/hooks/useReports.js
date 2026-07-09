@@ -147,8 +147,9 @@ export default function useReports({ computed, employees, currentUser, overloadT
       const quality = resolved > 0 ? qualitySum / (resolved * 4) * 40 : 0;
       // ③ Phạt trễ/quá hạn
       const penalty = (over + completedLate) * LATE_COMPLETION_PENALTY;
-      // ④ Thưởng khối lượng
-      const workloadBonus = Math.max(0, Math.min((resolved - 5) * 1, 10));
+      // ④ Thưởng khối lượng — chỉ tính khi việc đã đến hạn (resolved) vượt quá 15, tránh thưởng
+      // cho khối lượng còn thấp (trước đây bắt đầu tính từ việc thứ 6, dễ thưởng quá sớm)
+      const workloadBonus = Math.max(0, Math.min((resolved - 15) * 1, 10));
       perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + workloadBonus)));
       // Lưu chi tiết để hiển thị "Vì sao điểm này?"
       breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, workloadBonus };
