@@ -228,9 +228,21 @@ export default function App() {
       const due=recurringTemplates.filter(t=>t.active&&t.next_date<=todayStr&&t.last_created!==todayStr);
       if(!due.length)return;
       let created=0;
+      const isWeekend=[0,6].includes(today.getDay()); // Chủ nhật=0, Thứ 7=6
       for(const tpl of due){
-        // Hàng ngày luôn khóa hạn = ngày hôm sau (không dùng deadline_days), tránh vừa tạo xong đã quá hạn; các tần suất khác vẫn tự do chọn số ngày
-        const deadline=tpl.frequency==="daily"?addDays(today,1):addDays(today,tpl.deadline_days||7);
+        // Nhiệm vụ hàng ngày không tạo vào Thứ 7/Chủ nhật (cơ quan không làm việc) — vẫn phải đẩy next_date
+        // sang ngày kế tiếp để không bị "dí" tạo bù dồn dập khi qua ngày làm việc lại.
+        if(tpl.frequency==="daily"&&isWeekend){
+          const nextDate=getNextDate(tpl.next_date,tpl.frequency);
+          await supabase.from("recurring_templates").update({next_date:nextDate,last_created:todayStr}).eq("id",tpl.id);
+          setRecurringTemplates(p=>p.map(r=>r.id===tpl.id?{...r,next_date:nextDate,last_created:todayStr}:r));
+          continue;
+        }
+        // Hàng ngày luôn khóa hạn = ngày làm việc tiếp theo (không dùng deadline_days) — bỏ qua Thứ 7/CN
+        // vì cơ quan không làm việc, tránh giao hạn rơi đúng ngày nghỉ; các tần suất khác vẫn tự do chọn số ngày
+        let dailyDeadline=addDays(today,1);
+        while([0,6].includes(new Date(dailyDeadline).getDay()))dailyDeadline=addDays(dailyDeadline,1);
+        const deadline=tpl.frequency==="daily"?dailyDeadline:addDays(today,tpl.deadline_days||7);
         // created_by_id/created_by_name copy từ người tạo mẫu, để chính người đó (thường là TP/PP) duyệt được
         // hoàn thành nhiệm vụ tự sinh — nếu không, canApprove() sẽ chỉ còn đúng Admin/BGĐ được duyệt.
         const newTask={id:`t${Date.now()}_${Math.random().toString(36).slice(2,6)}`,title:`🔄 ${tpl.title}`,description:tpl.description||"",dept:tpl.dept,eid:tpl.eid,prio:tpl.prio,deadline,completed:false,created:todayStr,progress:0,attachments:"[]",collab_eids:tpl.collab_eids||"[]",collab_note:tpl.collab_note||"",template_id:tpl.id,weight:freqWeight(tpl.frequency),created_by_id:tpl.created_by_id||null,created_by_name:tpl.created_by||"",forwarded_by:"",history:JSON.stringify([{action:`Tạo tự động từ mẫu định kỳ "${tpl.title}"`,by:"Hệ thống",at:nowStr()}]),rating:"",rating_note:"",rated_by:"",rated_at:"",late_reason:"",late_note:""};

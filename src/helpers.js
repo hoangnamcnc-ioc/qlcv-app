@@ -1,8 +1,13 @@
 import { FREQUENCIES } from "./constants";
 
-export const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x.toISOString().split("T")[0]; };
+// toISOString() luôn trả theo giờ UTC — với múi giờ Việt Nam (UTC+7), 00:00 giờ local là 17:00 UTC
+// NGÀY HÔM TRƯỚC, nên .toISOString().split("T")[0] bị lùi mất 1 ngày (todayStr luôn tính "hôm nay"
+// thành hôm qua, khiến các việc định kỳ luôn bị trễ 1 ngày). Dùng thành phần ngày/tháng/năm THEO GIỜ
+// ĐỊA PHƯƠNG để tránh lệch.
+const toLocalYMD = d => { const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${day}`; };
+export const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return toLocalYMD(x); };
 export const today = new Date(); today.setHours(0, 0, 0, 0);
-export const todayStr = today.toISOString().split("T")[0];
+export const todayStr = toLocalYMD(today);
 export const nowStr = () => new Date().toLocaleString("vi-VN");
 // Parse chuỗi do nowStr() sinh ra, dạng "HH:mm:ss d/M/yyyy" — Date() gốc hiểu nhầm d/M thành M/d (lịch Mỹ) nên phải tự tách.
 export const parseNowStr = s => { if (!s || typeof s !== "string") return null; const [time, date] = s.split(" "); if (!time || !date) return null; const [h, mi, se] = time.split(":").map(Number); const [d, m, y] = date.split("/").map(Number); if (!d || !m || !y) return null; const dt = new Date(y, m - 1, d, h || 0, mi || 0, se || 0); return isNaN(dt) ? null : dt; };
