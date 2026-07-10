@@ -306,7 +306,10 @@ export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, ov
 // phỏng theo mẫu báo cáo UBND tỉnh gửi cấp trên (Tổng số / HT đúng hạn / HT trễ hạn / Chưa HT trong hạn /
 // Chưa HT trễ hạn + 3 tỷ lệ trên tổng số giao), chia theo Phòng (thay "cấp Sở") rồi drill-down Nhân viên
 // (thay "cấp Xã") vì QLCV chỉ có 1 cấp tổ chức thay vì 2 cấp như mẫu gốc.
-const ORG_NAME = "TRUNG TÂM GIÁM SÁT, ĐIỀU HÀNH ĐÔ THỊ THÔNG MINH TỈNH ĐẮK LẮK";
+const ORG_NAME = "Trung tâm Giám sát, Điều hành Đô thị thông minh tỉnh Đắk Lắk";
+const PARENT_ORG = "SỞ KHOA HỌC VÀ CÔNG NGHỆ ĐẮK LẮK";
+const ORG_LINE1 = "TRUNG TÂM GIÁM SÁT,";
+const ORG_LINE2 = "ĐIỀU HÀNH ĐÔ THỊ THÔNG MINH";
 
 // Quy đổi trạng thái nhiệm vụ hiện có (đã tính sẵn theo ngày hôm nay) sang đúng 4 nhóm của mẫu báo cáo —
 // "chưa hoàn thành trong hạn" gồm mọi trạng thái chưa xong mà cũng chưa quá hạn (on_time/nearly_due/pending_approval).
@@ -379,6 +382,8 @@ export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
       body{font-family:"Times New Roman",serif;padding:28px;color:#111;font-size:13.5px;line-height:1.5}
       .hd{display:flex;justify-content:space-between;text-align:center;margin-bottom:6px}
       .hd div{width:46%} .hd b{display:block} .u{text-decoration:underline}
+      .unit-line{font-weight:700}
+      .unit-rule{width:120px;height:0;border-top:1px solid #000;margin:2px auto 6px}
       h1{font-size:15px;text-align:center;text-transform:uppercase;margin:18px 0 2px}
       h2{font-size:14px;text-align:center;font-weight:400;margin:0 0 20px}
       p{margin:6px 0;text-align:justify}
@@ -390,7 +395,7 @@ export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
       @media print{button{display:none}}
     </style></head><body>
     <div class="hd">
-      <div><b>${ORG_NAME}</b><div>—————</div><div>Số: ${docNumber || "……"}/BC-TTGSĐH</div></div>
+      <div><div>${PARENT_ORG}</div><div class="unit-line">${ORG_LINE1}</div><div class="unit-line">${ORG_LINE2}</div><div class="unit-rule"></div><div>Số: ${docNumber || "……"}/BC-TTGSĐH</div></div>
       <div><b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><div class="u">Độc lập - Tự do - Hạnh phúc</div><div>—————————————</div><div>Đắk Lắk, ngày ${dd} tháng ${mm} năm ${yyyy}</div></div>
     </div>
     <h1>Báo cáo</h1>
