@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { DEPTS, DEPT_COLOR, VI_MONTHS, RATING } from "../constants";
-import { GradingTab, ExecTab } from "./ExecReports";
+import { GradingTab, ExecTab, TaskResultReportTab } from "./ExecReports";
 
 export default function Reports({
   isMobile, inp,
@@ -20,13 +20,14 @@ export default function Reports({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", gap: 8, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 8, overflowX: "auto" }}>
-        {[["monthly","📅 Tháng"],["leaderboard","🏆 Xếp hạng"],["late_reasons","📊 Nguyên nhân trễ"],...(canExec?[["grading","📑 Xếp loại"],["exec","🏛️ Điều hành"]]:[])].map(([id, label]) => (
+        {[["monthly","📅 Tháng"],["leaderboard","🏆 Xếp hạng"],["late_reasons","📊 Nguyên nhân trễ"],...(canExec?[["grading","📑 Xếp loại"],["exec","🏛️ Điều hành"],["kq_nv","📄 KQ nhiệm vụ"]]:[])].map(([id, label]) => (
           <button key={id} onClick={() => setRepTab(id)} style={{ flex: 1, padding: "7px 8px", border: "none", borderRadius: 7, background: repTab === id ? "#4f46e5" : "transparent", color: repTab === id ? "#fff" : "#6b7280", cursor: "pointer", fontSize: isMobile ? 11 : 13, fontWeight: repTab === id ? 600 : 400, whiteSpace: "nowrap" }}>{label}</button>
         ))}
       </div>
 
       {repTab === "grading" && canExec && <GradingTab isMobile={isMobile} inp={inp} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} currentUser={currentUser} />}
       {repTab === "exec" && canExec && <ExecTab isMobile={isMobile} computed={computed} getEmp={getEmp} setModal={setModal} loadComments={loadComments} overloadThreshold={overloadThreshold} />}
+      {repTab === "kq_nv" && canExec && <TaskResultReportTab inp={inp} computed={computed} getEmp={getEmp} currentUser={currentUser} />}
 
       {repTab === "monthly" && (<>
         <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
