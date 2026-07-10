@@ -398,13 +398,31 @@ export default function App() {
       setModal(m=>m?{...m,viewed_at:vt}:m);
     }
   },[modal]);
+  // Tab Văn bản: chỉ Admin/BGĐ/TP.HCTH/TP/PTP thấy (Nhân viên không tham gia luồng chuyển văn bản nên ẩn hẳn)
+  const canSeeDocumentsTab=["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role);
+  // ── Văn bản chuyển tới mình chưa xem: trước đây KHÔNG có gì báo cho người nhận biết (Documents.jsx chỉ
+  // âm thầm ghi viewed_at khi họ tự mở tab Văn bản) — người được chuyển dễ bỏ sót văn bản vì không có gì
+  // nhắc họ vào xem. Tải riêng 1 bộ cột gọn (không tải cả bảng documents nặng) chỉ để tính badge/thông báo. ──
+  const [docsForNotif,setDocsForNotif]=useState([]);
+  useEffect(()=>{
+    if(!currentUser||!canSeeDocumentsTab)return;
+    (async()=>{const{data}=await supabase.from("documents").select("id,doc_number,title,type,forwards").not("forwards","is",null);setDocsForNotif(data||[]);})();
+  },[currentUser,canSeeDocumentsTab]);
+  const myPendingDocForwards=useMemo(()=>{
+    if(!currentUser)return[];
+    return docsForNotif.filter(d=>{
+      const chain=parseJSON(d.forwards,[]);
+      const last=chain[chain.length-1];
+      return last&&last.to_id===currentUser.id&&!last.viewed_at;
+    });
+  },[docsForNotif,currentUser]);
   const [showLoginPopup,setShowLoginPopup]=useState(false);
   useEffect(()=>{
     if(!currentUser||loading||loginNotifShown)return;
-    if(myNewTasks.length>0||myOverdueTasks.length>0||myPendingApprovals.length>0||myPendingTaskApprovals.length>0||myPendingExtRequests.length>0)setShowLoginPopup(true);
+    if(myNewTasks.length>0||myOverdueTasks.length>0||myPendingApprovals.length>0||myPendingTaskApprovals.length>0||myPendingExtRequests.length>0||myPendingDocForwards.length>0)setShowLoginPopup(true);
     setLoginNotifShown(true);
-  },[currentUser,loading,loginNotifShown,myNewTasks.length,myOverdueTasks.length,myPendingApprovals.length,myPendingTaskApprovals.length,myPendingExtRequests.length]);
-  const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length+suspiciousTasks.length+myPendingApprovals.length+myPendingTaskApprovals.length+myPendingExtRequests.length+unreadCommentTasks.length;
+  },[currentUser,loading,loginNotifShown,myNewTasks.length,myOverdueTasks.length,myPendingApprovals.length,myPendingTaskApprovals.length,myPendingExtRequests.length,myPendingDocForwards.length]);
+  const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length+suspiciousTasks.length+myPendingApprovals.length+myPendingTaskApprovals.length+myPendingExtRequests.length+unreadCommentTasks.length+myPendingDocForwards.length;
   const activityLog=useMemo(()=>{if(!canSeeAll)return[];const logs=[];(tasks||[]).forEach(t=>{parseJSON(t.history,[]).forEach((h,i)=>{logs.push({id:t.id+"_"+i,task:t.title,action:h.action,by:h.by,at:h.at});});});return logs.sort((a,b)=>{const pa=a.at.split(" ");const pb=b.at.split(" ");const da=pa[1]?pa[1].split("/").reverse().join("")+pa[0]:"";const db=pb[1]?pb[1].split("/").reverse().join("")+pb[0]:"";return db.localeCompare(da);}).slice(0,200);},[tasks,canSeeAll]);
   useEffect(()=>{setPage(1);},[fStatus,fDept,fEid,fAssignedByMe,search,fSort]);
   const emptyTaskData=()=>{const dept=availableDepts[0];const first=(employees||[]).find(e=>e.dept===dept);return{title:"",description:"",dept,eid:first?.id||"",prio:"medium",deadline:addDays(today,7),attachments:"[]",progress:0,collab_eids:"[]",collab_note:""};};
@@ -431,8 +449,6 @@ export default function App() {
   // "Nhiệm vụ định kỳ" là modal (không phải view riêng) nhưng vẫn hiện như 1 tab con trong "Công việc"
   const workExtras=canCreate?[{id:"recurring",icon:"🔄",label:"Nhiệm vụ định kỳ",onClick:()=>setShowRecurring(true)},{id:"bulkhandoff",icon:"🔁",label:"Bàn giao hàng loạt",onClick:openBulkHandoff}]:[];
   const myQueueTotal=myPendingTaskApprovals.length+myPendingExtRequests.length+unratedTasks.length+unreadCommentTasks.length+myPendingApprovals.length+myPendingProjectSteps.length+myPendingProjectExt.length+myPendingProjectStepExt.length;
-  // Tab Văn bản: chỉ Admin/BGĐ/TP.HCTH/TP/PTP thấy (Nhân viên không tham gia luồng chuyển văn bản nên ẩn hẳn)
-  const canSeeDocumentsTab=["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role);
   const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"myqueue",icon:"🗂️",label:"Việc chờ xử lý",shortLabel:"Chờ xử lý",badge:myQueueTotal},{id:"work",icon:"💼",label:"Công việc"},{id:"calendar",icon:"🗓️",label:"Lịch (Deadline/Trực)",shortLabel:"Lịch"},...(canSeeDocumentsTab?[{id:"documents",icon:"📁",label:"Văn bản"}]:[]),{id:"chat",icon:"💬",label:"Chat"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
   const isWorkView=workSubviews.some(w=>w.id===view);
   const getViewMeta=id=>navItems.find(n=>n.id===id)||workSubviews.find(w=>w.id===id);
@@ -587,6 +603,7 @@ export default function App() {
                 {unreadCommentTasks.length>0&&<div><div style={{padding:"8px 14px",background:"#f5f3ff",fontSize:11,fontWeight:600,color:"#6d28d9",borderBottom:"1px solid #ddd6fe"}}>💬 BÌNH LUẬN MỚI ({unreadCommentTasks.length})</div>{unreadCommentTasks.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#faf9ff"}} onMouseEnter={e=>e.currentTarget.style.background="#f5f3ff"} onMouseLeave={e=>e.currentTarget.style.background="#faf9ff"}><span style={{fontSize:18,flexShrink:0}}>💬</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#6d28d9"}}>{t.dept} · Có bình luận mới chưa xem</div></div></div>)}</div>}
                 {unratedTasks.length>0&&<div><div style={{padding:"8px 14px",background:"#fffbeb",fontSize:11,fontWeight:600,color:"#92400e",borderBottom:"1px solid #fde68a"}}>⭐ CẦN ĐÁNH GIÁ ({unratedTasks.length})</div>{unratedTasks.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#fffef0"}} onMouseEnter={e=>e.currentTarget.style.background="#fef9c3"} onMouseLeave={e=>e.currentTarget.style.background="#fffef0"}><span style={{fontSize:18,flexShrink:0}}>⭐</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#92400e"}}>Hoàn thành — chờ đánh giá · {t.dept}</div></div></div>)}</div>}
                 {suspiciousTasks.length>0&&<div><div style={{padding:"8px 14px",background:"#fff7ed",fontSize:11,fontWeight:600,color:"#c2410c",borderBottom:"1px solid #fed7aa"}}>🚨 HOÀN THÀNH ĐỘT NGỘT — CẦN KIỂM TRA ({suspiciousTasks.length})</div>{suspiciousTasks.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#fff7ed"}} onMouseEnter={e=>e.currentTarget.style.background="#ffedd5"} onMouseLeave={e=>e.currentTarget.style.background="#fff7ed"}><span style={{fontSize:18,flexShrink:0}}>🚨</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#c2410c"}}>{getEmp(t.eid)?.name||"–"} · {t.dept} · Tiến độ thấp → hoàn thành sát deadline</div></div></div>)}</div>}
+                {myPendingDocForwards.length>0&&<div><div style={{padding:"8px 14px",background:"#f5f3ff",fontSize:11,fontWeight:600,color:"#6d28d9",borderBottom:"1px solid #ddd6fe"}}>↪️ VĂN BẢN CHUYỂN TỚI BẠN ({myPendingDocForwards.length})</div>{myPendingDocForwards.map(d=><div key={d.id} onClick={()=>{setView("documents");setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#faf9ff"}} onMouseEnter={e=>e.currentTarget.style.background="#f5f3ff"} onMouseLeave={e=>e.currentTarget.style.background="#faf9ff"}><span style={{fontSize:18,flexShrink:0}}>↪️</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>[{d.doc_number}] {d.title}</div><div style={{fontSize:11,color:"#6d28d9"}}>Có văn bản mới được chuyển tới bạn, chưa xem</div></div></div>)}</div>}
                 {notifications.length>0&&<div><div style={{padding:"8px 14px",background:"#f9fafb",fontSize:11,fontWeight:600,color:"#6b7280",borderBottom:"1px solid #e5e7eb"}}>⚠️ DEADLINE ({notifications.length})</div>{notifications.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start"}} onMouseEnter={e=>e.currentTarget.style.background="#f9fafb"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span style={{fontSize:18,flexShrink:0}}>{t.status==="overdue"?"🔴":"🟡"}</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#6b7280"}}>{getEmp(t.eid)?.name||"–"} · {t.dept} · Hạn: {t.deadline}</div></div></div>)}</div>}
                 {totalNotif===0&&<div style={{padding:20,textAlign:"center",color:"#9ca3af",fontSize:13}}>Không có thông báo</div>}
               </div>}
@@ -804,9 +821,13 @@ export default function App() {
             <div style={{fontSize:12,fontWeight:700,color:"#1d4ed8",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>📅 Đề xuất gia hạn chờ bạn duyệt ({myPendingExtRequests.length})</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>{myPendingExtRequests.map(t=><div key={t.id} onClick={()=>{setShowLoginPopup(false);setModal(t);loadComments(t.id);}} style={{padding:"9px 12px",borderRadius:8,background:"#eff6ff",border:"1px solid #bfdbfe",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#dbeafe"} onMouseLeave={e=>e.currentTarget.style.background="#eff6ff"}><div style={{fontSize:13,fontWeight:500}}>{t.title}</div><div style={{fontSize:11,color:"#1d4ed8",marginTop:1}}>{t.ext_requested_by} đề xuất gia hạn đến {t.ext_proposed}</div></div>)}</div>
           </div>}
-          {myPendingApprovals.length>0&&<div style={{marginBottom:6}}>
+          {myPendingApprovals.length>0&&<div style={{marginBottom:14}}>
             <div style={{fontSize:12,fontWeight:700,color:"#92400e",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>📨 Bước chờ bạn duyệt hoàn thành ({myPendingApprovals.length})</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>{myPendingApprovals.map((a,i)=><div key={i} onClick={()=>{setShowLoginPopup(false);setView("othertasks");}} style={{padding:"9px 12px",borderRadius:8,background:"#fffbeb",border:"1px solid #fde68a",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#fef3c7"} onMouseLeave={e=>e.currentTarget.style.background="#fffbeb"}><div style={{fontSize:13,fontWeight:500}}>{a.taskName}</div><div style={{fontSize:11,color:"#92400e",marginTop:1}}>Bước: {a.content} · {a.requested_by} yêu cầu duyệt</div></div>)}</div>
+          </div>}
+          {myPendingDocForwards.length>0&&<div style={{marginBottom:6}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#6d28d9",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>↪️ Văn bản chuyển tới bạn ({myPendingDocForwards.length})</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>{myPendingDocForwards.map(d=><div key={d.id} onClick={()=>{setShowLoginPopup(false);setView("documents");}} style={{padding:"9px 12px",borderRadius:8,background:"#f5f3ff",border:"1px solid #ddd6fe",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#ede9fe"} onMouseLeave={e=>e.currentTarget.style.background="#f5f3ff"}><div style={{fontSize:13,fontWeight:500}}>[{d.doc_number}] {d.title}</div><div style={{fontSize:11,color:"#6d28d9",marginTop:1}}>Có văn bản mới được chuyển tới bạn, chưa xem</div></div>)}</div>
           </div>}
         </div>
         <div style={{padding:"12px 20px 18px"}}><button onClick={()=>setShowLoginPopup(false)} style={{width:"100%",padding:"10px",border:"none",borderRadius:8,background:"#4f46e5",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:600}}>Đã xem, đóng lại</button></div>
