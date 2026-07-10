@@ -406,7 +406,7 @@ export default function App() {
   const [docsForNotif,setDocsForNotif]=useState([]);
   useEffect(()=>{
     if(!currentUser||!canSeeDocumentsTab)return;
-    (async()=>{const{data}=await supabase.from("documents").select("id,doc_number,title,type,forwards").not("forwards","is",null);setDocsForNotif(data||[]);})();
+    (async()=>{const{data}=await supabase.from("documents").select("id,doc_number,title,type,forwards,task_id").not("forwards","is",null);setDocsForNotif(data||[]);})();
   },[currentUser,canSeeDocumentsTab]);
   const myPendingDocForwards=useMemo(()=>{
     if(!currentUser)return[];
@@ -416,6 +416,15 @@ export default function App() {
       return last&&last.to_id===currentUser.id&&!last.viewed_at;
     });
   },[docsForNotif,currentUser]);
+  // Badge số trên tab "Văn bản": với GĐ/Admin (thấy toàn bộ hộp thư đến) không ai chuyển ngược lại cho họ
+  // nên myPendingDocForwards luôn =0 — đếm riêng số văn bản đến CHƯA xử lý (chưa chuyển cho ai, chưa giao việc)
+  // để badge có ý nghĩa, giống số "Văn bản đến (N)" của iOffice.
+  const isTopDocUser=currentUser?.role==="admin"||currentUser?.is_top_director===true;
+  const docsNeedingAttentionCount=useMemo(()=>{
+    if(!currentUser)return 0;
+    if(isTopDocUser)return docsForNotif.filter(d=>(d.type==="den"||d.type==="incoming")&&parseJSON(d.forwards,[]).length===0&&!d.task_id).length;
+    return myPendingDocForwards.length;
+  },[docsForNotif,currentUser,isTopDocUser,myPendingDocForwards]);
   const [showLoginPopup,setShowLoginPopup]=useState(false);
   useEffect(()=>{
     if(!currentUser||loading||loginNotifShown)return;
@@ -449,7 +458,7 @@ export default function App() {
   // "Nhiệm vụ định kỳ" là modal (không phải view riêng) nhưng vẫn hiện như 1 tab con trong "Công việc"
   const workExtras=canCreate?[{id:"recurring",icon:"🔄",label:"Nhiệm vụ định kỳ",onClick:()=>setShowRecurring(true)},{id:"bulkhandoff",icon:"🔁",label:"Bàn giao hàng loạt",onClick:openBulkHandoff}]:[];
   const myQueueTotal=myPendingTaskApprovals.length+myPendingExtRequests.length+unratedTasks.length+unreadCommentTasks.length+myPendingApprovals.length+myPendingProjectSteps.length+myPendingProjectExt.length+myPendingProjectStepExt.length;
-  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"myqueue",icon:"🗂️",label:"Việc chờ xử lý",shortLabel:"Chờ xử lý",badge:myQueueTotal},{id:"work",icon:"💼",label:"Công việc"},{id:"calendar",icon:"🗓️",label:"Lịch (Deadline/Trực)",shortLabel:"Lịch"},...(canSeeDocumentsTab?[{id:"documents",icon:"📁",label:"Văn bản"}]:[]),{id:"chat",icon:"💬",label:"Chat"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
+  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"myqueue",icon:"🗂️",label:"Việc chờ xử lý",shortLabel:"Chờ xử lý",badge:myQueueTotal},{id:"work",icon:"💼",label:"Công việc"},{id:"calendar",icon:"🗓️",label:"Lịch (Deadline/Trực)",shortLabel:"Lịch"},...(canSeeDocumentsTab?[{id:"documents",icon:"📁",label:"Văn bản",badge:docsNeedingAttentionCount}]:[]),{id:"chat",icon:"💬",label:"Chat"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
   const isWorkView=workSubviews.some(w=>w.id===view);
   const getViewMeta=id=>navItems.find(n=>n.id===id)||workSubviews.find(w=>w.id===id);
   // Nhớ tab con "Công việc" xem gần nhất (theo trình duyệt) để lần sau bấm "Công việc" vào thẳng đó,
