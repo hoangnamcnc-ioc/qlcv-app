@@ -30,11 +30,17 @@ export default function Chat({ currentUser, users, isMobile, inp, showToast }) {
     setLoading(false);
   })(); }, []);
 
-  useEffect(() => { (async () => {
+  useEffect(() => {
     if (!activeId) return;
-    const { data } = await supabase.from("chat_messages").select("*").eq("channel_id", activeId).order("created_at", { ascending: true }).limit(200);
-    setMessages(data || []);
-  })(); }, [activeId]);
+    // Cờ hủy: nếu người dùng chuyển kênh khác trước khi fetch này xong, bỏ kết quả cũ để không ghi đè
+    // tin nhắn của kênh đang mở bằng dữ liệu kênh trước đó (chuyển kênh nhanh → hiển thị nhầm).
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from("chat_messages").select("*").eq("channel_id", activeId).order("created_at", { ascending: true }).limit(200);
+      if (!cancelled) setMessages(data || []);
+    })();
+    return () => { cancelled = true; };
+  }, [activeId]);
 
   // Realtime: tin nhắn mới trong kênh đang mở tự động hiện ra, không cần tải lại trang
   useEffect(() => {
