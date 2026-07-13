@@ -77,7 +77,7 @@ export default function Reports({
                         </div>
                         <div style={{ textAlign: "right" }}>
                           {!e.eligible
-                            ? <span style={{ fontSize: 11, color: "#9ca3af" }}>Chưa đủ ĐK<br/><span style={{ fontSize: 10 }}>({e.total} việc)</span></span>
+                            ? <span style={{ fontSize: 11, color: "#9ca3af" }}>Chưa đủ ĐK<br/><span style={{ fontSize: 10 }}>({e.resolved} việc đến hạn)</span></span>
                             : <span onClick={() => setWhyEmp(e)} style={{ cursor: "pointer", fontSize: 20, fontWeight: 800, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ <span style={{ fontSize: 12 }}>ℹ️</span></span>
                           }
                         </div>
@@ -113,7 +113,7 @@ export default function Reports({
                         <td style={{ padding: "9px 12px", color: "#9ca3af" }}>{Math.round((e.total - e.resolved) * 100) / 100 || 0}</td>
                         <td style={{ padding: "9px 12px" }}>{e.collabTotal > 0 ? <span style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span> : <span style={{ color: "#9ca3af" }}>–</span>}</td>
                         <td style={{ padding: "9px 12px" }}>
-                          {!e.eligible ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa đủ ĐK <span style={{ fontSize: 10 }}>(cần ≥5 việc, hiện {e.total})</span></span> : (
+                          {!e.eligible ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa đủ ĐK <span style={{ fontSize: 10 }}>(cần ≥5 việc đến hạn, hiện {e.resolved})</span></span> : (
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <div style={{ width: 60, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: e.perfScore + "%", background: e.perfScore >= 80 ? "#16a34a" : e.perfScore >= 50 ? "#f59e0b" : "#dc2626", borderRadius: 6 }} /></div>
                               <span style={{ fontSize: 12, fontWeight: 700, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ</span>

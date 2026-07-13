@@ -133,7 +133,12 @@ export default function useReports({ computed, employees, currentUser, overloadT
     const resolved = Math.round((onTime + completedLate + over) * 100) / 100; // Mẫu số N = việc đã đến hạn
     const etWeight = sumW(et);
     const completionRate = etWeight ? Math.round(done / etWeight * 100) : 0;
-    const eligible = etWeight >= 5;
+    // Đủ điều kiện chấm điểm khi có ≥5 việc ĐÃ ĐẾN HẠN (resolved), không phải ≥5 tổng việc — vì toàn bộ
+    // điểm (thời hạn/chất lượng/phạt/thưởng) chỉ tính trên việc đã đến hạn; nếu xét theo tổng việc thì
+    // người mới có 5 việc nhưng chỉ 2 việc đến hạn vẫn bị chấm điểm trên 2 việc (mẫu quá nhỏ, thiếu tin cậy).
+    // Khớp đúng chú thích "≥5 việc đến hạn" hiển thị khắp báo cáo. Cuối tháng (lúc chốt sổ) mọi việc đều
+    // đã đến hạn nên resolved = tổng việc, hai cách cho kết quả như nhau — chỉ khác khi xem giữa tháng.
+    const eligible = resolved >= 5;
     // Task phối hợp trong tháng
     const collabTasks = perfIndex.byCollab.get(`${empId}|${ym}`) || [];
     const collabDone = sumW(collabTasks.filter(t => isCompletedStatus(t.status)));

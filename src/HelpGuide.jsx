@@ -240,7 +240,7 @@ const SECTIONS = [
         "Thưởng khối lượng: +1đ mỗi việc vượt mốc 15 việc/tháng, tối đa +10.",
         "Thưởng phối hợp: cộng thêm khi hỗ trợ hoàn thành việc của người khác.",
       ]},
-      { p: "Chỉ nhân viên có từ 5 việc trở lên trong tháng mới được tính điểm." },
+      { p: "Chỉ nhân viên có từ 5 việc ĐÃ ĐẾN HẠN trở lên trong tháng mới được tính điểm (việc chưa đến hạn chưa tính, vì chưa có kết quả để đánh giá)." },
       { h: "Trọng số nhiệm vụ định kỳ" },
       { p: "Nhiệm vụ tự động sinh từ mẫu định kỳ không tính đều = 1 việc như nhiệm vụ thường, mà quy đổi theo tần suất (tần suất càng dày, khối lượng mỗi lần càng nhỏ nên tính thấp hơn):" },
       { ul: [
@@ -335,7 +335,7 @@ const SECTIONS = [
       { p: "Mọi nhiệm vụ hoàn thành đều cần Trưởng/Phó phòng hoặc Ban Giám đốc duyệt và đánh giá chất lượng, đảm bảo minh bạch trong đánh giá hiệu suất." },
       { h: "Vì sao điểm hiệu suất của tôi trống hoặc thấp?" },
       { ul: [
-        "Cần từ 5 việc trở lên trong tháng mới đủ điều kiện tính điểm.",
+        "Cần từ 5 việc đã đến hạn trở lên trong tháng mới đủ điều kiện tính điểm.",
         "Điểm chỉ tính trên việc đã đến hạn xử lý — việc đang chờ duyệt hoặc chưa tới hạn chưa được tính vào tháng đó.",
         "Nếu chỉ làm ít nhiệm vụ thường, hãy để ý các bước bạn chủ trì trong Nhiệm vụ ngân sách đã được duyệt+chấm chất lượng hay chưa — mỗi bước cũng tính là 1 việc, giúp bạn dễ đạt mốc 5 việc/tháng hơn.",
         "Các trường hợp đã ghi nhận ở mục Hỗ trợ người dùng/PAHT và vận hành DC cũng cộng điểm theo độ khó (Khó=1, Trung bình=1/2, Nhanh=1/4 việc) — điểm cập nhật ngay, không cần tải lại trang.",

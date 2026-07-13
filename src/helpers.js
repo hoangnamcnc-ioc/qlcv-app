@@ -11,7 +11,17 @@ export const todayStr = toLocalYMD(today);
 export const nowStr = () => new Date().toLocaleString("vi-VN");
 // Parse chuỗi do nowStr() sinh ra, dạng "HH:mm:ss d/M/yyyy" — Date() gốc hiểu nhầm d/M thành M/d (lịch Mỹ) nên phải tự tách.
 export const parseNowStr = s => { if (!s || typeof s !== "string") return null; const [time, date] = s.split(" "); if (!time || !date) return null; const [h, mi, se] = time.split(":").map(Number); const [d, m, y] = date.split("/").map(Number); if (!d || !m || !y) return null; const dt = new Date(y, m - 1, d, h || 0, mi || 0, se || 0); return isNaN(dt) ? null : dt; };
-export const getNextDate = (from, freq) => { const d = new Date(from); if (freq === "monthly") d.setMonth(d.getMonth() + 1); else if (freq === "quarterly") d.setMonth(d.getMonth() + 3); else if (freq === "semiannual") d.setMonth(d.getMonth() + 6); else if (freq === "yearly") d.setFullYear(d.getFullYear() + 1); else { const f = FREQUENCIES.find(x => x.value === freq); if (f) d.setDate(d.getDate() + f.days); } return toLocalYMD(d); };
+// Cộng thêm `n` tháng nhưng GIỮ NGUYÊN ngày trong tháng, KẸP về ngày cuối tháng đích nếu ngày gốc không
+// tồn tại ở tháng đó (VD: 31/1 + 1 tháng → 28/2 chứ không phải 3/3). JS gốc dùng setMonth() sẽ "tràn"
+// sang tháng kế (Feb 31 → Mar 3), làm ngày sinh nhiệm vụ định kỳ trôi dần mỗi kỳ.
+const addMonthsClamped = (d, n) => {
+  const day = d.getDate();
+  const x = new Date(d.getFullYear(), d.getMonth() + n, 1); // sang tháng đích, tạm để ngày 1
+  const lastDay = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate(); // ngày cuối của tháng đích
+  x.setDate(Math.min(day, lastDay));
+  return x;
+};
+export const getNextDate = (from, freq) => { let d = new Date(from); if (freq === "monthly") d = addMonthsClamped(d, 1); else if (freq === "quarterly") d = addMonthsClamped(d, 3); else if (freq === "semiannual") d = addMonthsClamped(d, 6); else if (freq === "yearly") d = addMonthsClamped(d, 12); else { const f = FREQUENCIES.find(x => x.value === freq); if (f) d.setDate(d.getDate() + f.days); } return toLocalYMD(d); };
 // Quy đổi 1 lần tạo từ mẫu định kỳ thành bao nhiêu "việc" khi tính điểm hiệu suất — xem FREQUENCIES ở constants.js
 export const freqWeight = freq => FREQUENCIES.find(f => f.value === freq)?.weight ?? 1;
 // So sánh với thời điểm nhân viên YÊU CẦU duyệt (requested_at), không phải lúc người duyệt bấm duyệt (completed_at) —
