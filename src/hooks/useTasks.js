@@ -40,7 +40,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // LƯU Ý: progress===100 KHÔNG còn tự động suy ra completed:true — hoàn thành chỉ được đặt tường minh
   // qua confirmApproveCompletion (sau khi TP/PP/BGĐ duyệt), tránh việc "Yêu cầu hoàn thành" (cũng set progress:100)
   // vô tình bỏ qua bước duyệt.
-  const updateTask = async (id, updates, note, opts = {}) => { const task = tasks.find(t => t.id === id); if (updates.progress === 100 && task && getStatus(task) === "overdue" && !task.late_reason) { showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi hoàn thành.", "error"); setModal({ ...task, status: "overdue" }); return false; } if (!opts.silent) setSaving(true); if (note && task) { const h = parseJSON(task.history, []); h.push({ action: note, by: currentUser.full_name, at: nowStr() }); updates.history = JSON.stringify(h); } if (updates.completed === false) updates.completed_at = null; const { error } = await supabase.from("tasks").update(updates).eq("id", id); if (!error) { setTasks(p => p.map(t => t.id === id ? { ...t, ...updates } : t)); if (!opts.silent) showToast("Đã cập nhật"); } else if (!opts.silent) showToast("Lỗi: " + (error.message || ""), "error"); if (!opts.silent) setSaving(false); return !error; };
+  const updateTask = async (id, updates, note, opts = {}) => { const task = tasks.find(t => t.id === id); if (updates.progress === 100 && task && getStatus(task) === "overdue" && !task.late_reason) { showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi hoàn thành.", "error"); setModal(m => (m && m.id === id) ? { ...m, status: "overdue" } : { ...task, status: "overdue" }); return false; } if (!opts.silent) setSaving(true); if (note && task) { const h = parseJSON(task.history, []); h.push({ action: note, by: currentUser.full_name, at: nowStr() }); updates.history = JSON.stringify(h); } if (updates.completed === false) updates.completed_at = null; const { error } = await supabase.from("tasks").update(updates).eq("id", id); if (!error) { setTasks(p => p.map(t => t.id === id ? { ...t, ...updates } : t)); if (!opts.silent) showToast("Đã cập nhật"); } else if (!opts.silent) showToast("Lỗi: " + (error.message || ""), "error"); if (!opts.silent) setSaving(false); return !error; };
 
   const [forwardModal, setForwardModal] = useState(null);
   const [forwardEid, setForwardEid] = useState("");
@@ -73,7 +73,18 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
       return true;
     }
     if (t.completion_requested) { showToast("Nhiệm vụ đang chờ duyệt hoàn thành", "error"); return false; }
-    if (st === "overdue" && !t.late_reason) { showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi yêu cầu hoàn thành.", "error"); setModal({ ...t, status: "overdue" }); return false; }
+    // Race condition đã xảy ra thực tế: nhân viên chọn "Nguyên nhân trễ" rồi bấm "Yêu cầu hoàn thành"
+    // ngay sau đó — nếu bấm trước khi setLateReasonFn (async) kịp lưu xong, `t` truyền vào đây vẫn là
+    // bản CŨ (chưa có late_reason). Nếu setModal({...t,...}) đè thẳng lên state hiện tại, nó sẽ XOÁ MẤT
+    // late_reason vừa lưu thành công ngay sau đó (do setLateReasonFn dùng functional update, có thể tới
+    // sau lệnh này) → tạo vòng lặp vô tận "chọn lý do → bấm duyệt → lại bị hỏi lý do → ...". Dùng
+    // functional update và ưu tiên giữ state MỚI NHẤT của modal (nếu đang mở đúng nhiệm vụ này) thay vì
+    // ghi đè bằng snapshot cũ.
+    if (st === "overdue" && !t.late_reason) {
+      showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi yêu cầu hoàn thành.", "error");
+      setModal(m => (m && m.id === t.id) ? { ...m, status: "overdue" } : { ...t, status: "overdue" });
+      return false;
+    }
     setCompletionNoteModal(t); setCompletionNote(""); setCompletionFiles(parseJSON(t.attachments, []));
     return true;
   };
