@@ -61,16 +61,21 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const [completionNote, setCompletionNote] = useState("");
   const [completionFiles, setCompletionFiles] = useState([]);
 
+  // Trả về true/false báo cho nơi gọi biết hành động có thực hiện được không — quan trọng vì
+  // TaskModal đóng modal chi tiết ngay sau khi gọi hàm này; nếu không phân biệt được thành công/bị
+  // chặn, modal sẽ tự đóng cả khi bị chặn (VD: quá hạn chưa có lý do trễ), làm mất luôn ô chọn lý do
+  // vừa được mở ra để nhân viên điền — nhìn như bấm nút không có tác dụng gì.
   const toggleDone = t => {
     const st = t.status || getStatus(t);
     if (t.completed) {
-      if (!canEditTask(t)) { showToast("Chỉ Trưởng phòng/Phó phòng/Ban Giám đốc mới được bỏ hoàn thành", "error"); return; }
+      if (!canEditTask(t)) { showToast("Chỉ Trưởng phòng/Phó phòng/Ban Giám đốc mới được bỏ hoàn thành", "error"); return false; }
       updateTask(t.id, { completed: false, completion_requested: false, progress: t.progress >= 100 ? 90 : t.progress, completed_at: null, rating: "", rating_note: "", rated_by: "", rated_at: "", completion_note: "", suspicious_completion: false }, "Bỏ hoàn thành");
-      return;
+      return true;
     }
-    if (t.completion_requested) { showToast("Nhiệm vụ đang chờ duyệt hoàn thành", "error"); return; }
-    if (st === "overdue" && !t.late_reason) { showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi yêu cầu hoàn thành.", "error"); setModal({ ...t, status: "overdue" }); return; }
+    if (t.completion_requested) { showToast("Nhiệm vụ đang chờ duyệt hoàn thành", "error"); return false; }
+    if (st === "overdue" && !t.late_reason) { showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi yêu cầu hoàn thành.", "error"); setModal({ ...t, status: "overdue" }); return false; }
     setCompletionNoteModal(t); setCompletionNote(""); setCompletionFiles(parseJSON(t.attachments, []));
+    return true;
   };
   const confirmCompletion = async (task) => {
     if (!completionNote || completionNote.trim().length < 20) { showToast("Vui lòng mô tả kết quả (ít nhất 20 ký tự)", "error"); return; }
