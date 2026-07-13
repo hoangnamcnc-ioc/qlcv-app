@@ -13,7 +13,11 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const canSeeTask = useMemo(() => (t) => { if (!currentUser) return false; if (canSeeAll) return true; if (["manager", "deputy_manager"].includes(currentUser.role)) return t.dept === userDept; if (t.eid === currentUser.employee_id) return true; return parseJSON(t.collab_eids, []).includes(currentUser.employee_id); }, [currentUser, canSeeAll, userDept]);
   const canEditTask = useMemo(() => (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; return false; }, [currentUser, userDept]);
   const canDeleteTask = useMemo(() => (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (["manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; return false; }, [currentUser, userDept]);
+  // Cập nhật tiến độ: người chủ trì, quản lý, VÀ người phối hợp (họ đóng góp phần việc nên được ghi nhận tiến độ).
   const canUpdateProgress = useMemo(() => (t) => canEditTask(t) || currentUser?.employee_id === t.eid || parseJSON(t.collab_eids, []).includes(currentUser?.employee_id), [canEditTask, currentUser]);
+  // Yêu cầu hoàn thành: CHỈ người chủ trì (t.eid) + quản lý — KHÔNG tính người phối hợp, vì hoàn thành là
+  // chốt kết quả của cả nhiệm vụ, phải do người chịu trách nhiệm chính quyết định (đồng bộ với canProposeExtension).
+  const canRequestCompletion = useMemo(() => (t) => canEditTask(t) || currentUser?.employee_id === t.eid, [canEditTask, currentUser]);
   const canRate = (t) => { const st = t.status || getStatus(t); if (st === "completed_late") return false; if (!t.completed && st !== "completed") return false; if (t.created_by_id) { if (currentUser.id === t.created_by_id) return true; if (t.forwarded_by && t.forwarded_by === currentUser.full_name) return true; return FULL_ACCESS.includes(currentUser.role) && false; } return canCreate; };
   // Đúng người đã giao việc (hoặc người đã chuyển tiếp gần nhất) — dùng để quyết định AI ĐƯỢC CHỦ ĐỘNG BÁO,
   // không tính Admin/BGĐ vào đây để tránh mọi BGĐ đều nhận thông báo của tất cả nhiệm vụ trong hệ thống.
@@ -73,6 +77,9 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
       return true;
     }
     if (t.completion_requested) { showToast("Nhiệm vụ đang chờ duyệt hoàn thành", "error"); return false; }
+    // Chốt chặn ở ĐÂY (điểm duy nhất xử lý yêu cầu hoàn thành) — bao cả trường hợp người phối hợp kéo
+    // thanh tiến độ lên 100% (cũng gọi vào hàm này), không chỉ nút bấm.
+    if (!canRequestCompletion(t)) { showToast("Chỉ người chủ trì hoặc quản lý mới được yêu cầu hoàn thành. Người phối hợp chỉ cập nhật tiến độ phần việc của mình.", "error"); return false; }
     // Race condition đã xảy ra thực tế: nhân viên chọn "Nguyên nhân trễ" rồi bấm "Yêu cầu hoàn thành"
     // ngay sau đó — nếu bấm trước khi setLateReasonFn (async) kịp lưu xong, `t` truyền vào đây vẫn là
     // bản CŨ (chưa có late_reason). Nếu setModal({...t,...}) đè thẳng lên state hiện tại, nó sẽ XOÁ MẤT
@@ -219,7 +226,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const myNewTaskIds = useMemo(() => new Set(myNewTasks.map(t => t.id)), [myNewTasks]);
 
   return {
-    canSeeTask, canEditTask, canDeleteTask, canUpdateProgress, canRate, canApprove, canForward, canSetLateReason, canProposeExtension,
+    canSeeTask, canEditTask, canDeleteTask, canUpdateProgress, canRequestCompletion, canRate, canApprove, canForward, canSetLateReason, canProposeExtension,
     addTask, updateTask,
     forwardModal, setForwardModal, forwardEid, setForwardEid, forwardTask,
     deleteConfirm, setDeleteConfirm, deleteTaskFn, restoreTaskFn, purgeTaskFn,

@@ -21,7 +21,7 @@ export default function TaskList({
   fAssignedByMe, setFAssignedByMe,
   fSort, setFSort,
   filtered, paged, page, setPage, totalPages,
-  canSeeAll, canCreate, canEditTask, canDeleteTask, canUpdateProgress, canRate, canApprove,
+  canSeeAll, canCreate, canEditTask, canDeleteTask, canUpdateProgress, canRequestCompletion, canRate, canApprove,
   employees, userDept,
   getEmp,
   setModal, loadComments,
@@ -95,7 +95,7 @@ export default function TaskList({
               {/* Action bar */}
               <div style={{ borderTop: "1px solid #f3f4f6", padding: "6px 10px", display: "flex", gap: 6, background: "#fafafa", flexWrap: "wrap" }}>
                 {t.completed && canEditTask(t) && <button onClick={() => toggleDone(t)} style={{ flex: 1, padding: "5px 0", border: "1px solid #d1d5db", borderRadius: 6, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280", fontWeight: 600 }}>↩ Bỏ HT</button>}
-                {!t.completed && !t.completion_requested && canUpdateProgress(t) && <button onClick={() => toggleDone(t)} style={{ flex: 1, padding: "5px 0", border: "1px solid #fbbf24", borderRadius: 6, background: "#fffbeb", cursor: "pointer", fontSize: 12, color: "#92400e", fontWeight: 600 }}>📨 YC hoàn thành</button>}
+                {!t.completed && !t.completion_requested && canRequestCompletion(t) && <button onClick={() => toggleDone(t)} style={{ flex: 1, padding: "5px 0", border: "1px solid #fbbf24", borderRadius: 6, background: "#fffbeb", cursor: "pointer", fontSize: 12, color: "#92400e", fontWeight: 600 }}>📨 YC hoàn thành</button>}
                 {t.completion_requested && canApprove(t) && (<>
                   <button onClick={() => openApproveModal(t)} style={{ flex: 1, padding: "5px 0", border: "1px solid #16a34a", borderRadius: 6, background: "#f0fdf4", cursor: "pointer", fontSize: 12, color: "#15803d", fontWeight: 600 }}>✅ Duyệt</button>
                   <button onClick={() => rejectCompletionRequest(t)} style={{ flex: 1, padding: "5px 0", border: "1px solid #fca5a5", borderRadius: 6, background: "#fff0f0", cursor: "pointer", fontSize: 12, color: "#dc2626" }}>↩ Từ chối</button>
@@ -211,7 +211,7 @@ export default function TaskList({
                   <td style={{ padding: "9px 12px" }}>
                     <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
                       {t.completed && canEditTask(t) && <button onClick={() => toggleDone(t)} title="Bỏ hoàn thành" style={{ padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 5, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>↩</button>}
-                      {!t.completed && !t.completion_requested && canUpdateProgress(t) && <button onClick={() => toggleDone(t)} title="Yêu cầu hoàn thành" style={{ padding: "3px 6px", border: "1px solid #fbbf24", borderRadius: 5, background: "#fffbeb", cursor: "pointer", fontSize: 12, color: "#92400e" }}>📨</button>}
+                      {!t.completed && !t.completion_requested && canRequestCompletion(t) && <button onClick={() => toggleDone(t)} title="Yêu cầu hoàn thành" style={{ padding: "3px 6px", border: "1px solid #fbbf24", borderRadius: 5, background: "#fffbeb", cursor: "pointer", fontSize: 12, color: "#92400e" }}>📨</button>}
                       {t.completion_requested && canApprove(t) && (<>
                         <button onClick={() => openApproveModal(t)} title="Duyệt & đánh giá" style={{ padding: "3px 6px", border: "1px solid #16a34a", borderRadius: 5, background: "#f0fdf4", cursor: "pointer", fontSize: 12, color: "#15803d" }}>✅</button>
                         <button onClick={() => rejectCompletionRequest(t)} title="Từ chối" style={{ padding: "3px 6px", border: "1px solid #fca5a5", borderRadius: 5, background: "#fff0f0", cursor: "pointer", fontSize: 12, color: "#dc2626" }}>↩</button>

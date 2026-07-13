@@ -11,7 +11,7 @@ export default function TaskModal({
   isMobile, inp,
   currentUser,
   getEmp,
-  canEditTask, canDeleteTask, canRate, canApprove, canForward, canSetLateReason, canUpdateProgress, canProposeExtension,
+  canEditTask, canDeleteTask, canRate, canApprove, canForward, canSetLateReason, canUpdateProgress, canRequestCompletion, canProposeExtension,
   canCreate,
   comments, commentText, setCommentText, commentFiles, setCommentFiles, commentLoading,
   addComment, uploadFiles, uploadingFiles,
@@ -256,7 +256,7 @@ export default function TaskModal({
         <div style={{ padding: "12px 18px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", position: "sticky", bottom: 0, background: "#fff" }}>
           <div style={{ display: "flex", gap: 8 }}>
             {modal.completed && canEditTask(modal) && <button onClick={() => { if (toggleDone(modal)) setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>↩ Bỏ HT</button>}
-            {!modal.completed && !modal.completion_requested && canUpdateProgress(modal) && <button onClick={() => { if (toggleDone(modal)) setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #fbbf24", borderRadius: 7, background: "#fffbeb", cursor: "pointer", fontSize: 12, color: "#92400e", fontWeight: 600 }}>📨 Yêu cầu hoàn thành</button>}
+            {!modal.completed && !modal.completion_requested && canRequestCompletion(modal) && <button onClick={() => { if (toggleDone(modal)) setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #fbbf24", borderRadius: 7, background: "#fffbeb", cursor: "pointer", fontSize: 12, color: "#92400e", fontWeight: 600 }}>📨 Yêu cầu hoàn thành</button>}
             {canForward(modal) && <button onClick={() => { setForwardModal(modal); setForwardEid(""); setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #93c5fd", borderRadius: 7, background: "#eff6ff", cursor: "pointer", fontSize: 12, color: "#1d4ed8" }}>↪ Chuyển tiếp</button>}
             {canEditTask(modal) && <button onClick={() => { openEditTask(modal); setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12 }}>✏️</button>}
           </div>
