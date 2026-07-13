@@ -2,7 +2,9 @@ import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 
 const today=new Date();today.setHours(0,0,0,0);
-const todayStr=today.toISOString().split("T")[0];
+const pad0=n=>String(n).padStart(2,"0");
+// Tính theo giờ địa phương — toISOString() (UTC) bị lệch lùi 1 ngày trước 7h sáng giờ VN
+const todayStr=`${today.getFullYear()}-${pad0(today.getMonth()+1)}-${pad0(today.getDate())}`;
 const parseJSON=(v,d=[])=>{try{return JSON.parse(v||JSON.stringify(d));}catch{return d;}};
 const WD=["Chủ Nhật","Thứ Hai","Thứ Ba","Thứ Tư","Thứ Năm","Thứ Sáu","Thứ Bảy"];
 const pad=n=>String(n).padStart(2,"0");

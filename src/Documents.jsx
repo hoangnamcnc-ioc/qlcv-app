@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabase";
-import { getPreviewUrl, parseJSON } from "./helpers";
+import { getPreviewUrl, parseJSON, todayStr } from "./helpers";
 
 const nowStr=()=>new Date().toLocaleString("vi-VN");
-const todayStr=new Date().toISOString().split("T")[0];
+// todayStr import từ helpers (đã tính theo giờ địa phương) — không tự tính bằng toISOString() vì bị lệch 1 ngày trước 7h sáng
 const TYPES={den:{label:"Văn bản đến",icon:"📥",bg:"#dbeafe",col:"#1d4ed8"},di:{label:"Văn bản đi",icon:"📤",bg:"#dcfce7",col:"#15803d"}};
 const isIncoming=d=>d.type==="den"||d.type==="incoming";
 

@@ -122,8 +122,10 @@ export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, ov
     return out;
   }, [computed, today]);
 
-  // Top việc quá hạn lâu nhất toàn đơn vị
-  const topOverdue = useMemo(() => computed.filter(t => t.status === "overdue").map(t => ({ ...t, daysOver: Math.floor((today - new Date(t.deadline)) / 86400000) })).sort((a, b) => b.daysOver - a.daysOver).slice(0, 10), [computed, today]);
+  // Top việc quá hạn lâu nhất toàn đơn vị — deadline phải chuẩn hoá về 00:00 giờ ĐỊA PHƯƠNG
+  // (new Date("YYYY-MM-DD") parse ra 07:00 sáng giờ VN do hiểu là UTC, làm số ngày lệch mất 1)
+  const atMidnight = s => { const d = new Date(s); d.setHours(0, 0, 0, 0); return d; };
+  const topOverdue = useMemo(() => computed.filter(t => t.status === "overdue").map(t => ({ ...t, daysOver: Math.floor((today - atMidnight(t.deadline)) / 86400000) })).sort((a, b) => b.daysOver - a.daysOver).slice(0, 10), [computed, today]);
 
   // Tốc độ duyệt của từng người duyệt: thời gian trung bình từ lúc nhân viên yêu cầu đến lúc duyệt xong,
   // + số yêu cầu đang treo — đo cả phía quản lý chứ không chỉ đo nhân viên chậm.
@@ -172,7 +174,7 @@ export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, ov
 
   // Cảnh báo sớm: việc sắp đến hạn trong 7 ngày tới — nhìn về phía trước thay vì chỉ thấy khi đã quá hạn.
   const upcoming7d = useMemo(() => computed.filter(t => !isCompletedStatus(t.status) && t.status !== "overdue")
-    .map(t => ({ ...t, daysLeft: Math.ceil((new Date(t.deadline) - today) / 86400000) }))
+    .map(t => ({ ...t, daysLeft: Math.ceil((atMidnight(t.deadline) - today) / 86400000) }))
     .filter(t => t.daysLeft >= 0 && t.daysLeft <= 7)
     .sort((a, b) => a.daysLeft - b.daysLeft), [computed, today]);
   const upcoming7dByDept = useMemo(() => DEPTS.map(d => ({ dept: d, count: upcoming7d.filter(t => t.dept === d).length })), [upcoming7d]);

@@ -1076,7 +1076,7 @@ export default function App() {
                 </div>
               )}
               {recurringTemplates.length===0?(<div style={{textAlign:"center",padding:32,color:"#9ca3af"}}><div style={{fontSize:40,marginBottom:8}}>🔄</div><div style={{fontSize:14}}>Chưa có mẫu định kỳ nào</div></div>):(
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>{recurringTemplates.map(tpl=>{const daysUntil=Math.ceil((new Date(tpl.next_date)-today)/86400000);const isDue=tpl.next_date<=todayStr;return(
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>{recurringTemplates.map(tpl=>{const nd=new Date(tpl.next_date);nd.setHours(0,0,0,0);const daysUntil=Math.ceil((nd-today)/86400000);const isDue=tpl.next_date<=todayStr;return(
                   <div key={tpl.id} style={{border:"1px solid "+(tpl.active?"#e5e7eb":"#f3f4f6"),borderRadius:10,padding:14,background:tpl.active?"#fff":"#f9fafb",opacity:tpl.active?1:0.65}}>
                     <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:8}}>
                       <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14,display:"flex",alignItems:"center",gap:6}}>{tpl.title}{tpl.active?<span style={{background:"#dcfce7",color:"#15803d",fontSize:10,padding:"1px 6px",borderRadius:8}}>Hoạt động</span>:<span style={{background:"#f1f5f9",color:"#6b7280",fontSize:10,padding:"1px 6px",borderRadius:8}}>Tạm dừng</span>}</div>{tpl.description&&<div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{tpl.description}</div>}</div>

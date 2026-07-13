@@ -6,7 +6,9 @@ import { getPreviewUrl } from "./helpers";
 const DEPTS = ["HCTH","QL-KTDL","HT-NTS"];
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
 const today=new Date();today.setHours(0,0,0,0);
-const todayStr=today.toISOString().split("T")[0];
+const pad0=n=>String(n).padStart(2,"0");
+// Tính theo giờ địa phương — toISOString() (UTC) bị lệch lùi 1 ngày trước 7h sáng giờ VN
+const todayStr=`${today.getFullYear()}-${pad0(today.getMonth()+1)}-${pad0(today.getDate())}`;
 const parseJSON=(v,d=[])=>{try{return JSON.parse(v||JSON.stringify(d));}catch{return d;}};
 
 // ───── ĐẦU TƯ: Quy trình & trạng thái ─────
