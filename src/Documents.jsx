@@ -71,6 +71,22 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
     setForwardModal(null);
   };
 
+  // Thu hồi bước chuyển GẦN NHẤT (gỡ khỏi lịch sử) — chỉ người vừa chuyển hoặc Giám đốc/Admin mới thu hồi được.
+  // Sau khi thu hồi, người nhận không còn thấy văn bản nữa; văn bản quay về người chuyển (hoặc hộp thư chung của GĐ).
+  const canRecall=d=>{ if(!isIncoming(d))return false; const chain=parseJSON(d.forwards,[]); if(!chain.length)return false; const last=chain[chain.length-1]; return last.by_id===currentUser?.id||isTop; };
+  const recallForward=async d=>{
+    const chain=parseJSON(d.forwards,[]);
+    if(!chain.length)return;
+    const last=chain[chain.length-1];
+    if(last.by_id!==currentUser?.id&&!isTop){showToast&&showToast("Chỉ người đã chuyển (hoặc Giám đốc) mới thu hồi được","error");return;}
+    if(!window.confirm(`Thu hồi văn bản đã chuyển cho ${last.to_name}? Người nhận sẽ không còn thấy văn bản này.`))return;
+    const newChain=chain.slice(0,-1);
+    const{error}=await supabase.from("documents").update({forwards:JSON.stringify(newChain)}).eq("id",d.id);
+    if(error){showToast&&showToast("Lỗi: "+(error.message||""),"error");return;}
+    setItems(p=>p.map(x=>x.id===d.id?{...x,forwards:JSON.stringify(newChain)}:x));
+    showToast&&showToast(`Đã thu hồi văn bản chuyển cho ${last.to_name}`);
+  };
+
   const openCreate=()=>setForm({id:null,type:"den",doc_number:"",doc_date:todayStr,title:"",sender:"",task_id:"",note:"",attachments:[]});
   const openEdit=d=>setForm({...d,attachments:d.attachments||[]});
 
@@ -155,6 +171,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
             {canManage&&!selectMode&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {isIncoming(d)&&!d.task_id&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}
               {isIncoming(d)&&canForwardRole&&forwardTargets.length>0&&<button onClick={()=>openForward(d)} style={{padding:"3px 9px",border:"1px solid #c4b5fd",borderRadius:6,background:"#f5f3ff",cursor:"pointer",fontSize:11,color:"#6d28d9",fontWeight:500}}>↪️ Chuyển</button>}
+              {canRecall(d)&&<button onClick={()=>recallForward(d)} style={{padding:"3px 9px",border:"1px solid #fdba74",borderRadius:6,background:"#fff7ed",cursor:"pointer",fontSize:11,color:"#c2410c",fontWeight:500}}>↩️ Thu hồi</button>}
               <button onClick={()=>openEdit(d)} style={{padding:"3px 9px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11}}>✏️ Sửa</button>
               <button onClick={()=>remove(d.id)} style={{padding:"3px 9px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:11,color:"#dc2626"}}>🗑️</button>
             </div>}
