@@ -88,7 +88,9 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
   };
 
   const openCreate=()=>setForm({id:null,type:"den",doc_number:"",doc_date:todayStr,title:"",sender:"",task_id:"",note:"",attachments:[]});
-  const openEdit=d=>setForm({...d,attachments:d.attachments||[]});
+  // attachments trong DB lưu dạng CHUỖI JSON — phải parse về mảng, nếu không phần hiển thị gọi .map()
+  // trên chuỗi sẽ crash, khiến nút "Sửa" như không có tác dụng (modal mở lên rồi lỗi ngay).
+  const openEdit=d=>setForm({...d,attachments:parseJSON(d.attachments,[])});
 
   const save=async()=>{if(!form.doc_number.trim()||!form.title.trim()){showToast&&showToast("Nhập số văn bản và trích yếu","error");return;}setSaving(true);
     const row={type:form.type,doc_number:form.doc_number.trim(),doc_date:form.doc_date,title:form.title.trim(),sender:form.sender.trim(),task_id:form.task_id||null,note:form.note,attachments:JSON.stringify(form.attachments||[])};
