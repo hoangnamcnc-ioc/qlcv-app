@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 import { DEPTS, DEPT_COLOR, SUPPORT_CHANNELS, SUPPORT_CHANNELS_BY_CATEGORY, SUPPORT_CONTENT_LABEL, SUPPORT_DIFFICULTY, SUPPORT_CATEGORIES } from "./constants";
-import { todayStr, getFileIcon, parseJSON, getPreviewUrl } from "./helpers";
+import { todayStr, getFileIcon, parseJSON, getPreviewUrl, fmtDate } from "./helpers";
 
 // ───── Hỗ trợ người dùng/PAHT và vận hành DC — nền tảng số dùng chung (điện thoại/Zalo) ─────
 // Mỗi trường hợp ghi nhận xong là tính "hoàn thành" ngay (không có bước duyệt) — quy đổi thành điểm hiệu suất
@@ -180,7 +180,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 5, alignItems: "center" }}>
                   <span style={{ background: DEPT_COLOR[emp?.dept] + "22", color: DEPT_COLOR[emp?.dept], fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>{emp?.name || "–"}</span>
                   <span style={{ background: SUPPORT_DIFFICULTY[c.difficulty]?.icon ? "#f1f5f9" : "transparent", fontSize: 11, padding: "2px 7px", borderRadius: 8, color: "#475569" }}>{SUPPORT_DIFFICULTY[c.difficulty]?.icon} {SUPPORT_DIFFICULTY[c.difficulty]?.label} ({SUPPORT_DIFFICULTY[c.difficulty]?.weight} việc)</span>
-                  <span style={{ fontSize: 11, color: "#9ca3af" }}>📅 {c.created}</span>
+                  <span style={{ fontSize: 11, color: "#9ca3af" }}>📅 {fmtDate(c.created)}</span>
                   {c.verified_by ? (
                     <span title={`Xác nhận bởi ${c.verified_by} ngày ${c.verified_at}`} style={{ background: "#ecfdf5", color: "#059669", fontSize: 11, padding: "2px 7px", borderRadius: 8, border: "1px solid #a7f3d0" }}>✔️ Đã xác nhận</span>
                   ) : canManage && !showTrash ? (

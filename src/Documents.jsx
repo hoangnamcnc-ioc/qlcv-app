@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabase";
-import { getPreviewUrl, parseJSON, todayStr } from "./helpers";
+import { getPreviewUrl, parseJSON, todayStr, fmtDate } from "./helpers";
 
 const nowStr=()=>new Date().toLocaleString("vi-VN");
 // todayStr import từ helpers (đã tính theo giờ địa phương) — không tự tính bằng toISOString() vì bị lệch 1 ngày trước 7h sáng
@@ -150,7 +150,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
               <span style={{fontSize:11,background:T.bg,color:T.col,padding:"2px 8px",borderRadius:8,fontWeight:600}}>{T.icon} {T.label}</span>
               <span style={{fontWeight:700,fontSize:13}}>{d.doc_number}</span>
-              <span style={{fontSize:11,color:"#9ca3af"}}>{d.doc_date}</span>
+              <span style={{fontSize:11,color:"#9ca3af"}}>{fmtDate(d.doc_date)}</span>
             </div>
             {canManage&&!selectMode&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {isIncoming(d)&&!d.task_id&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}

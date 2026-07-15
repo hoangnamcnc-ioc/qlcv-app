@@ -8,6 +8,10 @@ const toLocalYMD = d => { const y = d.getFullYear(), m = String(d.getMonth() + 1
 export const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return toLocalYMD(x); };
 export const today = new Date(); today.setHours(0, 0, 0, 0);
 export const todayStr = toLocalYMD(today);
+// HIỂN THỊ ngày cho người dùng: "2026-07-15" → "15/07/2026" (chuẩn Việt Nam). CHỈ dùng để hiển thị —
+// dữ liệu lưu trong DB, ô <input type="date"> và mọi phép lọc/so sánh vẫn giữ nguyên dạng YYYY-MM-DD.
+// Chuỗi không đúng dạng ISO (VD nowStr "HH:mm:ss d/M/yyyy") được trả về nguyên vẹn, không đụng tới.
+export const fmtDate = s => { if (!s || typeof s !== "string") return s || ""; const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : s; };
 export const nowStr = () => new Date().toLocaleString("vi-VN");
 // Parse chuỗi do nowStr() sinh ra, dạng "HH:mm:ss d/M/yyyy" — Date() gốc hiểu nhầm d/M thành M/d (lịch Mỹ) nên phải tự tách.
 export const parseNowStr = s => { if (!s || typeof s !== "string") return null; const [time, date] = s.split(" "); if (!time || !date) return null; const [h, mi, se] = time.split(":").map(Number); const [d, m, y] = date.split("/").map(Number); if (!d || !m || !y) return null; const dt = new Date(y, m - 1, d, h || 0, mi || 0, se || 0); return isNaN(dt) ? null : dt; };

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { DEPT_COLOR, RATING, LATE_REASONS } from "../constants";
-import { parseJSON, getFileIcon, getPreviewUrl, forceDownload } from "../helpers";
+import { parseJSON, getFileIcon, getPreviewUrl, forceDownload, fmtDate } from "../helpers";
 import { ProgressBar, RatingBadge, Chip, PChip } from "./ui";
 
 const IMG_EXT = ["jpg", "jpeg", "png", "gif", "webp"];
@@ -51,9 +51,9 @@ export default function TaskModal({
               ["Phòng ban", <span style={{ background: DEPT_COLOR[modal.dept] + "22", color: DEPT_COLOR[modal.dept], padding: "2px 7px", borderRadius: 8, fontSize: 12 }}>{modal.dept}</span>],
               ["Giao cho", <div>{getEmp(modal.eid)?.name || "–"}{canEditTask(modal) && (modal.viewed_at ? <div title={`Đã xem lúc ${modal.viewed_at}`} style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>👁️ Đã xem lúc {modal.viewed_at}</div> : <div style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>🔴 Chưa xem</div>)}</div>],
               ["Ưu tiên", <PChip p={modal.prio} />],
-              ["Hạn chót", <span style={{ color: modal.status === "overdue" ? "#b91c1c" : "#111", fontWeight: modal.status === "overdue" ? 600 : 400 }}>{modal.deadline}</span>],
+              ["Hạn chót", <span style={{ color: modal.status === "overdue" ? "#b91c1c" : "#111", fontWeight: modal.status === "overdue" ? 600 : 400 }}>{fmtDate(modal.deadline)}</span>],
               ["Trạng thái", <Chip s={modal.status} />],
-              ["Ngày tạo", modal.created || "–"],
+              ["Ngày tạo", fmtDate(modal.created) || "–"],
             ].map(([k, v]) => (
               <div key={k}><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 3 }}>{k}</div><div>{v}</div></div>
             ))}
@@ -64,7 +64,7 @@ export default function TaskModal({
               <div style={{ fontSize: 12, fontWeight: 700, color: modal.ext_proposed ? "#1d4ed8" : "#374151", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>📅 Gia hạn deadline</div>
               {modal.ext_proposed ? (
                 <>
-                  <div style={{ fontSize: 12, color: "#1d4ed8" }}>{modal.ext_requested_by} đề xuất gia hạn đến <b>{modal.ext_proposed}</b> lúc {modal.ext_requested_at}</div>
+                  <div style={{ fontSize: 12, color: "#1d4ed8" }}>{modal.ext_requested_by} đề xuất gia hạn đến <b>{fmtDate(modal.ext_proposed)}</b> lúc {modal.ext_requested_at}</div>
                   {modal.ext_reason && <div style={{ fontSize: 12, color: "#1e3a8a", marginTop: 6, fontStyle: "italic", background: "#dbeafe", padding: "6px 10px", borderRadius: 6 }}>"{modal.ext_reason}"</div>}
                   {canApprove(modal) ? (
                     <div style={{ display: "flex", gap: 8, marginTop: 10 }}>

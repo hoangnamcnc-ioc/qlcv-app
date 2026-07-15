@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { getPreviewUrl } from "./helpers";
+import { getPreviewUrl, fmtDate } from "./helpers";
 
 const DEPTS = ["HCTH","QL-KTDL","HT-NTS"];
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
@@ -162,7 +162,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
         )}
         <div style={{marginBottom:16,padding:"12px 14px",background:proj.ext_proposed?"#eff6ff":"#f8fafc",borderRadius:10,border:"1px solid "+(proj.ext_proposed?"#bfdbfe":"#e5e7eb")}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-            <div style={{fontSize:12,fontWeight:700,color:"#374151"}}>📅 Hạn hoàn thành: <span style={{fontWeight:400}}>{proj.deadline||"— (chưa đặt)"}</span></div>
+            <div style={{fontSize:12,fontWeight:700,color:"#374151"}}>📅 Hạn hoàn thành: <span style={{fontWeight:400}}>{fmtDate(proj.deadline)||"— (chưa đặt)"}</span></div>
             {!proj.ext_proposed&&isProjLead&&pct<100&&<button onClick={onProposeExt} style={{padding:"5px 10px",border:"1px solid #93c5fd",borderRadius:7,background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontSize:12,fontWeight:600}}>📅 Đề xuất gia hạn</button>}
           </div>
           {proj.ext_proposed&&(<div style={{marginTop:8}}>
@@ -197,10 +197,10 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
                   {s.ctrl&&<div style={{fontSize:13,color:"#b91c1c",marginTop:3,fontStyle:"italic"}}>⚠️ {s.ctrl}</div>}
                   {s.lead_eid&&getEmp(s.lead_eid)&&<div style={{fontSize:13,color:"#1d4ed8",marginTop:3}}>👤 Người chủ trì: <b>{getEmp(s.lead_eid)?.name}</b></div>}
                   {(s.collab_eids||[]).length>0&&<div style={{fontSize:13,color:"#15803d",marginTop:3}}>👥 TV phối hợp: {(s.collab_eids||[]).map(id=>getEmp(id)?.name).filter(Boolean).join(", ")}</div>}
-                  {(s.start||s.end)&&<div style={{fontSize:13,color:"#6b7280",marginTop:3}}>📅 {s.start||"?"} → {s.end||"?"}</div>}
+                  {(s.start||s.end)&&<div style={{fontSize:13,color:"#6b7280",marginTop:3}}>📅 {fmtDate(s.start)||"?"} → {fmtDate(s.end)||"?"}</div>}
                   {s.note&&<div style={{fontSize:13,color:"#475569",marginTop:3,fontStyle:"italic"}}>{s.note}</div>}
                   {s.status==="pending_approval"&&s.requested_by&&<div style={{fontSize:12,color:"#92400e",marginTop:3,background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>📨 {s.requested_by} yêu cầu duyệt · {s.requested_at}</div>}
-                  {s.ext_proposed&&<div style={{fontSize:12,color:"#1d4ed8",marginTop:3,background:"#eff6ff",padding:"4px 10px",borderRadius:6}}>📅 {s.ext_requested_by} đề xuất gia hạn đến {s.ext_proposed}{s.ext_reason?` — "${s.ext_reason}"`:""}</div>}
+                  {s.ext_proposed&&<div style={{fontSize:12,color:"#1d4ed8",marginTop:3,background:"#eff6ff",padding:"4px 10px",borderRadius:6}}>📅 {s.ext_requested_by} đề xuất gia hạn đến {fmtDate(s.ext_proposed)}{s.ext_reason?` — "${s.ext_reason}"`:""}</div>}
                   {s.status==="done"&&s.quality_note&&<div style={{fontSize:12,color:"#15803d",marginTop:3,background:"#f0fdf4",padding:"4px 10px",borderRadius:6}}>✅ Đánh giá: {s.quality_note}{s.approved_by&&<span style={{opacity:0.7}}> — duyệt bởi {s.approved_by} · {s.approved_at}</span>}</div>}
                   {(s.attachments||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{(s.attachments||[]).map((f,fi)=><a key={fi} href={getPreviewUrl(f.url,f.name)} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
                 </div>
@@ -573,7 +573,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
             <button onClick={()=>setExtRequestModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
           </div>
           <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
-            <div style={{padding:"10px 14px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,color:"#1d4ed8"}}>Hạn hoàn thành hiện tại: <b>{extRequestModal.deadline||"— (chưa đặt)"}</b>. Đề xuất sẽ được gửi tới Ban Giám đốc để duyệt.</div>
+            <div style={{padding:"10px 14px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,color:"#1d4ed8"}}>Hạn hoàn thành hiện tại: <b>{fmtDate(extRequestModal.deadline)||"— (chưa đặt)"}</b>. Đề xuất sẽ được gửi tới Ban Giám đốc để duyệt.</div>
             <div>
               <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Đề xuất gia hạn đến ngày <span style={{color:"#dc2626"}}>*</span></label>
               <input type="date" min={extRequestModal.deadline||undefined} value={extProposedDate} onChange={e=>setExtProposedDate(e.target.value)} style={inp}/>
@@ -600,7 +600,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
           </div>
           <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
             <div style={{padding:"10px 14px",background:"#f8fafc",borderRadius:8,fontSize:12,color:"#374151"}}>
-              <div style={{marginBottom:4}}><b>{extDecideModal.proj.ext_requested_by}</b> đề xuất gia hạn đến <b>{extDecideModal.proj.ext_proposed}</b> (hạn hiện tại: {extDecideModal.proj.deadline||"—"})</div>
+              <div style={{marginBottom:4}}><b>{extDecideModal.proj.ext_requested_by}</b> đề xuất gia hạn đến <b>{fmtDate(extDecideModal.proj.ext_proposed)}</b> (hạn hiện tại: {fmtDate(extDecideModal.proj.deadline)||"—"})</div>
               {extDecideModal.proj.ext_reason&&<div style={{fontStyle:"italic",color:"#6b7280"}}>"{extDecideModal.proj.ext_reason}"</div>}
             </div>
             {extDecideModal.mode==="approve"?(<>

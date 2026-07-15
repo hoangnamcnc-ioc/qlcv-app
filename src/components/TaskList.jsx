@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { DEPTS, DEPT_COLOR, RATING } from "../constants";
 import { RatingBadge, Chip, PChip } from "./ui";
-import { pendingApprovalDays } from "../helpers";
+import { pendingApprovalDays, fmtDate } from "../helpers";
 
 // Cảnh báo khi 1 yêu cầu duyệt hoàn thành bị "ngâm" quá lâu — để BGĐ/Trưởng phòng biết ai đang duyệt chậm,
 // không đổ lỗi trễ hạn lên nhân viên đã yêu cầu duyệt đúng hạn.
@@ -52,12 +52,15 @@ export default function TaskList({
         <span style={{ fontSize: 12, color: "#9ca3af" }}>{filtered.length}</span>
       </div>
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 12px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>📅 Hạn chót:</span>
+        <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>📅 Lọc theo tháng:</span>
+        {/* Chọn nhanh 1 tháng → tự điền Từ ngày = ngày đầu tháng, Đến ngày = ngày cuối tháng (dùng lại bộ lọc khoảng ngày sẵn có) */}
+        <input type="month" value={dateFrom && dateTo ? dateFrom.slice(0, 7) : ""} onChange={e => { const v = e.target.value; if (!v) { setDateFrom(""); setDateTo(""); return; } const [y, m] = v.split("-").map(Number); const last = new Date(y, m, 0).getDate(); setDateFrom(`${v}-01`); setDateTo(`${v}-${String(last).padStart(2, "0")}`); }} style={{ ...inp, width: "auto", borderColor: "#6366f1", color: "#4f46e5" }} title="Xem nhiệm vụ có hạn chót trong tháng này" />
+        <span style={{ fontSize: 12, color: "#d1d5db" }}>|</span>
         <span style={{ fontSize: 12, color: "#6b7280" }}>Từ ngày</span>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...inp, width: "auto" }} />
         <span style={{ fontSize: 12, color: "#6b7280" }}>Đến ngày</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...inp, width: "auto" }} />
-        {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>✕ Bỏ lọc ngày</button>}
+        {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>✕ Bỏ lọc</button>}
       </div>
 
       {isMobile ? (
@@ -81,7 +84,7 @@ export default function TaskList({
                   <PChip p={t.prio} />
                   <span style={{ fontSize: 11, color: "#6b7280" }}>{getEmp(t.eid)?.name || "–"}</span>
                   {(t.forwarded_by || t.created_by_name) && <span title="Người giao việc" style={{ fontSize: 11, color: "#9333ea" }}>📤 {t.forwarded_by || t.created_by_name}</span>}
-                  <span style={{ fontSize: 11, color: t.status === "overdue" ? "#b91c1c" : "#6b7280", fontWeight: t.status === "overdue" ? 600 : 400 }}>📅 {t.deadline}</span>
+                  <span style={{ fontSize: 11, color: t.status === "overdue" ? "#b91c1c" : "#6b7280", fontWeight: t.status === "overdue" ? 600 : 400 }}>📅 {fmtDate(t.deadline)}</span>
                   {t.rating && <RatingBadge r={t.rating} />}
                   {canEditTask(t) && !t.completed && (t.viewed_at
                     ? <span title={`Đã xem lúc ${t.viewed_at}`} style={{ fontSize: 11, background: "#dcfce7", color: "#15803d", padding: "2px 7px", borderRadius: 8 }}>👁️ Đã xem</span>
@@ -182,7 +185,7 @@ export default function TaskList({
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: "9px 12px", fontSize: 12, color: t.status === "overdue" ? "#b91c1c" : "#6b7280", fontWeight: t.status === "overdue" ? 600 : 400 }}>{t.deadline}</td>
+                  <td style={{ padding: "9px 12px", fontSize: 12, color: t.status === "overdue" ? "#b91c1c" : "#6b7280", fontWeight: t.status === "overdue" ? 600 : 400 }}>{fmtDate(t.deadline)}</td>
                   <td style={{ padding: "9px 12px", position: "relative" }}>
                     {quickRate === t.id ? (
                       <div style={{ position: "absolute", top: 4, left: 0, zIndex: 20, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", gap: 6, whiteSpace: "nowrap" }}>

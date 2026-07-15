@@ -1,7 +1,7 @@
 import React from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { DEPTS, DEPT_COLOR, ROLE_COLORS, FULL_ACCESS, STATUS, STATUS_ORDER, FREQUENCIES, RATING } from "../constants";
-import { isCompletedStatus } from "../helpers";
+import { isCompletedStatus, fmtDate } from "../helpers";
 import { RoleBadge, OverloadPopup } from "./ui";
 
 export default function Dashboard({
@@ -151,7 +151,7 @@ export default function Dashboard({
                     <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minWidth: 0, overflow: "hidden" }} onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                       <div style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden" }}>
                         <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "normal", wordBreak: "break-word" }}>{t.title}</div>
-                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2, whiteSpace: "normal", wordBreak: "break-word" }}>{t.dept} · {emp?.name || "–"} · Hạn: {t.deadline}</div>
+                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2, whiteSpace: "normal", wordBreak: "break-word" }}>{t.dept} · {emp?.name || "–"} · Hạn: {fmtDate(t.deadline)}</div>
                       </div>
                       <span style={{ background: sc.bg, color: sc.col, fontSize: 11, padding: "2px 8px", borderRadius: 8, flexShrink: 0 }}>{sc.label}</span>
                     </div>
@@ -223,7 +223,7 @@ export default function Dashboard({
                 {list.length === 0 ? <div style={{ padding: 14, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>Không có</div> : list.map(t => (
                   <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "8px 12px", borderBottom: "1px solid #f3f4f6", cursor: "pointer" }}>
                     <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "normal", wordBreak: "break-word" }}>{t.title}</div>
-                    <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>{t.dept} · {getEmp(t.eid)?.name || "–"} · {t.deadline}</div>
+                    <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>{t.dept} · {getEmp(t.eid)?.name || "–"} · {fmtDate(t.deadline)}</div>
                   </div>
                 ))}
               </div>

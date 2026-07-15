@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
+import { fmtDate } from "./helpers";
 
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
 const today=new Date();today.setHours(0,0,0,0);
@@ -72,7 +73,7 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
                 <div style={{fontSize:15,fontWeight:600,marginBottom:4}}>{idx+1}. {s.content}</div>
                 {s.lead_eid&&getEmp(s.lead_eid)&&<div style={{fontSize:13,color:"#1d4ed8",marginTop:3}}>👤 Chủ trì: <b>{getEmp(s.lead_eid)?.name}</b></div>}
                 {(s.collab_eids||[]).length>0&&<div style={{fontSize:13,color:"#15803d",marginTop:3}}>🤝 Phối hợp: {(s.collab_eids||[]).map(id=>getEmp(id)?.name).filter(Boolean).join(", ")}</div>}
-                {s.deadline&&<div style={{fontSize:13,color:"#6b7280",marginTop:3}}>📅 Hạn hoàn thành: <b>{s.deadline}</b></div>}
+                {s.deadline&&<div style={{fontSize:13,color:"#6b7280",marginTop:3}}>📅 Hạn hoàn thành: <b>{fmtDate(s.deadline)}</b></div>}
                 {s.note&&<div style={{fontSize:13,color:"#475569",marginTop:3,fontStyle:"italic"}}>{s.note}</div>}
                 {s.status==="pending_approval"&&s.requested_by&&<div style={{fontSize:12,color:"#92400e",marginTop:3,background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>📨 {s.requested_by} đã yêu cầu hoàn thành · {s.requested_at}</div>}
                 {s.status==="done"&&s.quality&&<div style={{fontSize:12,color:STEP_QUALITY[s.quality]?.col,marginTop:3,background:STEP_QUALITY[s.quality]?.bg,padding:"4px 10px",borderRadius:6}}>{STEP_QUALITY[s.quality]?.star} {STEP_QUALITY[s.quality]?.label}{s.quality_note&&` — ${s.quality_note}`}<div style={{fontSize:11,opacity:0.75,marginTop:2}}>Duyệt bởi {s.approved_by} · {s.approved_at}</div></div>}

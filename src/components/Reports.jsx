@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { DEPTS, DEPT_COLOR, VI_MONTHS, RATING } from "../constants";
+import { fmtDate } from "../helpers";
 import { GradingTab, ExecTab, TaskResultReportTab } from "./ExecReports";
 
 export default function Reports({
@@ -325,7 +326,7 @@ export default function Reports({
                   <div style={{ fontSize: 11, color: "#6b7280", display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <span style={{ background: DEPT_COLOR[t.dept] + "22", color: DEPT_COLOR[t.dept], padding: "1px 7px", borderRadius: 7 }}>{t.dept}</span>
                     <span>{getEmp?.(t.eid)?.name || "–"}</span>
-                    <span>📅 Hạn: {t.deadline}</span>
+                    <span>📅 Hạn: {fmtDate(t.deadline)}</span>
                     {t.late_note && <span style={{ fontStyle: "italic" }}>"{t.late_note}"</span>}
                   </div>
                 </div>

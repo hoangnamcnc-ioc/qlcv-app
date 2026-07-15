@@ -1,5 +1,6 @@
 import React from "react";
 import { DEPT_COLOR } from "./constants";
+import { fmtDate, pendingApprovalDays } from "./helpers";
 
 // ── Màn "Việc chờ tôi xử lý": gộp mọi hạng mục cần CHÍNH người đang đăng nhập ra tay,
 // từ cả 3 module (Nhiệm vụ, Nhiệm vụ khác, Nhiệm vụ ngân sách) vào 1 chỗ duy nhất,
@@ -50,11 +51,11 @@ export default function MyQueue({
       <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Tổng hợp mọi thứ đang cần <b>bạn</b> ra tay — duyệt, đánh giá, gia hạn, phản hồi. Bấm vào từng mục để xử lý ngay, xử lý xong sẽ tự biến mất khỏi danh sách.</div>
 
       <Section icon="📨" color="#92400e" bg="#fde68a" title="Chờ duyệt hoàn thành nhiệm vụ" count={myPendingTaskApprovals.length}>
-        {myPendingTaskApprovals.map(t => <Card key={t.id} bg="#fffbeb" border="#fde68a" title={t.title} sub={`${t.requested_by} yêu cầu duyệt lúc ${t.requested_at}`} dept={t.dept} onClick={() => onOpenTask(t)} />)}
+        {myPendingTaskApprovals.map(t => <Card key={t.id} bg="#fffbeb" border="#fde68a" title={t.title} sub={`${t.requested_by} yêu cầu duyệt lúc ${t.requested_at}${pendingApprovalDays(t) >= 2 ? ` · ⏳ đã chờ ${pendingApprovalDays(t)} ngày — nên duyệt sớm` : ""}`} dept={t.dept} onClick={() => onOpenTask(t)} />)}
       </Section>
 
       <Section icon="📅" color="#1d4ed8" bg="#bfdbfe" title="Chờ duyệt gia hạn nhiệm vụ" count={myPendingExtRequests.length}>
-        {myPendingExtRequests.map(t => <Card key={t.id} bg="#eff6ff" border="#bfdbfe" title={t.title} sub={`${t.ext_requested_by} đề xuất gia hạn đến ${t.ext_proposed}`} dept={t.dept} onClick={() => onOpenTask(t)} />)}
+        {myPendingExtRequests.map(t => <Card key={t.id} bg="#eff6ff" border="#bfdbfe" title={t.title} sub={`${t.ext_requested_by} đề xuất gia hạn đến ${fmtDate(t.ext_proposed)}`} dept={t.dept} onClick={() => onOpenTask(t)} />)}
       </Section>
 
       <Section icon="⭐" color="#92400e" bg="#fde68a" title="Nhiệm vụ chưa đánh giá" count={unratedTasks.length}>

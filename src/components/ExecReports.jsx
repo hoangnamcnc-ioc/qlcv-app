@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { DEPTS, DEPT_COLOR, VI_MONTHS, RATING } from "../constants";
-import { isCompletedStatus, parseNowStr } from "../helpers";
+import { isCompletedStatus, parseNowStr, fmtDate } from "../helpers";
 const RATING_KEYS = ["xuat_sac", "tot", "tb", "kem"];
 
 // ── Ngưỡng xếp loại quý/năm (điểm trung bình các tháng đủ điều kiện) ──
@@ -200,7 +200,7 @@ export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, ov
               <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #fecaca", background: "#fef2f2", cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 12.5, fontWeight: 500, wordBreak: "break-word" }}>{t.title}</div>
-                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}><span style={{ color: DEPT_COLOR[t.dept] }}>{t.dept}</span> · {getEmp?.(t.eid)?.name || "–"} · Hạn: {t.deadline}</div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}><span style={{ color: DEPT_COLOR[t.dept] }}>{t.dept}</span> · {getEmp?.(t.eid)?.name || "–"} · Hạn: {fmtDate(t.deadline)}</div>
                 </div>
                 <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, background: "#dc2626", color: "#fff", padding: "2px 8px", borderRadius: 10 }}>{t.daysOver} ngày</span>
               </div>
@@ -293,7 +293,7 @@ export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, ov
             <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #fde68a", background: "#fffbeb", cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 500, wordBreak: "break-word" }}>{t.title}</div>
-                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}><span style={{ color: DEPT_COLOR[t.dept] }}>{t.dept}</span> · {getEmp?.(t.eid)?.name || "–"} · Hạn: {t.deadline}</div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}><span style={{ color: DEPT_COLOR[t.dept] }}>{t.dept}</span> · {getEmp?.(t.eid)?.name || "–"} · Hạn: {fmtDate(t.deadline)}</div>
               </div>
               <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, background: "#f59e0b", color: "#fff", padding: "2px 8px", borderRadius: 10 }}>{t.daysLeft === 0 ? "Hôm nay" : `${t.daysLeft} ngày`}</span>
             </div>

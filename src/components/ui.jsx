@@ -1,6 +1,6 @@
 import React from "react";
 import { ROLE_COLORS, ROLE_LABELS, RATING, STATUS, STATUS_ORDER, PRIO } from "../constants";
-import { isCompletedStatus } from "../helpers";
+import { isCompletedStatus, fmtDate } from "../helpers";
 
 // Nhãn trạng thái nhiệm vụ (chấm màu + tên) — dùng chung toàn app
 export const Chip = ({ s }) => (
@@ -52,7 +52,7 @@ export function OverloadPopup({ emp, computed, onClose, onOpen, isMobile }) {
               onMouseEnter={e => e.currentTarget.style.background = "#fff5f5"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: "normal", wordBreak: "break-word" }}>{t.title}</div>
-                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>Hạn: {t.deadline}</div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>Hạn: {fmtDate(t.deadline)}</div>
               </div>
               <span style={{ background: sc.bg, color: sc.col, fontSize: 10, padding: "2px 6px", borderRadius: 6, flexShrink: 0 }}>{sc.label}</span>
             </div>
