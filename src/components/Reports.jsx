@@ -4,6 +4,9 @@ import { DEPTS, DEPT_COLOR, VI_MONTHS, RATING } from "../constants";
 import { fmtDate } from "../helpers";
 import { GradingTab, ExecTab, TaskResultReportTab } from "./ExecReports";
 
+// Làm tròn 2 chữ số cho các cột "việc quy đổi" (trọng số 0.25/1.5/2.5…) — tránh hiển thị số lẻ float kiểu 12.379999999999
+const r2 = n => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+
 export default function Reports({
   isMobile, inp,
   repTab, setRepTab,
@@ -84,12 +87,12 @@ export default function Reports({
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        <span style={{ background: "#e0e7ff", color: "#4338ca", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>Tổng: {e.total}</span>
-                        <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>HT: {e.done - (e.completedLate || 0)}</span>
+                        <span style={{ background: "#e0e7ff", color: "#4338ca", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>Tổng: {r2(e.total)}</span>
+                        <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>HT: {r2(e.done - (e.completedLate || 0))}</span>
                         {e.completedLate > 0 && <span style={{ background: "#fff1f2", color: "#991b1b", fontSize: 11, padding: "2px 7px", borderRadius: 8, fontWeight: 700 }}>⏰ HT trễ: {e.completedLate}</span>}
                         {e.over > 0 && <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 11, padding: "2px 7px", borderRadius: 8, fontWeight: 700 }}>QH: {e.over}</span>}
                         {Math.round((e.total - e.resolved) * 100) / 100 > 0 && <span style={{ background: "#f3f4f6", color: "#6b7280", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>⏳ Chưa đến hạn: {Math.round((e.total - e.resolved) * 100) / 100}</span>}
-                        {e.collabTotal > 0 && <span style={{ background: "#ede9fe", color: "#7c3aed", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span>}
+                        {e.collabTotal > 0 && <span style={{ background: "#ede9fe", color: "#7c3aed", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>🤝 {r2(e.collabDone)}/{r2(e.collabTotal)}</span>}
                       </div>
                     </div>
                   );
@@ -107,12 +110,12 @@ export default function Reports({
                         <td style={{ padding: "9px 12px", fontSize: 16 }}>{medal}</td>
                         <td style={{ padding: "9px 12px", fontWeight: 500 }}>{e.name}</td>
                         <td style={{ padding: "9px 12px" }}><span style={{ background: DEPT_COLOR[e.dept] + "22", color: DEPT_COLOR[e.dept], fontSize: 11, padding: "2px 6px", borderRadius: 8 }}>{e.dept}</span></td>
-                        <td style={{ padding: "9px 12px" }}>{e.total}</td>
-                        <td style={{ padding: "9px 12px", color: "#15803d", fontWeight: 500 }}>{e.done - (e.completedLate || 0)}</td>
-                        <td style={{ padding: "9px 12px", color: e.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: e.completedLate > 0 ? 700 : 400 }}>{e.completedLate || 0}</td>
-                        <td style={{ padding: "9px 12px", color: e.over > 0 ? "#b91c1c" : "#6b7280", fontWeight: e.over > 0 ? 600 : 400 }}>{e.over}</td>
+                        <td style={{ padding: "9px 12px" }}>{r2(e.total)}</td>
+                        <td style={{ padding: "9px 12px", color: "#15803d", fontWeight: 500 }}>{r2(e.done - (e.completedLate || 0))}</td>
+                        <td style={{ padding: "9px 12px", color: e.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: e.completedLate > 0 ? 700 : 400 }}>{r2(e.completedLate || 0)}</td>
+                        <td style={{ padding: "9px 12px", color: e.over > 0 ? "#b91c1c" : "#6b7280", fontWeight: e.over > 0 ? 600 : 400 }}>{r2(e.over)}</td>
                         <td style={{ padding: "9px 12px", color: "#9ca3af" }}>{Math.round((e.total - e.resolved) * 100) / 100 || 0}</td>
-                        <td style={{ padding: "9px 12px" }}>{e.collabTotal > 0 ? <span style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span> : <span style={{ color: "#9ca3af" }}>–</span>}</td>
+                        <td style={{ padding: "9px 12px" }}>{e.collabTotal > 0 ? <span style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", padding: "2px 7px", borderRadius: 8 }}>🤝 {r2(e.collabDone)}/{r2(e.collabTotal)}</span> : <span style={{ color: "#9ca3af" }}>–</span>}</td>
                         <td style={{ padding: "9px 12px" }}>
                           {!e.eligible ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa đủ ĐK <span style={{ fontSize: 10 }}>(cần ≥5 việc đến hạn, hiện {e.resolved})</span></span> : (
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -165,12 +168,12 @@ export default function Reports({
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                      <span style={{ background: "#e0e7ff", color: "#4338ca", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>Tổng: {e.total}</span>
-                      <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>HT: {e.done - (e.completedLate||0)}</span>
+                      <span style={{ background: "#e0e7ff", color: "#4338ca", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>Tổng: {r2(e.total)}</span>
+                      <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>HT: {r2(e.done - (e.completedLate||0))}</span>
                       {e.completedLate > 0 && <span style={{ background: "#fff1f2", color: "#991b1b", fontSize: 11, padding: "2px 7px", borderRadius: 8, fontWeight: 700 }}>⏰ {e.completedLate}</span>}
                       {e.over > 0 && <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 11, padding: "2px 7px", borderRadius: 8, fontWeight: 700 }}>QH: {e.over}</span>}
                       {Math.round((e.total - e.resolved) * 100) / 100 > 0 && <span style={{ background: "#f3f4f6", color: "#6b7280", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>⏳ {Math.round((e.total - e.resolved) * 100) / 100}</span>}
-                      {e.collabTotal > 0 && <span style={{ background: "#ede9fe", color: "#7c3aed", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span>}
+                      {e.collabTotal > 0 && <span style={{ background: "#ede9fe", color: "#7c3aed", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>🤝 {r2(e.collabDone)}/{r2(e.collabTotal)}</span>}
                     </div>
                   </div>
                 );
@@ -190,12 +193,12 @@ export default function Reports({
                         <td style={{ padding: "10px 12px", fontSize: ranked && i < 3 ? 18 : 14, fontWeight: 700 }}>{medal}</td>
                         <td style={{ padding: "10px 12px", fontWeight: 600 }}>{e.name}</td>
                         <td style={{ padding: "10px 12px" }}><span style={{ background: DEPT_COLOR[e.dept] + "22", color: DEPT_COLOR[e.dept], fontSize: 11, padding: "2px 6px", borderRadius: 8 }}>{e.dept}</span></td>
-                        <td style={{ padding: "10px 12px" }}>{e.total}</td>
-                        <td style={{ padding: "10px 12px", color: "#15803d", fontWeight: 500 }}>{e.done - (e.completedLate || 0)}</td>
-                        <td style={{ padding: "10px 12px", color: e.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: e.completedLate > 0 ? 700 : 400 }}>{e.completedLate || 0}</td>
-                        <td style={{ padding: "10px 12px", color: e.over > 0 ? "#b91c1c" : "#6b7280", fontWeight: e.over > 0 ? 600 : 400 }}>{e.over}</td>
+                        <td style={{ padding: "10px 12px" }}>{r2(e.total)}</td>
+                        <td style={{ padding: "10px 12px", color: "#15803d", fontWeight: 500 }}>{r2(e.done - (e.completedLate || 0))}</td>
+                        <td style={{ padding: "10px 12px", color: e.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: e.completedLate > 0 ? 700 : 400 }}>{r2(e.completedLate || 0)}</td>
+                        <td style={{ padding: "10px 12px", color: e.over > 0 ? "#b91c1c" : "#6b7280", fontWeight: e.over > 0 ? 600 : 400 }}>{r2(e.over)}</td>
                         <td style={{ padding: "10px 12px", color: "#9ca3af" }}>{Math.round((e.total - e.resolved) * 100) / 100 || 0}</td>
-                        <td style={{ padding: "10px 12px" }}>{e.collabTotal > 0 ? <span style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", padding: "2px 7px", borderRadius: 8 }}>🤝 {e.collabDone}/{e.collabTotal}</span> : <span style={{ color: "#9ca3af" }}>–</span>}</td>
+                        <td style={{ padding: "10px 12px" }}>{e.collabTotal > 0 ? <span style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", padding: "2px 7px", borderRadius: 8 }}>🤝 {r2(e.collabDone)}/{r2(e.collabTotal)}</span> : <span style={{ color: "#9ca3af" }}>–</span>}</td>
                         <td style={{ padding: "10px 12px", textAlign: "center" }}>{e.eligibleMonths}/12</td>
                         <td style={{ padding: "10px 12px" }}>{e.score === null ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa có dữ liệu</span> : <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 15, fontWeight: 700, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ</span><button onClick={() => setWhyYear(e)} title="Vì sao điểm này?" style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 6, padding: "1px 6px", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>ℹ️</button></span>}</td>
                         <td style={{ padding: "10px 12px" }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 60, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: e.rate + "%", background: e.rate >= 80 ? "#16a34a" : e.rate >= 50 ? "#f59e0b" : "#dc2626", borderRadius: 6 }} /></div><span style={{ fontSize: 12, fontWeight: 700, color: e.rate >= 80 ? "#15803d" : e.rate >= 50 ? "#92400e" : "#b91c1c" }}>{e.rate}%</span></div></td>
