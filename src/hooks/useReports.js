@@ -27,7 +27,7 @@ export default function useReports({ computed, employees, currentUser, overloadT
   // ── Trường hợp hỗ trợ người dùng nền tảng số dùng chung → quy thành "việc hoàn thành" theo trọng số độ khó,
   // tính vào tháng theo ngày ghi nhận (created). Luôn coi là hoàn thành đúng hạn vì bản chất đã xử lý xong khi ghi nhận ──
   const supportPseudoTasks = useMemo(() => (supportCases || []).filter(c => c.eid && c.created).map(c => ({
-    id: `support_${c.id}`, eid: c.eid, deadline: c.created, status: "completed", rating: "tot", collab_eids: "[]",
+    id: `support_${c.id}`, eid: c.eid, deadline: c.created, status: "completed", rating: "tot", collab_eids: c.collab_eids || "[]",
     suspicious_completion: false, weight: SUPPORT_WEIGHT[c.difficulty] ?? 0.5,
   })), [supportCases]);
 
@@ -83,7 +83,8 @@ export default function useReports({ computed, employees, currentUser, overloadT
   // của họ (giống cách tính hỗ trợ ND/dự án ngân sách) — không tính việc đang dở dang vì chưa có kết quả để đánh giá ──
   const collabPseudoTasks = useMemo(() => {
     const out = [];
-    for (const t of computed) {
+    // Gồm cả trường hợp hỗ trợ (supportPseudoTasks) để người phối hợp được cộng 1/2 trọng số như việc thường
+    for (const t of [...computed, ...supportPseudoTasks]) {
       if (!isCompletedStatus(t.status)) continue;
       for (const cid of parseJSON(t.collab_eids, [])) {
         if (cid === t.eid) continue; // tránh trùng nếu dữ liệu lỗi gán chính mình vào phối hợp
@@ -91,7 +92,7 @@ export default function useReports({ computed, employees, currentUser, overloadT
       }
     }
     return out;
-  }, [computed]);
+  }, [computed, supportPseudoTasks]);
 
   // ── Index theo (nhân viên | năm | tháng) — dựng MỘT lần, tra cứu O(1) thay vì quét toàn bộ mỗi lần ──
   // byEid: việc mình chủ trì (đã gồm phối hợp weight 0.5) ; byCollab: đếm thô số việc phối hợp (chỉ để hiển thị badge)

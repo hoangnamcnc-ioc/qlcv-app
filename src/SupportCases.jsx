@@ -39,20 +39,20 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
     setLoading(false);
   })(); }, []);
 
-  const openCreate = () => { const myEmp = (employees || []).find(e => e.id === myEid); setForm({ category: catTab, channel: catChannels[0], content: "", result: "", eid: myEmp && catDepts.includes(myEmp.dept) ? myEid : "", difficulty: "medium", created: todayStr, attachments: [] }); };
-  const openEdit = (c) => setForm({ ...c, attachments: parseJSON(c.attachments, []) });
+  const openCreate = () => { const myEmp = (employees || []).find(e => e.id === myEid); setForm({ category: catTab, channel: catChannels[0], content: "", result: "", eid: myEmp && catDepts.includes(myEmp.dept) ? myEid : "", collab_eids: [], difficulty: "medium", created: todayStr, attachments: [] }); };
+  const openEdit = (c) => setForm({ ...c, collab_eids: parseJSON(c.collab_eids, []), attachments: parseJSON(c.attachments, []) });
 
   const saveCase = async () => {
     if (!form.content.trim() || !form.eid) { showToast && showToast("Nhập nội dung và chọn người xử lý", "error"); return; }
     if (!form.result.trim()) { showToast && showToast("Nhập kết quả giải quyết", "error"); return; }
     setSaving(true);
     if (form.id) {
-      const upd = { category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr, attachments: JSON.stringify(form.attachments || []) };
+      const upd = { category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, collab_eids: JSON.stringify(form.collab_eids || []), difficulty: form.difficulty, created: form.created || todayStr, attachments: JSON.stringify(form.attachments || []) };
       const { error } = await supabase.from("support_cases").update(upd).eq("id", form.id);
       if (!error) { setCases(p => p.map(x => x.id === form.id ? { ...x, ...upd } : x)); showToast && showToast("Đã cập nhật"); setForm(null); onScoringChange?.(); }
       else showToast && showToast("Lỗi: " + (error.message || ""), "error");
     } else {
-      const c = { id: `sc${Date.now()}`, category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, difficulty: form.difficulty, created: form.created || todayStr, created_by: currentUser.full_name, attachments: JSON.stringify(form.attachments || []) };
+      const c = { id: `sc${Date.now()}`, category: form.category || "support", channel: form.channel, content: form.content.trim(), result: form.result.trim(), eid: form.eid, collab_eids: JSON.stringify(form.collab_eids || []), difficulty: form.difficulty, created: form.created || todayStr, created_by: currentUser.full_name, attachments: JSON.stringify(form.attachments || []) };
       const { error } = await supabase.from("support_cases").insert(c);
       if (!error) { setCases(p => [c, ...p]); showToast && showToast("Đã ghi nhận trường hợp hỗ trợ"); setForm(null); onScoringChange?.(); }
       else showToast && showToast("Lỗi: " + (error.message || ""), "error");
@@ -100,11 +100,11 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
   const paged = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
 
   const exportCSV = () => {
-    const header = ["Ngày xử lý", "Phân loại", "Kênh", "Nội dung", "Kết quả giải quyết", "Người xử lý", "Phòng ban", "Độ khó", "Quy đổi việc", "Xác nhận"];
+    const header = ["Ngày xử lý", "Phân loại", "Kênh", "Nội dung", "Kết quả giải quyết", "Người xử lý chính", "Phòng ban", "Phối hợp", "Độ khó", "Quy đổi việc", "Xác nhận"];
     const rows = filtered.map(c => { const emp = getEmp(c.eid); return [
       c.created, SUPPORT_CATEGORIES[c.category || "support"]?.label || "", SUPPORT_CHANNELS[c.channel]?.label || "",
       `"${(c.content || "").replace(/"/g, '""')}"`, `"${(c.result || "").replace(/"/g, '""')}"`,
-      emp?.name || "", emp?.dept || "", SUPPORT_DIFFICULTY[c.difficulty]?.label || "", SUPPORT_DIFFICULTY[c.difficulty]?.weight ?? "",
+      emp?.name || "", emp?.dept || "", `"${parseJSON(c.collab_eids, []).map(id => getEmp(id)?.name).filter(Boolean).join("; ")}"`, SUPPORT_DIFFICULTY[c.difficulty]?.label || "", SUPPORT_DIFFICULTY[c.difficulty]?.weight ?? "",
       c.verified_by ? `Đã xác nhận (${c.verified_by})` : "Chưa xác nhận",
     ].join(","); });
     const csv = "﻿" + [header.join(","), ...rows].join("\n");
@@ -179,6 +179,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
                 {parseJSON(c.attachments, []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>{parseJSON(c.attachments, []).map((f, i) => <a key={i} href={getPreviewUrl(f.url, f.name)} target="_blank" rel="noreferrer" style={{ fontSize: 11, background: "#eef2ff", color: "#4338ca", padding: "2px 8px", borderRadius: 6, textDecoration: "none" }}>{getFileIcon(f.name)} {f.name}</a>)}</div>}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 5, alignItems: "center" }}>
                   <span style={{ background: DEPT_COLOR[emp?.dept] + "22", color: DEPT_COLOR[emp?.dept], fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>{emp?.name || "–"}</span>
+                  {parseJSON(c.collab_eids, []).length > 0 && <span style={{ background: "#f5f3ff", color: "#7c3aed", fontSize: 11, padding: "2px 7px", borderRadius: 8 }}>🤝 {parseJSON(c.collab_eids, []).map(id => getEmp(id)?.name).filter(Boolean).join(", ")}</span>}
                   <span style={{ background: SUPPORT_DIFFICULTY[c.difficulty]?.icon ? "#f1f5f9" : "transparent", fontSize: 11, padding: "2px 7px", borderRadius: 8, color: "#475569" }}>{SUPPORT_DIFFICULTY[c.difficulty]?.icon} {SUPPORT_DIFFICULTY[c.difficulty]?.label} ({SUPPORT_DIFFICULTY[c.difficulty]?.weight} việc)</span>
                   <span style={{ fontSize: 11, color: "#9ca3af" }}>📅 {fmtDate(c.created)}</span>
                   {c.verified_by ? (
@@ -220,7 +221,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Phân loại</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {Object.entries(SUPPORT_CATEGORIES).map(([k, v]) => (
-                <button key={k} onClick={() => setForm(f => { const nextDepts = k === "datacenter" ? ["HT-NTS"] : ["HT-NTS", "QL-KTDL"]; const emp = (employees || []).find(e => e.id === f.eid); const nextChannels = SUPPORT_CHANNELS_BY_CATEGORY[k] || SUPPORT_CHANNELS_BY_CATEGORY.support; return { ...f, category: k, eid: emp && nextDepts.includes(emp.dept) ? f.eid : "", channel: nextChannels.includes(f.channel) ? f.channel : nextChannels[0] }; })} style={{ flex: "1 1 45%", padding: "8px 6px", border: "2px solid " + (form.category === k ? "#059669" : "#e5e7eb"), borderRadius: 8, background: form.category === k ? "#f0fdf4" : "#fff", cursor: "pointer", fontSize: 12.5 }}>{v.icon} {v.label}</button>
+                <button key={k} onClick={() => setForm(f => { const nextDepts = k === "datacenter" ? ["HT-NTS"] : ["HT-NTS", "QL-KTDL"]; const emp = (employees || []).find(e => e.id === f.eid); const nextChannels = SUPPORT_CHANNELS_BY_CATEGORY[k] || SUPPORT_CHANNELS_BY_CATEGORY.support; return { ...f, category: k, eid: emp && nextDepts.includes(emp.dept) ? f.eid : "", collab_eids: (f.collab_eids || []).filter(id => { const ce = (employees || []).find(x => x.id === id); return ce && nextDepts.includes(ce.dept); }), channel: nextChannels.includes(f.channel) ? f.channel : nextChannels[0] }; })} style={{ flex: "1 1 45%", padding: "8px 6px", border: "2px solid " + (form.category === k ? "#059669" : "#e5e7eb"), borderRadius: 8, background: form.category === k ? "#f0fdf4" : "#fff", cursor: "pointer", fontSize: 12.5 }}>{v.icon} {v.label}</button>
               ))}
             </div>
           </div>
@@ -233,7 +234,15 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
           </div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>{SUPPORT_CONTENT_LABEL[form.category] || SUPPORT_CONTENT_LABEL.support} *</label><textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={3} placeholder="VD: Hướng dẫn khôi phục mật khẩu đăng nhập hệ thống..." style={{ ...inp, resize: "vertical" }} /></div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Kết quả giải quyết *</label><textarea value={form.result} onChange={e => setForm(f => ({ ...f, result: e.target.value }))} rows={3} placeholder="VD: Đã hướng dẫn người dùng đặt lại mật khẩu qua email, xác nhận đăng nhập thành công..." style={{ ...inp, resize: "vertical" }} /></div>
-          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Người xử lý</label><select value={form.eid} onChange={e => setForm(f => ({ ...f, eid: e.target.value }))} style={inp}><option value="">— Chọn —</option>{formEmployees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.dept})</option>)}</select></div>
+          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Người xử lý chính</label><select value={form.eid} onChange={e => setForm(f => ({ ...f, eid: e.target.value, collab_eids: (f.collab_eids || []).filter(id => id !== e.target.value) }))} style={inp}><option value="">— Chọn —</option>{formEmployees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.dept})</option>)}</select></div>
+          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Nhân viên phối hợp (tùy chọn)</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {formEmployees.filter(e => e.id !== form.eid).map(e => { const on = (form.collab_eids || []).includes(e.id); return (
+                <button key={e.id} type="button" onClick={() => setForm(f => { const cur = f.collab_eids || []; return { ...f, collab_eids: on ? cur.filter(id => id !== e.id) : [...cur, e.id] }; })} style={{ padding: "5px 10px", border: "1.5px solid " + (on ? "#059669" : "#e5e7eb"), borderRadius: 999, background: on ? "#f0fdf4" : "#fff", color: on ? "#059669" : "#6b7280", cursor: "pointer", fontSize: 12 }}>{on ? "✓ " : ""}{e.name} ({e.dept})</button>
+              ); })}
+              {formEmployees.filter(e => e.id !== form.eid).length === 0 && <span style={{ fontSize: 12, color: "#9ca3af" }}>Không có nhân viên khác trong phạm vi phòng ban</span>}
+            </div>
+          </div>
           <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Độ khó</label>
             <div style={{ display: "flex", gap: 8 }}>
               {Object.entries(SUPPORT_DIFFICULTY).map(([k, v]) => (
