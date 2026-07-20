@@ -6,7 +6,7 @@ import { RoleBadge, OverloadPopup } from "./ui";
 
 export default function Dashboard({
   currentUser, isMobile, userDept,
-  execDeptSummary, stats, deptChart, myTasks, myTrend,
+  execDeptSummary, stats, statsW, deptChart, myTasks, myTrend,
   computed, overloadedEmps, overloadThreshold, setOverloadThreshold,
   dateFrom, setDateFrom, dateTo, setDateTo,
   overloadPopup, setOverloadPopup,
@@ -46,8 +46,8 @@ export default function Dashboard({
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    <span style={{ background: "#e0e7ff", color: "#4338ca", fontSize: 11, padding: "2px 8px", borderRadius: 8 }}>Tổng: {d.total}</span>
-                    <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, padding: "2px 8px", borderRadius: 8 }}>HT: {d.done}</span>
+                    <span style={{ background: "#e0e7ff", color: "#4338ca", fontSize: 11, padding: "2px 8px", borderRadius: 8 }}>Tổng: {d.total} <span style={{ opacity: 0.7 }}>(≈{d.totalW} quy đổi)</span></span>
+                    <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, padding: "2px 8px", borderRadius: 8 }}>HT: {d.done} <span style={{ opacity: 0.7 }}>(≈{d.doneW})</span></span>
                     {d.overdue > 0 && <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 700 }}>QH: {d.overdue}</span>}
                     {d.completedLate > 0 && <span style={{ background: "#fff1f2", color: "#991b1b", fontSize: 11, padding: "2px 8px", borderRadius: 8 }}>⏰ {d.completedLate}</span>}
                     {d.nd > 0 && <span style={{ background: "#fef9c3", color: "#92400e", fontSize: 11, padding: "2px 8px", borderRadius: 8 }}>⚠ {d.nd}</span>}
@@ -59,14 +59,15 @@ export default function Dashboard({
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead><tr style={{ background: "#f9fafb" }}>{["Phòng ban","Trưởng phòng","Nhân sự","Tổng việc","Hoàn thành","Quá hạn","HT quá hạn","Sắp hết hạn","Tỷ lệ HT","Quá tải"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+                <thead><tr style={{ background: "#f9fafb" }}>{["Phòng ban","Trưởng phòng","Nhân sự","Tổng việc","Quy đổi","Hoàn thành","Quá hạn","HT quá hạn","Sắp hết hạn","Tỷ lệ HT","Quá tải"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
                 <tbody>{execDeptSummary.map(d => (
                   <tr key={d.dept} onClick={() => { setView("tasks"); setFDept(d.dept); }} style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                     <td style={{ padding: "10px 12px" }}><span style={{ background: DEPT_COLOR[d.dept] + "22", color: DEPT_COLOR[d.dept], fontWeight: 600, padding: "3px 10px", borderRadius: 8 }}>{d.dept}</span></td>
                     <td style={{ padding: "10px 12px", color: "#374151" }}>{d.lead}</td>
                     <td style={{ padding: "10px 12px", textAlign: "center" }}>{d.empCount}</td>
                     <td style={{ padding: "10px 12px", fontWeight: 600 }}>{d.total}</td>
-                    <td style={{ padding: "10px 12px", color: "#15803d", fontWeight: 500 }}>{d.done}</td>
+                    <td style={{ padding: "10px 12px" }} title="Số việc sau khi quy đổi theo trọng số nhiệm vụ định kỳ (ngày 0.25 · tuần 1 · 2 tuần 1.5 · tháng 2.5 · quý/6 tháng/năm 3)"><span style={{ background: "#eef2ff", color: "#4338ca", fontSize: 12, fontWeight: 600, padding: "2px 8px", borderRadius: 8 }}>≈ {d.totalW}</span></td>
+                    <td style={{ padding: "10px 12px", color: "#15803d", fontWeight: 500 }}>{d.done}<span style={{ color: "#9ca3af", fontSize: 11, fontWeight: 400 }}> (≈{d.doneW})</span></td>
                     <td style={{ padding: "10px 12px", color: d.overdue > 0 ? "#b91c1c" : "#9ca3af", fontWeight: d.overdue > 0 ? 700 : 400 }}>{d.overdue}</td>
                     <td style={{ padding: "10px 12px", color: d.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: d.completedLate > 0 ? 700 : 400 }}>{d.completedLate}</td>
                     <td style={{ padding: "10px 12px", color: d.nd > 0 ? "#a16207" : "#9ca3af", fontWeight: d.nd > 0 ? 600 : 400 }}>{d.nd}</td>
@@ -131,7 +132,8 @@ export default function Dashboard({
         {[{label:"Tổng",val:stats.total,bg:"#eef2ff",col:"#4338ca",key:"total"},{label:"Trong hạn",val:stats.on_time,bg:"#dcfce7",col:"#15803d",key:"on_time"},{label:"Sắp hết hạn",val:stats.nearly_due,bg:"#fef9c3",col:"#92400e",key:"nearly_due"},{label:"Quá hạn",val:stats.overdue,bg:"#fee2e2",col:"#b91c1c",key:"overdue"},{label:"Chờ duyệt",val:stats.pending_approval,bg:"#fef3c7",col:"#92400e",key:"pending_approval"},{label:"HT quá hạn",val:stats.completed_late,bg:"#fee2e2",col:"#991b1b",key:"completed_late"},{label:"Hoàn thành",val:stats.completed,bg:"#e0e7ff",col:"#4338ca",key:"completed"}].map(c => (
           <div key={c.label} onClick={() => setStatFilter(f => f === c.key ? null : c.key)} style={{ background: c.bg, borderRadius: 9, padding: isMobile ? 10 : "10px 12px", minHeight: isMobile ? 92 : 96, cursor: "pointer", border: "1.5px solid " + (statFilter === c.key ? c.col : "transparent"), transition: "border 0.15s", userSelect: "none", boxSizing: "border-box", overflow: "hidden" }}>
             <div style={{ fontSize: isMobile ? 22 : 24, lineHeight: 1.1, fontWeight: 700, color: c.col }}>{c.val}</div>
-            <div style={{ fontSize: isMobile ? 11 : 12, color: c.col, opacity: 0.85, marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</div>
+            {statsW && <div title="Đã quy đổi theo trọng số nhiệm vụ định kỳ (ngày 0.25 · tuần 1 · 2 tuần 1.5 · tháng 2.5 · quý/6 tháng/năm 3)" style={{ fontSize: isMobile ? 10 : 10.5, color: c.col, opacity: 0.65, lineHeight: 1.3, marginTop: 2, whiteSpace: "nowrap" }}>≈ {statsW[c.key]} quy đổi</div>}
+            <div style={{ fontSize: isMobile ? 11 : 12, color: c.col, opacity: 0.85, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</div>
             {statFilter === c.key && <div style={{ fontSize: 10, color: c.col, marginTop: 4, whiteSpace: "nowrap" }}>▲ đang lọc</div>}
           </div>
         ))}

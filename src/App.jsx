@@ -285,7 +285,7 @@ export default function App() {
     extRequestModal, setExtRequestModal, extProposedDate, setExtProposedDate, extReason, setExtReason, openExtRequestModal, submitExtRequest,
     extDecideModal, setExtDecideModal, extDecideDate, setExtDecideDate, extDecideNote, setExtDecideNote, openExtApprove, openExtReject, confirmExtDecision,
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,
-    visibleTasks, trashedTasks, computed, stats, deptChart,
+    visibleTasks, trashedTasks, computed, stats, statsW, deptChart,
     dateFrom, setDateFrom, dateTo, setDateTo,
     fStatus, setFStatus, fDept, setFDept, fEid, setFEid, fAssignedByMe, setFAssignedByMe, search, setSearch, fSort, setFSort, page, setPage,
     filtered, paged, totalPages,
@@ -654,7 +654,7 @@ export default function App() {
           {view==="dashboard"&&(
             <Dashboard
               currentUser={currentUser} isMobile={isMobile} userDept={userDept}
-              execDeptSummary={execDeptSummary} stats={stats} deptChart={deptChart}
+              execDeptSummary={execDeptSummary} stats={stats} statsW={statsW} deptChart={deptChart}
               myTasks={myTasks} myTrend={myTrend}
               computed={computed} overloadedEmps={overloadedEmps}
               dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo}

@@ -57,6 +57,11 @@ export default function useReports({ computed, employees, currentUser, overloadT
   const [repTab, setRepTab] = useState("monthly");
   const [rankYear, setRankYear] = useState(today.getFullYear());
 
+  // Mỗi "việc" có trọng số (weight, mặc định 1): nhiệm vụ sinh từ mẫu định kỳ (ngày 0.25 … năm 3)
+  // và trường hợp hỗ trợ (Khó 1 / TB 0.5 / Nhanh 0.25). Dùng sumW khi cần "việc quy đổi".
+  const w = t => t.weight ?? 1;
+  const sumW = arr => Math.round(arr.reduce((s, t) => s + w(t), 0) * 100) / 100;
+
   // ── Tổng hợp điều hành theo phòng ban (cho BGĐ) ──
   const execDeptSummary = useMemo(() => DEPTS.map(d => {
     const dt = computed.filter(t => t.dept === d);
@@ -69,7 +74,11 @@ export default function useReports({ computed, employees, currentUser, overloadT
     const deptEmpsList = (employees || []).filter(e => e.dept === d);
     const overloaded = deptEmpsList.filter(e => computed.filter(t => t.eid === e.id && !isCompletedStatus(t.status)).length >= overloadThreshold).length;
     const lead = deptEmpsList.find(e => ["Trưởng phòng", "TP. HCTH"].includes(e.role));
-    return { dept: d, total: dt.length, over, overdue, completedLate, nd, done, rate, empCount: deptEmpsList.length, overloaded, lead: lead?.name || "—" };
+    // Số "việc quy đổi" (theo trọng số) để so sánh tải giữa các phòng cho công bằng —
+    // phòng nhiều nhiệm vụ hàng ngày (0.25) không bị thổi phồng như khi đếm thô.
+    const totalW = sumW(dt);
+    const doneW = sumW(dt.filter(t => isCompletedStatus(t.status)));
+    return { dept: d, total: dt.length, totalW, doneW, over, overdue, completedLate, nd, done, rate, empCount: deptEmpsList.length, overloaded, lead: lead?.name || "—" };
   }), [computed, employees, overloadThreshold]);
 
   const repTasks = useMemo(() => computed.filter(t => { const d = new Date(t.deadline); return d.getFullYear() === repYear && d.getMonth() === repMonth; }), [computed, repYear, repMonth]);
@@ -118,10 +127,7 @@ export default function useReports({ computed, employees, currentUser, overloadT
   }, [computed, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
 
   // ── Công thức tính điểm hiệu suất 1 THÁNG (dùng chung cho bảng "Hiệu suất tháng" và "Xếp hạng năm") ──
-  // Mỗi "việc" có trọng số (weight, mặc định 1) — trường hợp hỗ trợ người dùng dùng weight phân số
-  // (Khó=1, Trung bình=0.5, Nhanh=0.25) nên mọi phép đếm dùng tổng trọng số thay vì .length.
-  const w = t => t.weight ?? 1;
-  const sumW = arr => Math.round(arr.reduce((s, t) => s + w(t), 0) * 100) / 100;
+  // (w / sumW đã khai báo ở trên, dùng chung cho cả tổng hợp điều hành lẫn chấm điểm)
   const calcMonthPerf = (empId, year, month) => {
     const ym = `${year}|${month}`;
     const et = perfIndex.byEid.get(`${empId}|${ym}`) || [];
