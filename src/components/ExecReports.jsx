@@ -178,6 +178,10 @@ export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, ov
     .filter(t => t.daysLeft >= 0 && t.daysLeft <= 7)
     .sort((a, b) => a.daysLeft - b.daysLeft), [computed, today]);
   const upcoming7dByDept = useMemo(() => DEPTS.map(d => ({ dept: d, count: upcoming7d.filter(t => t.dept === d).length })), [upcoming7d]);
+  // Bấm vào ô số của phòng để lọc danh sách "sắp đến hạn" theo phòng đó (bấm lại để bỏ lọc)
+  const [upDept, setUpDept] = useState(null);
+  const upcomingList = upDept ? upcoming7d.filter(t => t.dept === upDept) : upcoming7d;
+  const upcomingLimit = upDept ? 30 : 8;
 
   return (<>
     <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>
@@ -280,16 +284,27 @@ export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, ov
       <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>⏳ Sắp đến hạn trong 7 ngày tới</div>
       <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 12 }}>Cảnh báo sớm để chủ động phân bổ lại, thay vì chỉ biết khi đã quá hạn.</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {upcoming7dByDept.map(d => (
-          <div key={d.dept} style={{ flex: 1, textAlign: "center", padding: "8px 6px", borderRadius: 8, background: DEPT_COLOR[d.dept] + "15" }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: DEPT_COLOR[d.dept] }}>{d.count}</div>
-            <div style={{ fontSize: 11, color: DEPT_COLOR[d.dept] }}>{d.dept}</div>
-          </div>
-        ))}
+        {upcoming7dByDept.map(d => {
+          const on = upDept === d.dept;
+          return (
+            <div key={d.dept} onClick={() => d.count > 0 && setUpDept(on ? null : d.dept)}
+              title={d.count === 0 ? "Phòng này không có việc sắp đến hạn" : on ? "Bấm lại để bỏ lọc" : `Bấm để chỉ xem việc sắp đến hạn của ${d.dept}`}
+              style={{ flex: 1, textAlign: "center", padding: "8px 6px", borderRadius: 8, background: DEPT_COLOR[d.dept] + (on ? "30" : "15"), border: "2px solid " + (on ? DEPT_COLOR[d.dept] : "transparent"), cursor: d.count > 0 ? "pointer" : "default", opacity: d.count === 0 ? 0.55 : 1, transition: "background 0.15s, border 0.15s", userSelect: "none" }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: DEPT_COLOR[d.dept] }}>{d.count}</div>
+              <div style={{ fontSize: 11, color: DEPT_COLOR[d.dept] }}>{d.dept}</div>
+            </div>
+          );
+        })}
       </div>
-      {upcoming7d.length === 0 ? <div style={{ textAlign: "center", color: "#9ca3af", padding: 12, fontSize: 13 }}>Không có việc nào sắp đến hạn trong 7 ngày tới</div> : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {upcoming7d.slice(0, 8).map(t => (
+      {upDept && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10, padding: "6px 10px", borderRadius: 8, background: "#f8fafc", border: "1px solid #e5e7eb", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "#374151" }}>Đang lọc: <b style={{ color: DEPT_COLOR[upDept] }}>{upDept}</b> · {upcomingList.length} việc{upcomingList.length > upcomingLimit ? ` (hiển thị ${upcomingLimit} đầu tiên)` : ""}</span>
+          <button onClick={() => setUpDept(null)} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 7, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", color: "#6b7280" }}>✕ Bỏ lọc</button>
+        </div>
+      )}
+      {upcomingList.length === 0 ? <div style={{ textAlign: "center", color: "#9ca3af", padding: 12, fontSize: 13 }}>Không có việc nào sắp đến hạn trong 7 ngày tới</div> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: upDept ? 460 : "none", overflowY: upDept ? "auto" : "visible" }}>
+          {upcomingList.slice(0, upcomingLimit).map(t => (
             <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #fde68a", background: "#fffbeb", cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 500, wordBreak: "break-word" }}>{t.title}</div>
