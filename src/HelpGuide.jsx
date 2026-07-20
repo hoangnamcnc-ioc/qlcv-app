@@ -86,6 +86,14 @@ const SECTIONS = [
         "Cảnh báo quá tải: nhân viên có số việc active vượt ngưỡng cho phép.",
         "Nhiệm vụ định kỳ và Việc của tôi / tiến bộ 6 tháng gần nhất.",
       ]},
+      { h: "Đọc đúng cột \"Quy đổi\" và \"Quy đổi/người\"" },
+      { p: "Cột Tổng việc chỉ ĐẾM số đầu việc (mỗi nhiệm vụ = 1), nên phòng có nhiều nhiệm vụ hàng ngày sẽ trông \"nhiều việc\" hơn thực tế. Hai cột bên cạnh cho biết khối lượng thực:" },
+      { ul: [
+        "Quy đổi — tổng số việc sau khi nhân trọng số nhiệm vụ định kỳ (hàng ngày 0.25 · tuần 1 · 2 tuần 1.5 · tháng 2.5 · quý/6 tháng/năm 3 · nhiệm vụ thường 1). Dùng cột này khi so sánh tải giữa các phòng.",
+        "Quy đổi/người — lấy Quy đổi chia cho số nhân sự của phòng. Dùng khi các phòng chênh lệch quân số, để biết ai đang gánh nặng nhất trên đầu người.",
+      ]},
+      { p: "Mỗi thẻ thống kê nhanh cũng hiện thêm dòng \"≈ … quy đổi\" ngay dưới con số." },
+      { note: "Bảng Tổng hợp điều hành chỉ tính NHIỆM VỤ (không gồm Hỗ trợ ND/Xử lý lỗi TTDL và dự án ngân sách), gom theo phòng của nhiệm vụ và trên TOÀN BỘ thời gian. Vì vậy nó không trùng với cột \"Tổng\" ở bảng Hiệu suất nhân viên (bảng đó tính theo từng tháng và có cộng thêm việc phối hợp) — đừng cộng dồn hai bảng để đối chiếu." },
     ]
   },
   {
@@ -177,7 +185,8 @@ const SECTIONS = [
         "🖧 Xử lý lỗi Trung tâm dữ liệu — kênh: Điện thoại, Zalo. Người xử lý: chỉ nhân viên phòng HT-NTS.",
       ]},
       { h: "Ghi nhận 1 trường hợp" },
-      { p: "Bấm + Ghi nhận, điền: Kênh tiếp nhận, Nội dung hỗ trợ/Mô tả lỗi, Kết quả giải quyết (bắt buộc), Người xử lý, Độ khó, Ngày xử lý, và có thể đính kèm 📎 file kết quả xử lý (ảnh chụp, log, tài liệu...) — áp dụng cho cả 2 tab." },
+      { p: "Bấm + Ghi nhận, điền: Kênh tiếp nhận, Nội dung hỗ trợ/Mô tả lỗi, Kết quả giải quyết (bắt buộc), Người xử lý chính, Nhân viên phối hợp (tùy chọn — chọn nhiều người), Độ khó, Ngày xử lý, và có thể đính kèm 📎 file kết quả xử lý (ảnh chụp, log, tài liệu...) — áp dụng cho cả 2 tab." },
+      { note: "Nhân viên phối hợp: bấm chọn nhiều người trong cùng phạm vi phòng ban của tab (người đã chọn làm xử lý chính sẽ tự loại khỏi danh sách). Thẻ trường hợp sẽ hiện 🤝 kèm tên những người phối hợp, và file CSV xuất ra có thêm cột \"Phối hợp\"." },
       { note: "Kết quả giải quyết là bắt buộc — nếu thiếu, danh sách sẽ hiện cảnh báo \"⚠️ Thiếu nội dung kết quả giải quyết\" để dễ rà soát bổ sung." },
       { h: "Tính điểm hiệu suất theo độ khó" },
       { ul: [
@@ -185,7 +194,8 @@ const SECTIONS = [
         "🟡 Trung bình = 1/2 việc",
         "🟢 Nhanh = 1/4 việc",
       ]},
-      { note: "Mỗi trường hợp cộng thẳng vào điểm hiệu suất tháng của người xử lý theo trọng số trên, tính vào tháng theo Ngày xử lý — mục Báo cáo cập nhật điểm ngay, không cần tải lại trang." },
+      { note: "Mỗi trường hợp cộng thẳng vào điểm hiệu suất tháng của người xử lý chính theo trọng số trên, tính vào tháng theo Ngày xử lý — mục Báo cáo cập nhật điểm ngay, không cần tải lại trang." },
+      { note: "Nhân viên phối hợp được cộng 1/2 trọng số độ khó: phối hợp việc Khó = 0.5, Trung bình = 0.25, Nhanh = 0.125 — đồng bộ với cách tính phối hợp của nhiệm vụ thường." },
       { h: "Sửa, xóa, xác nhận" },
       { ul: [
         "✏️ Sửa — người xử lý tự sửa được trường hợp của mình; BGĐ/Trưởng/Phó phòng sửa được mọi trường hợp.",
@@ -225,6 +235,7 @@ const SECTIONS = [
         "Tìm kiếm theo số văn bản, trích yếu, nơi gửi.",
         "Lọc theo loại: Văn bản đến / Văn bản đi.",
         "Có thể liên kết văn bản với một nhiệm vụ, hoặc tạo nhiệm vụ mới trực tiếp từ văn bản.",
+        "Văn bản đã liên kết nhiệm vụ sẽ hiện dòng 🔗 Liên kết nhiệm vụ kèm huy hiệu màu cho biết trạng thái nhiệm vụ đó (Trong hạn · Sắp hết hạn · Quá hạn · Chờ duyệt · Hoàn thành · HT quá hạn) — bấm vào để mở thẳng nhiệm vụ.",
       ]},
     ]
   },
@@ -257,6 +268,13 @@ const SECTIONS = [
       { note: "Việc \"trễ hạn\" được tính theo lúc bạn bấm Yêu cầu hoàn thành, không phải lúc người duyệt bấm duyệt — nếu bạn yêu cầu duyệt đúng hạn thì dù người duyệt xử lý chậm bao lâu, bạn vẫn không bị tính trễ." },
       { p: "Nhiệm vụ ngân sách cũng được cộng vào điểm hiệu suất: mỗi bước dự án đã duyệt+chấm chất lượng tính là 1 việc cho người chủ trì bước; khi cả dự án được BGĐ nghiệm thu (1–5 sao), phụ trách chính được cộng thêm 1 việc riêng." },
       { note: "Bấm ℹ️ cạnh điểm số để xem chi tiết \"Vì sao điểm này?\"." },
+      { h: "Số quy đổi ở tab Tháng" },
+      { ul: [
+        "5 ô thống kê đầu trang (Tổng, Hoàn thành, Quá hạn, HT quá hạn, Tỷ lệ HT) đều hiện thêm dòng \"≈ … quy đổi\" — riêng Tỷ lệ HT có thêm tỷ lệ tính theo quy đổi, có thể lệch khá nhiều so với tỷ lệ đếm thô.",
+        "Biểu đồ Hiệu suất phòng ban có nút chuyển [Đầu việc] / [Quy đổi] ở góc phải. Chuyển sang Quy đổi để so sánh phòng ban cho công bằng — phòng nhiều việc hàng ngày sẽ không còn bị vống lên.",
+        "Nút này áp dụng chung cho cả biểu đồ Xu hướng 6 tháng (có nhãn cho biết đang xem chế độ nào).",
+      ]},
+      { note: "Vì sao cột \"Tổng\" ở bảng Hiệu suất nhân viên KHÔNG khớp với cột \"Quy đổi\" ở bảng Tổng hợp điều hành? Vì (1) bảng nhân viên chỉ tính THÁNG đang chọn, còn bảng điều hành tính toàn bộ thời gian; (2) bảng nhân viên còn cộng thêm Hỗ trợ ND/Xử lý lỗi TTDL và dự án ngân sách; (3) quan trọng nhất — một nhiệm vụ được tính cho CẢ người chủ trì lẫn người phối hợp (phối hợp = 1/2 trọng số), nên cộng dồn theo người sẽ luôn lớn hơn tổng theo nhiệm vụ. Đây là cố ý để ghi nhận công phối hợp, không phải sai số." },
       { p: "Xuất báo cáo ra PDF (để in) hoặc CSV (Excel)." },
       { h: "📑 Xếp loại (chốt sổ điểm) — dành cho BGĐ/TP.HCTH/Admin" },
       { p: "Điểm hiệu suất được \"chốt sổ\" cố định vào đầu mỗi tháng cho tháng vừa kết thúc (tự động khi BGĐ/Admin đăng nhập, hoặc chốt thủ công). Điểm đã chốt KHÔNG thay đổi khi dữ liệu cũ bị sửa — dùng làm căn cứ bình xét." },
@@ -271,6 +289,7 @@ const SECTIONS = [
         "Biểu đồ tỷ lệ hoàn thành của 3 phòng qua 6 tháng gần nhất — phát hiện phòng đang đi xuống.",
         "Top việc quá hạn lâu nhất toàn đơn vị (bấm mở xem chi tiết ngay).",
         "Bảng tốc độ duyệt: thời gian trung bình mỗi người duyệt xử lý yêu cầu + số việc đang treo — đo cả phía quản lý, không chỉ đo nhân viên.",
+        "⏳ Sắp đến hạn trong 7 ngày tới: bấm vào ô số của một phòng để lọc danh sách bên dưới chỉ còn việc của phòng đó (bấm lại hoặc bấm ✕ Bỏ lọc để xem lại tất cả). Khi đang lọc, danh sách hiện tới 30 mục thay vì 8 nên xem được gần như trọn danh sách.",
       ]},
     ]
   },

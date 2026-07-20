@@ -77,6 +77,12 @@ export default function Reports({
               <span style={{ fontWeight: 600, fontSize: 13 }}>Hiệu suất nhân viên</span>
               {!isMobile && <span style={{ fontSize: 11, color: "#9ca3af" }}>Điểm = Thời hạn(60%) + Chất lượng(40%) − Phạt + Thưởng KL + Thưởng PH · Phạt 2đ/việc trễ & quá hạn · Thưởng KL: +1đ/việc vượt 5, tối đa +10đ · Chỉ tính trên việc ĐÃ ĐẾN HẠN (≥5) — việc chưa đến hạn không tính vào điểm, xem cột "Chưa đến hạn"</span>}
             </div>
+            <div style={{ padding: "8px 16px", background: "#fffbeb", borderBottom: "1px solid #fde68a", fontSize: 11.5, color: "#92400e", lineHeight: 1.65 }}>
+              ⚠️ Cột <b>Tổng</b> ở đây là <b>việc quy đổi của riêng tháng đang chọn</b>, đã cộng cả: việc <b>phối hợp</b> (mỗi việc = ½ trọng số),
+              trường hợp <b>Hỗ trợ ND / Xử lý lỗi TTDL</b> và bước <b>dự án ngân sách</b>.
+              Vì một nhiệm vụ được tính cho <i>cả</i> người chủ trì lẫn người phối hợp nên <b>đừng cộng dồn cột này để so với cột "Quy đổi" ở bảng Tổng hợp điều hành</b> —
+              bảng đó chỉ tính nhiệm vụ, gom theo phòng và trên toàn bộ thời gian.
+            </div>
             {isMobile ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                 {repEmpData.map((e, idx) => {

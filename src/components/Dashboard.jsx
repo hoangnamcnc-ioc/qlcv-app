@@ -35,6 +35,8 @@ export default function Dashboard({
               hàng ngày <b>0.25</b> · tuần <b>1</b> · 2 tuần <b>1.5</b> · tháng <b>2.5</b> · quý/6 tháng/năm <b>3</b> · nhiệm vụ thường <b>1</b>.
               Cột <b>Tổng việc</b> chỉ đếm số đầu việc nên phòng nhiều việc hàng ngày dễ trông "nhiều" hơn thực tế —
               hãy dùng cột <b>Quy đổi</b> khi so sánh tải giữa các phòng, và <b>Quy đổi/người</b> khi các phòng chênh lệch nhân sự.
+              <br />⚠️ Bảng này chỉ tính <b>nhiệm vụ</b> (không gồm Hỗ trợ ND/Xử lý lỗi TTDL và dự án ngân sách), gom theo phòng của nhiệm vụ và trên <b>toàn bộ thời gian</b> —
+              nên <b>không trùng</b> với cột "Tổng" ở bảng Hiệu suất nhân viên (bảng đó tính theo tháng và có cộng thêm việc phối hợp ½).
             </span>
           </div>
           {isMobile ? (
