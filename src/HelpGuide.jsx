@@ -63,6 +63,7 @@ const SECTIONS = [
         "📌 Nhiệm vụ khác",
         "🎧 Hỗ trợ người dùng/PAHT và vận hành DC",
         "🔄 Nhiệm vụ định kỳ (mở bảng quản lý mẫu định kỳ)",
+        "🔁 Bàn giao hàng loạt (chuyển nhiều việc của 1 người sang người khác)",
       ]},
       { note: "Máy tính: tab con hiện thụt lề ngay dưới \"Công việc\" trong menu trái. Điện thoại: hiện thành dải nút tròn ngay dưới thanh tiêu đề." },
       { table: {
@@ -131,6 +132,34 @@ const SECTIONS = [
         "Người giao việc thấy đề xuất, bấm ✅ Duyệt gia hạn (chọn đúng ngày đề xuất hoặc ngắn hơn — nếu ngắn hơn phải nêu rõ lý do) hoặc ✖ Từ chối (phải nêu lý do).",
         "Duyệt xong, Hạn chót của nhiệm vụ cập nhật ngay theo ngày đã duyệt.",
       ]},
+      { h: "🔄 Nhiệm vụ định kỳ" },
+      { p: "Dành cho việc lặp lại theo chu kỳ (báo cáo tuần, kiểm tra hệ thống hàng ngày, chi lương hàng tháng...). Bạn tạo MẪU một lần, hệ thống tự sinh nhiệm vụ thật theo đúng tần suất — không phải gõ lại mỗi kỳ." },
+      { p: "Vào 💼 Công việc → 🔄 Nhiệm vụ định kỳ → + Thêm mẫu. Chỉ Trưởng/Phó phòng, TP.HCTH, BGĐ và Admin tạo được mẫu; Trưởng/Phó phòng chỉ tạo cho phòng mình." },
+      { ul: [
+        "Tiêu đề * và Mô tả — nội dung việc lặp lại (VD: \"Báo cáo tuần HCTH\").",
+        "Phòng ban và Giao cho * — người thực hiện chính, chọn trong nhân viên của phòng đó.",
+        "Tần suất — Hàng ngày · Hàng tuần · 2 tuần/lần · Hàng tháng · Hàng quý · 6 tháng/lần · Hàng năm.",
+        "Deadline (ngày sau khi tạo) — số ngày được phép xử lý kể từ khi nhiệm vụ sinh ra (1–90 ngày).",
+        "Ưu tiên — Cao / Trung bình / Thấp.",
+        "Tạo đầu tiên vào ngày — mốc bắt đầu; từ đó hệ thống cộng dần theo tần suất.",
+        "Người phối hợp — bấm chọn nhiều người (người được giao chính bị làm mờ và ghi \"(chính)\"), kèm ô Ghi chú phối hợp.",
+      ]},
+      { note: "Với tần suất Hàng ngày, ô Deadline tự khóa thành \"Ngày hôm sau 🔒\" — mỗi nhiệm vụ sinh ra có trọn 1 ngày để xử lý trước khi bị tính quá hạn." },
+      { h: "Hệ thống tự sinh nhiệm vụ khi nào?" },
+      { ul: [
+        "Khi một người có quyền tạo việc (Trưởng/Phó phòng, TP.HCTH, BGĐ, Admin) đăng nhập, hệ thống rà các mẫu đang Hoạt động và sinh nhiệm vụ cho những mẫu đã đến ngày.",
+        "Nhiệm vụ sinh ra có tiêu đề bắt đầu bằng 🔄 và trong lịch sử ghi \"Tạo tự động từ mẫu định kỳ\".",
+        "Mẫu Hàng ngày KHÔNG sinh nhiệm vụ vào Thứ Bảy và Chủ nhật — tự nhảy sang ngày làm việc kế tiếp.",
+        "Mỗi mốc chỉ sinh 1 nhiệm vụ — nhiều người đăng nhập hoặc đăng nhập nhiều lần trong ngày cũng không tạo trùng.",
+      ]},
+      { h: "Quản lý mẫu đã tạo" },
+      { ul: [
+        "✏️ Sửa — đổi nội dung, người thực hiện, tần suất, deadline, người phối hợp...",
+        "🔄 Tạm dừng / Kích hoạt — mẫu ở trạng thái Tạm dừng sẽ ngừng sinh nhiệm vụ mới, nhưng các nhiệm vụ đã sinh vẫn giữ nguyên. Dùng khi tạm ngưng một đầu việc mà chưa muốn xóa mẫu.",
+        "🗑️ Xóa mẫu — chỉ xóa mẫu, không xóa những nhiệm vụ đã sinh trước đó.",
+      ]},
+      { note: "Nhiệm vụ sinh từ mẫu định kỳ vẫn chạy đầy đủ quy trình như nhiệm vụ thường: người thực hiện bấm Yêu cầu hoàn thành → Trưởng/Phó phòng của người đó duyệt và đánh giá chất lượng." },
+      { note: "Về điểm: nhiệm vụ định kỳ KHÔNG tính đều = 1 việc mà quy đổi theo tần suất (hàng ngày 0.25 · tuần 1 · 2 tuần 1.5 · tháng 2.5 · quý/6 tháng/năm 3). Xem chi tiết ở mục 13. Báo cáo." },
       { h: "🔁 Bàn giao hàng loạt" },
       { p: "Khi 1 nhân viên nghỉ phép dài/nghỉ việc: vào 💼 Công việc → 🔁 Bàn giao hàng loạt, chọn nhân viên cần bàn giao, tick các việc muốn chuyển (mặc định chọn hết), chọn người nhận rồi xác nhận — chuyển 1 lần thay vì phải mở từng nhiệm vụ để ↪ Chuyển tiếp." },
       { h: "💬 Bình luận mới chưa xem" },
@@ -240,7 +269,26 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "📈", title: "12. Báo cáo",
+    icon: "💬", title: "12. Chat",
+    body: [
+      { p: "Kênh trao đổi nhanh ngay trong phần mềm — bàn công việc mà không phải chuyển sang ứng dụng khác." },
+      { ul: [
+        "📢 Kênh chung — mọi người trong đơn vị đều thấy và nhắn được, luôn nằm đầu danh sách. Dùng cho thông báo chung.",
+        "# Kênh riêng — chỉ những người được thêm làm thành viên mới nhìn thấy kênh và đọc được nội dung. Dùng cho từng nhóm việc/dự án.",
+      ]},
+      { h: "Tạo kênh riêng" },
+      { p: "Bấm nút Tạo kênh mới, đặt Tên kênh (VD: \"Dự án chuyển đổi số\"), tích chọn Thành viên rồi bấm Tạo kênh. Người tạo mặc định là thành viên của kênh." },
+      { h: "Nhắn tin" },
+      { ul: [
+        "Chọn kênh ở danh sách bên trái, gõ vào ô \"Nhập tin nhắn…\" rồi bấm Gửi.",
+        "Trên điện thoại, bấm ← để quay lại danh sách kênh.",
+      ]},
+      { note: "Ai cũng tạo được kênh riêng, không giới hạn theo chức vụ. Nên đặt tên kênh rõ theo đầu việc để sau này dễ tìm." },
+      { note: "Chat dùng để trao đổi, KHÔNG thay cho việc cập nhật nhiệm vụ. Các kết luận/kết quả quan trọng vẫn nên ghi vào phần Bình luận 💬 của chính nhiệm vụ để lưu vết đúng chỗ và người duyệt còn thấy." },
+    ]
+  },
+  {
+    icon: "📈", title: "13. Báo cáo",
     body: [
       { h: "Hiệu suất nhân viên & Bảng xếp hạng" },
       { p: "Điểm hiệu suất (0–100) gồm:" },
@@ -303,21 +351,21 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "👥", title: "13. Nhân viên",
+    icon: "👥", title: "14. Nhân viên",
     body: [
       { p: "Danh sách nhân viên theo phòng ban, số việc đang xử lý, số việc phối hợp. Thêm/sửa: họ tên, phòng ban, chức vụ." },
     ]
   },
   {
-    icon: "💡", title: "14. Góp ý",
+    icon: "💡", title: "15. Góp ý",
     body: [{ p: "Nơi gửi phản hồi, đề xuất cải tiến phần mềm hoặc quy trình làm việc trực tiếp trong ứng dụng." }]
   },
   {
-    icon: "📜", title: "15. Nhật ký",
+    icon: "📜", title: "16. Nhật ký",
     body: [{ p: "Chỉ hiển thị với Ban Giám đốc/Quản trị viên/TP.HCTH. Ghi lại lịch sử thao tác trên các nhiệm vụ." }]
   },
   {
-    icon: "🔐", title: "16. Bảo mật",
+    icon: "🔐", title: "17. Bảo mật",
     body: [
       { p: "Chỉ hiển thị với Quản trị viên. Theo dõi lịch sử đăng nhập thành công/thất bại của toàn bộ tài khoản." },
       { h: "💾 Sao lưu dữ liệu" },
@@ -325,7 +373,7 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "🤝", title: "17. Ủy quyền duyệt",
+    icon: "🤝", title: "18. Ủy quyền duyệt",
     body: [
       { p: "Dùng khi Trưởng phòng đi công tác/nghỉ phép dài ngày — ủy quyền tạm thời cho Phó phòng cùng đơn vị duyệt hoàn thành/gia hạn thay trong 1 khoảng ngày cụ thể." },
       { p: "Bấm 🤝 Ủy quyền duyệt ở cuối menu chính (Trưởng/Phó phòng, TP.HCTH, BGĐ, Admin mới thấy)." },
@@ -338,7 +386,7 @@ const SECTIONS = [
     ]
   },
   {
-    icon: "📑", title: "18. Bảng phân quyền tổng hợp",
+    icon: "📑", title: "19. Bảng phân quyền tổng hợp",
     body: [{ table: {
       head: ["Chức năng", "Nhân viên", "Trưởng/Phó phòng", "TP.HCTH/BGĐ/Admin"],
       rows: [
@@ -356,7 +404,7 @@ const SECTIONS = [
     }}]
   },
   {
-    icon: "❓", title: "19. Mẹo sử dụng & Câu hỏi thường gặp",
+    icon: "❓", title: "20. Mẹo sử dụng & Câu hỏi thường gặp",
     body: [
       { h: "Sử dụng trên điện thoại" },
       { ul: ["Menu chính cố định ở đáy màn hình, luôn hiển thị khi cuộn.", "Bấm Aa trên thanh tiêu đề để chỉnh cỡ chữ phù hợp."] },
