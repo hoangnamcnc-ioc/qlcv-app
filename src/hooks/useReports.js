@@ -84,8 +84,13 @@ export default function useReports({ computed, employees, currentUser, overloadT
   }), [computed, employees, overloadThreshold]);
 
   const repTasks = useMemo(() => computed.filter(t => { const d = new Date(t.deadline); return d.getFullYear() === repYear && d.getMonth() === repMonth; }), [computed, repYear, repMonth]);
-  const repStats = useMemo(() => { const total = repTasks.length, done = repTasks.filter(t => isCompletedStatus(t.status)).length, over = repTasks.filter(t => t.status === "overdue").length, completedLate = repTasks.filter(t => t.status === "completed_late").length; return { total, done, over, completedLate, rate: total ? Math.round(done / total * 100) : 0 }; }, [repTasks]);
-  const repDeptData = useMemo(() => DEPTS.map(d => { const dt = repTasks.filter(t => t.dept === d); const done = dt.filter(t => isCompletedStatus(t.status)).length; const over = dt.filter(t => t.status === "overdue").length; const completedLate = dt.filter(t => t.status === "completed_late").length; return { name: d, total: dt.length, done, over, completedLate, rate: dt.length ? Math.round(done / dt.length * 100) : 0 }; }), [repTasks]);
+  // Kèm bản QUY ĐỔI (…W) bên cạnh số đầu việc để hiển thị song song / đổi biểu đồ
+  const repStats = useMemo(() => {
+    const total = repTasks.length, done = repTasks.filter(t => isCompletedStatus(t.status)).length, over = repTasks.filter(t => t.status === "overdue").length, completedLate = repTasks.filter(t => t.status === "completed_late").length;
+    const totalW = sumW(repTasks), doneW = sumW(repTasks.filter(t => isCompletedStatus(t.status))), overW = sumW(repTasks.filter(t => t.status === "overdue")), completedLateW = sumW(repTasks.filter(t => t.status === "completed_late"));
+    return { total, done, over, completedLate, rate: total ? Math.round(done / total * 100) : 0, totalW, doneW, overW, completedLateW, rateW: totalW ? Math.round(doneW / totalW * 100) : 0 };
+  }, [repTasks]);
+  const repDeptData = useMemo(() => DEPTS.map(d => { const dt = repTasks.filter(t => t.dept === d); const done = dt.filter(t => isCompletedStatus(t.status)).length; const over = dt.filter(t => t.status === "overdue").length; const completedLate = dt.filter(t => t.status === "completed_late").length; return { name: d, total: dt.length, done, over, completedLate, rate: dt.length ? Math.round(done / dt.length * 100) : 0, totalW: sumW(dt), doneW: sumW(dt.filter(t => isCompletedStatus(t.status))), overW: sumW(dt.filter(t => t.status === "overdue")), completedLateW: sumW(dt.filter(t => t.status === "completed_late")) }; }), [repTasks]);
 
   // ── Vai trò phối hợp (collab_eids) trên việc ĐÃ HOÀN THÀNH được tính = 1/2 trọng số của việc chính
   // cho người phối hợp (không phải luôn cố định 0.5 việc — nhiệm vụ định kỳ có trọng số khác 1 thì
@@ -180,7 +185,7 @@ export default function useReports({ computed, employees, currentUser, overloadT
     return b.done - a.done; // cùng điểm -> ai hoàn thành nhiều việc hơn xếp trên
   }), [employees, repYear, repMonth, computed, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
 
-  const repMonthTrend = useMemo(() => { const months = []; for (let i = 5; i >= 0; i--) { const d = new Date(repYear, repMonth - i, 1); const m = d.getMonth(), y = d.getFullYear(); const mt = computed.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === y && td.getMonth() === m; }); months.push({ name: `T${m + 1}`, done: mt.filter(t => isCompletedStatus(t.status)).length, total: mt.length }); } return months; }, [computed, repYear, repMonth]);
+  const repMonthTrend = useMemo(() => { const months = []; for (let i = 5; i >= 0; i--) { const d = new Date(repYear, repMonth - i, 1); const m = d.getMonth(), y = d.getFullYear(); const mt = computed.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === y && td.getMonth() === m; }); months.push({ name: `T${m + 1}`, done: mt.filter(t => isCompletedStatus(t.status)).length, total: mt.length, doneW: sumW(mt.filter(t => isCompletedStatus(t.status))), totalW: sumW(mt) }); } return months; }, [computed, repYear, repMonth]);
 
   const leaderboard = useMemo(() => {
     const raw = (employees || []).map(emp => {

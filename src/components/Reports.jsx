@@ -21,6 +21,8 @@ export default function Reports({
   const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm (tháng)
   const [whyYear, setWhyYear] = useState(null); // nhân viên đang xem giải thích điểm (năm/xếp hạng)
   const [lateReasonDetail, setLateReasonDetail] = useState(null); // nguyên nhân đang xem danh sách nhiệm vụ
+  const [chartMode, setChartMode] = useState("raw"); // "raw" = số đầu việc | "w" = việc quy đổi theo trọng số
+  const isW = chartMode === "w";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", gap: 8, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 8, overflowX: "auto" }}>
@@ -40,22 +42,33 @@ export default function Reports({
           <span style={{ fontSize: 13, color: "#6b7280" }}>{repTasks.length} nhiệm vụ</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(5,1fr)", gap: 12 }}>
-          {[{label:"Tổng",val:repStats.total,bg:"#eef2ff",col:"#4338ca",icon:"📋"},{label:"Hoàn thành",val:repStats.done,bg:"#dcfce7",col:"#15803d",icon:"✅"},{label:"Quá hạn",val:repStats.over,bg:"#fee2e2",col:"#b91c1c",icon:"❌"},{label:"HT quá hạn",val:repStats.completedLate,bg:"#fff1f2",col:"#991b1b",icon:"⏰"},{label:"Tỷ lệ HT",val:repStats.rate+"%",bg:"#fef9c3",col:"#92400e",icon:"⭐"}].map(c => (
+          {[{label:"Tổng",val:repStats.total,sub:repStats.totalW,bg:"#eef2ff",col:"#4338ca",icon:"📋"},{label:"Hoàn thành",val:repStats.done,sub:repStats.doneW,bg:"#dcfce7",col:"#15803d",icon:"✅"},{label:"Quá hạn",val:repStats.over,sub:repStats.overW,bg:"#fee2e2",col:"#b91c1c",icon:"❌"},{label:"HT quá hạn",val:repStats.completedLate,sub:repStats.completedLateW,bg:"#fff1f2",col:"#991b1b",icon:"⏰"},{label:"Tỷ lệ HT",val:repStats.rate+"%",sub:repStats.rateW+"%",bg:"#fef9c3",col:"#92400e",icon:"⭐"}].map(c => (
             <div key={c.label} style={{ background: c.bg, borderRadius: 10, padding: 14 }}>
               <div style={{ fontSize: 20, marginBottom: 4 }}>{c.icon}</div>
               <div style={{ fontSize: 24, fontWeight: 700, color: c.col }}>{c.val}</div>
+              <div title="Đã quy đổi theo trọng số nhiệm vụ định kỳ (ngày 0.25 · tuần 1 · 2 tuần 1.5 · tháng 2.5 · quý/6 tháng/năm 3)" style={{ fontSize: 10.5, color: c.col, opacity: 0.65, marginTop: 2 }}>≈ {c.sub} quy đổi</div>
               <div style={{ fontSize: 12, color: c.col, opacity: 0.8, marginTop: 2 }}>{c.label}</div>
             </div>
           ))}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12 }}>Hiệu suất phòng ban</div>
-            <ResponsiveContainer width="100%" height={180}><BarChart data={repDeptData} barSize={14}><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="total" name="Tổng" fill="#e0e7ff" radius={[4,4,0,0]} /><Bar dataKey="done" name="Hoàn thành" fill="#6366f1" radius={[4,4,0,0]} /><Bar dataKey="over" name="Quá hạn" fill="#dc2626" radius={[4,4,0,0]} /><Bar dataKey="completedLate" name="HT quá hạn" fill="#991b1b" radius={[4,4,0,0]} /></BarChart></ResponsiveContainer>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Hiệu suất phòng ban</span>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[["raw","Đầu việc"],["w","Quy đổi"]].map(([m, lb]) => (
+                  <button key={m} onClick={() => setChartMode(m)} title={m === "w" ? "Nhân trọng số nhiệm vụ định kỳ (ngày 0.25 · tuần 1 · 2 tuần 1.5 · tháng 2.5 · quý/6 tháng/năm 3)" : "Đếm số đầu việc, mỗi nhiệm vụ = 1"} style={{ padding: "3px 10px", fontSize: 11, borderRadius: 7, cursor: "pointer", border: "1px solid " + (chartMode === m ? "#4f46e5" : "#e5e7eb"), background: chartMode === m ? "#eef2ff" : "#fff", color: chartMode === m ? "#4338ca" : "#9ca3af", fontWeight: chartMode === m ? 600 : 400 }}>{lb}</button>
+                ))}
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={180}><BarChart data={repDeptData} barSize={14}><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey={isW?"totalW":"total"} name="Tổng" fill="#e0e7ff" radius={[4,4,0,0]} /><Bar dataKey={isW?"doneW":"done"} name="Hoàn thành" fill="#6366f1" radius={[4,4,0,0]} /><Bar dataKey={isW?"overW":"over"} name="Quá hạn" fill="#dc2626" radius={[4,4,0,0]} /><Bar dataKey={isW?"completedLateW":"completedLate"} name="HT quá hạn" fill="#991b1b" radius={[4,4,0,0]} /></BarChart></ResponsiveContainer>
           </div>
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12 }}>Xu hướng 6 tháng</div>
-            <ResponsiveContainer width="100%" height={180}><LineChart data={repMonthTrend}><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} allowDecimals={false} /><Tooltip /><Line type="monotone" dataKey="total" name="Tổng" stroke="#94a3b8" strokeWidth={2} dot={false} /><Line type="monotone" dataKey="done" name="HT" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} /></LineChart></ResponsiveContainer>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Xu hướng 6 tháng</span>
+              <span style={{ fontSize: 11, color: "#9ca3af" }}>{isW ? "đang xem: việc quy đổi" : "đang xem: số đầu việc"}</span>
+            </div>
+            <ResponsiveContainer width="100%" height={180}><LineChart data={repMonthTrend}><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} allowDecimals={isW} /><Tooltip /><Line type="monotone" dataKey={isW?"totalW":"total"} name="Tổng" stroke="#94a3b8" strokeWidth={2} dot={false} /><Line type="monotone" dataKey={isW?"doneW":"done"} name="HT" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} /></LineChart></ResponsiveContainer>
           </div>
         </div>
         {repEmpData.length > 0 && (
