@@ -337,7 +337,16 @@ function computeRow(tasks) {
   const overdueNotDone = tasks.filter(t => t.status === "overdue").length;
   const pendingNotDone = total - onTime - late - overdueNotDone;
   const pct = n => total ? Math.round(n / total * 1000) / 10 : 0;
-  return { total, onTime, late, pendingNotDone, overdueNotDone, rOnTime: pct(onTime), rLate: pct(late), rOverdue: pct(overdueNotDone) };
+  // Bản QUY ĐỔI theo trọng số nhiệm vụ định kỳ (ngày 0.25 … năm 3; nhiệm vụ thường = 1)
+  const sw = arr => Math.round(arr.reduce((s, t) => s + (t.weight ?? 1), 0) * 100) / 100;
+  const totalW = sw(tasks);
+  const onTimeW = sw(tasks.filter(t => t.status === "completed"));
+  const lateW = sw(tasks.filter(t => t.status === "completed_late"));
+  const overdueNotDoneW = sw(tasks.filter(t => t.status === "overdue"));
+  const pendingNotDoneW = Math.round((totalW - onTimeW - lateW - overdueNotDoneW) * 100) / 100;
+  const pctW = n => totalW ? Math.round(n / totalW * 1000) / 10 : 0;
+  return { total, onTime, late, pendingNotDone, overdueNotDone, rOnTime: pct(onTime), rLate: pct(late), rOverdue: pct(overdueNotDone),
+    totalW, onTimeW, lateW, pendingNotDoneW, overdueNotDoneW, rOnTimeW: pctW(onTimeW), rLateW: pctW(lateW), rOverdueW: pctW(overdueNotDoneW) };
 }
 
 export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
@@ -348,6 +357,10 @@ export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
   const [customTo, setCustomTo] = useState("");
   const [docNumber, setDocNumber] = useState("");
   const [expandedDept, setExpandedDept] = useState(null);
+  // Chế độ số liệu: đếm đầu việc (mặc định) hay quy đổi theo trọng số nhiệm vụ định kỳ
+  const [wMode, setWMode] = useState(false);
+  // Lấy đúng bộ số theo chế độ đang chọn — dùng chung cho bảng trên màn hình và bản in
+  const V = r => wMode ? { total: r.totalW, onTime: r.onTimeW, late: r.lateW, pendingNotDone: r.pendingNotDoneW, overdueNotDone: r.overdueNotDoneW, rOnTime: r.rOnTimeW, rLate: r.rLateW, rOverdue: r.rOverdueW } : r;
 
   const range = useMemo(() => {
     if (preset === "custom") return { from: customFrom, to: customTo };
@@ -381,17 +394,18 @@ export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
   }), [tasksInRange, getEmp]);
 
   const grandTotal = useMemo(() => computeRow(tasksInRange), [tasksInRange]);
+  const gt = V(grandTotal); // tổng cộng theo đúng chế độ đang chọn
 
   // Danh sách cá nhân trễ hạn nhiều nhất — cho đoạn nhận xét tự động trong bản in, giống mẫu gốc
   // có liệt kê "Các đơn vị có nhiều nhiệm vụ hoàn thành trễ hạn gồm: ...".
-  const topBy = key => { const rows = []; for (const d of deptRows) for (const e of d.empRows) if (e[key] > 0) rows.push({ label: `${e.name} (${d.dept})`, count: e[key] }); return rows.sort((a, b) => b.count - a.count).slice(0, 5); };
-  const topLate = useMemo(() => topBy("late"), [deptRows]);
-  const topOverdueNotDone = useMemo(() => topBy("overdueNotDone"), [deptRows]);
+  const topBy = key => { const rows = []; for (const d of deptRows) for (const e of d.empRows) { const v = V(e)[key]; if (v > 0) rows.push({ label: `${e.name} (${d.dept})`, count: v }); } return rows.sort((a, b) => b.count - a.count).slice(0, 5); };
+  const topLate = useMemo(() => topBy("late"), [deptRows, wMode]);
+  const topOverdueNotDone = useMemo(() => topBy("overdueNotDone"), [deptRows, wMode]);
 
   const fmtPct = v => v.toLocaleString("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%";
 
   const printReport = () => {
-    const rowHtml = (label, r, indent) => `<tr${indent ? "" : ' style="font-weight:700;background:#f3f4f6"'}><td style="text-align:center">${indent ? "" : ""}</td><td style="${indent ? "padding-left:20px" : ""}">${label}</td><td style="text-align:center">${r.total}</td><td style="text-align:center">${r.onTime}</td><td style="text-align:center">${r.late}</td><td style="text-align:center">${r.pendingNotDone}</td><td style="text-align:center">${r.overdueNotDone}</td><td style="text-align:center">${fmtPct(r.rOnTime)}</td><td style="text-align:center">${fmtPct(r.rLate)}</td><td style="text-align:center">${fmtPct(r.rOverdue)}</td><td></td></tr>`;
+    const rowHtml = (label, r, indent) => { const v = V(r); return `<tr${indent ? "" : ' style="font-weight:700;background:#f3f4f6"'}><td style="text-align:center">${indent ? "" : ""}</td><td style="${indent ? "padding-left:20px" : ""}">${label}</td><td style="text-align:center">${v.total}</td><td style="text-align:center">${v.onTime}</td><td style="text-align:center">${v.late}</td><td style="text-align:center">${v.pendingNotDone}</td><td style="text-align:center">${v.overdueNotDone}</td><td style="text-align:center">${fmtPct(v.rOnTime)}</td><td style="text-align:center">${fmtPct(v.rLate)}</td><td style="text-align:center">${fmtPct(v.rOverdue)}</td><td></td></tr>`; };
     const bodyHtml = deptRows.map((d, i) => rowHtml(`${i + 1}. ${d.dept}`, d, false) + d.empRows.map(e => rowHtml(e.name, e, true)).join("")).join("");
     const todayVN = now.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
     const [dd, mm, yyyy] = todayVN.split("/");
@@ -418,11 +432,12 @@ export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
     <h1>Báo cáo</h1>
     <h2>Kết quả thực hiện nhiệm vụ ${periodLabel}</h2>
     <p><b>1. Kết quả thực hiện nhiệm vụ ${periodLabel}</b></p>
-    <p>Trong ${periodLabel}, ${ORG_NAME} đã triển khai thực hiện <b>${grandTotal.total}</b> nhiệm vụ. Kết quả thực hiện như sau:</p>
-    <p>- Số nhiệm vụ hoàn thành đúng hạn: <b>${grandTotal.onTime}</b> nhiệm vụ, đạt <b>${fmtPct(grandTotal.rOnTime)}</b> tổng số nhiệm vụ được giao.</p>
-    <p>- Số nhiệm vụ hoàn thành trễ hạn: <b>${grandTotal.late}</b> nhiệm vụ, chiếm <b>${fmtPct(grandTotal.rLate)}</b>.${topLate.length ? " Các cá nhân có nhiều nhiệm vụ hoàn thành trễ hạn: " + topLate.map(r => `${r.label}: ${r.count} nhiệm vụ`).join("; ") + "." : ""}</p>
-    <p>- Số nhiệm vụ trễ hạn nhưng chưa hoàn thành: <b>${grandTotal.overdueNotDone}</b> nhiệm vụ, chiếm <b>${fmtPct(grandTotal.rOverdue)}</b>.${topOverdueNotDone.length ? " Các cá nhân có nhiều nhiệm vụ trễ hạn chưa hoàn thành: " + topOverdueNotDone.map(r => `${r.label}: ${r.count} nhiệm vụ`).join("; ") + "." : ""}</p>
-    <p>- Số nhiệm vụ đang thực hiện trong hạn: <b>${grandTotal.pendingNotDone}</b> nhiệm vụ, chiếm <b>${fmtPct(100 - grandTotal.rOnTime - grandTotal.rLate - grandTotal.rOverdue)}</b>.</p>
+    <p>Trong ${periodLabel}, ${ORG_NAME} đã triển khai thực hiện <b>${gt.total}</b> ${wMode ? "việc quy đổi" : "nhiệm vụ"}. Kết quả thực hiện như sau:</p>
+    ${wMode ? '<p style="font-style:italic;font-size:12px;color:#444">(Số liệu tính theo <b>việc quy đổi</b>: nhiệm vụ sinh từ mẫu định kỳ được nhân trọng số theo tần suất — hàng ngày 0,25 · tuần 1 · 2 tuần 1,5 · tháng 2,5 · quý/6 tháng/năm 3; nhiệm vụ thường tính 1.)</p>' : ''}
+    <p>- Số nhiệm vụ hoàn thành đúng hạn: <b>${gt.onTime}</b> nhiệm vụ, đạt <b>${fmtPct(gt.rOnTime)}</b> tổng số nhiệm vụ được giao.</p>
+    <p>- Số nhiệm vụ hoàn thành trễ hạn: <b>${gt.late}</b> nhiệm vụ, chiếm <b>${fmtPct(gt.rLate)}</b>.${topLate.length ? " Các cá nhân có nhiều nhiệm vụ hoàn thành trễ hạn: " + topLate.map(r => `${r.label}: ${r.count} nhiệm vụ`).join("; ") + "." : ""}</p>
+    <p>- Số nhiệm vụ trễ hạn nhưng chưa hoàn thành: <b>${gt.overdueNotDone}</b> nhiệm vụ, chiếm <b>${fmtPct(gt.rOverdue)}</b>.${topOverdueNotDone.length ? " Các cá nhân có nhiều nhiệm vụ trễ hạn chưa hoàn thành: " + topOverdueNotDone.map(r => `${r.label}: ${r.count} nhiệm vụ`).join("; ") + "." : ""}</p>
+    <p>- Số nhiệm vụ đang thực hiện trong hạn: <b>${gt.pendingNotDone}</b> nhiệm vụ, chiếm <b>${fmtPct(100 - gt.rOnTime - gt.rLate - gt.rOverdue)}</b>.</p>
     <p><b>2. Kiến nghị</b></p>
     <p>- Đề nghị các phòng, cá nhân có nhiệm vụ trễ hạn khẩn trương rà soát, xác định rõ nguyên nhân, trách nhiệm, tiến độ xử lý; kịp thời báo cáo Ban Giám đốc đối với các nhiệm vụ khó khăn, vướng mắc, vượt thẩm quyền.</p>
     <p>- Tiếp tục nâng cao vai trò, trách nhiệm của người đứng đầu phòng trong theo dõi, đôn đốc thực hiện nhiệm vụ được giao, không để phát sinh tình trạng chậm xử lý, kéo dài thời gian thực hiện.</p>
@@ -433,7 +448,7 @@ export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
     <h1 style="margin-top:0">Phụ lục</h1>
     <h2>Kết quả thực hiện nhiệm vụ ${periodLabel}<br/><span style="font-style:italic;font-weight:400;font-size:12px">(Kèm theo Báo cáo số: ${docNumber || "……"}/BC-TTGSĐH ngày ${dd} tháng ${mm} năm ${yyyy})</span></h2>
     <table><thead><tr><th>TT</th><th>Tên đơn vị/cá nhân</th><th>Tổng số</th><th>HT trong hạn</th><th>HT trễ hạn</th><th>Chưa HT trong hạn</th><th>Chưa HT trễ hạn</th><th>Tỷ lệ HT đúng hạn</th><th>Tỷ lệ HT trễ hạn</th><th>Tỷ lệ chưa HT trễ hạn</th><th>Ghi chú</th></tr></thead>
-    <tbody>${bodyHtml}<tr style="font-weight:800;background:#e5e7eb"><td colspan="2" style="text-align:center">Tổng cộng</td><td style="text-align:center">${grandTotal.total}</td><td style="text-align:center">${grandTotal.onTime}</td><td style="text-align:center">${grandTotal.late}</td><td style="text-align:center">${grandTotal.pendingNotDone}</td><td style="text-align:center">${grandTotal.overdueNotDone}</td><td style="text-align:center">${fmtPct(grandTotal.rOnTime)}</td><td style="text-align:center">${fmtPct(grandTotal.rLate)}</td><td style="text-align:center">${fmtPct(grandTotal.rOverdue)}</td><td></td></tr></tbody>
+    <tbody>${bodyHtml}<tr style="font-weight:800;background:#e5e7eb"><td colspan="2" style="text-align:center">Tổng cộng</td><td style="text-align:center">${gt.total}</td><td style="text-align:center">${gt.onTime}</td><td style="text-align:center">${gt.late}</td><td style="text-align:center">${gt.pendingNotDone}</td><td style="text-align:center">${gt.overdueNotDone}</td><td style="text-align:center">${fmtPct(gt.rOnTime)}</td><td style="text-align:center">${fmtPct(gt.rLate)}</td><td style="text-align:center">${fmtPct(gt.rOverdue)}</td><td></td></tr></tbody>
     </table></div>
     <script>window.onload=()=>window.print()<\/script>
     </body></html>`;
@@ -456,11 +471,16 @@ export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
         <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 10px" }} />
       </>)}
       <input value={docNumber} onChange={e => setDocNumber(e.target.value)} placeholder="Số báo cáo (VD: 12)" style={{ ...inp, width: 150, padding: "6px 10px" }} />
+      <div style={{ display: "flex", gap: 4 }}>
+        {[[false, "Đầu việc"], [true, "Quy đổi"]].map(([m, lb]) => (
+          <button key={lb} onClick={() => setWMode(m)} title={m ? "Nhân trọng số nhiệm vụ định kỳ (ngày 0.25 · tuần 1 · 2 tuần 1.5 · tháng 2.5 · quý/6 tháng/năm 3)" : "Đếm số đầu việc, mỗi nhiệm vụ = 1"} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 7, cursor: "pointer", border: "1px solid " + (wMode === m ? "#4f46e5" : "#e5e7eb"), background: wMode === m ? "#eef2ff" : "#fff", color: wMode === m ? "#4338ca" : "#9ca3af", fontWeight: wMode === m ? 600 : 400 }}>{lb}</button>
+        ))}
+      </div>
       <button onClick={printReport} style={{ padding: "6px 14px", border: "1px solid #fca5a5", borderRadius: 7, background: "#fef2f2", cursor: "pointer", fontSize: 12, color: "#dc2626", fontWeight: 500 }}>🖨 In báo cáo</button>
     </div>
 
     <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
-      <div style={{ padding: "8px 16px", borderBottom: "1px solid #e5e7eb", fontSize: 11, color: "#9ca3af" }}>Kỳ báo cáo: {periodLabel} · Tổng {grandTotal.total} nhiệm vụ (tính theo hạn chót trong kỳ) · Bấm vào 1 phòng để xem chi tiết từng người</div>
+      <div style={{ padding: "8px 16px", borderBottom: "1px solid #e5e7eb", fontSize: 11, color: "#9ca3af" }}>Kỳ báo cáo: {periodLabel} · Tổng {gt.total} {wMode ? "việc quy đổi" : "nhiệm vụ"} (tính theo hạn chót trong kỳ) · Đang xem: <b style={{ color: "#4338ca" }}>{wMode ? "việc quy đổi theo trọng số" : "số đầu việc"}</b> — đổi bằng nút Đầu việc/Quy đổi ở trên, bản in cũng theo chế độ này · Bấm vào 1 phòng để xem chi tiết từng người</div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 760 }}>
           <thead><tr style={{ background: "#f9fafb" }}>{["TT", "Đơn vị/Nhân viên", "Tổng số", "HT trong hạn", "HT trễ hạn", "Chưa HT trong hạn", "Chưa HT trễ hạn", "Tỷ lệ đúng hạn", "Tỷ lệ HT trễ", "Tỷ lệ chưa HT trễ"].map(h => <th key={h} style={{ padding: "8px 8px", textAlign: "left", fontSize: 10.5, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
@@ -469,41 +489,41 @@ export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
               <tr onClick={() => setExpandedDept(expandedDept === d.dept ? null : d.dept)} style={{ cursor: "pointer", background: "#f3f4f6", fontWeight: 700 }}>
                 <td style={{ padding: "8px" }}>{i + 1}</td>
                 <td style={{ padding: "8px" }}>{expandedDept === d.dept ? "▾" : "▸"} <span style={{ color: DEPT_COLOR[d.dept] }}>{d.dept}</span></td>
-                <td style={{ padding: "8px", textAlign: "center" }}>{d.total}</td>
-                <td style={{ padding: "8px", textAlign: "center", color: "#15803d" }}>{d.onTime}</td>
-                <td style={{ padding: "8px", textAlign: "center", color: "#b45309" }}>{d.late}</td>
-                <td style={{ padding: "8px", textAlign: "center" }}>{d.pendingNotDone}</td>
-                <td style={{ padding: "8px", textAlign: "center", color: "#b91c1c" }}>{d.overdueNotDone}</td>
-                <td style={{ padding: "8px", textAlign: "center" }}>{d.rOnTime}%</td>
-                <td style={{ padding: "8px", textAlign: "center" }}>{d.rLate}%</td>
-                <td style={{ padding: "8px", textAlign: "center" }}>{d.rOverdue}%</td>
+                <td style={{ padding: "8px", textAlign: "center" }}>{V(d).total}</td>
+                <td style={{ padding: "8px", textAlign: "center", color: "#15803d" }}>{V(d).onTime}</td>
+                <td style={{ padding: "8px", textAlign: "center", color: "#b45309" }}>{V(d).late}</td>
+                <td style={{ padding: "8px", textAlign: "center" }}>{V(d).pendingNotDone}</td>
+                <td style={{ padding: "8px", textAlign: "center", color: "#b91c1c" }}>{V(d).overdueNotDone}</td>
+                <td style={{ padding: "8px", textAlign: "center" }}>{V(d).rOnTime}%</td>
+                <td style={{ padding: "8px", textAlign: "center" }}>{V(d).rLate}%</td>
+                <td style={{ padding: "8px", textAlign: "center" }}>{V(d).rOverdue}%</td>
               </tr>
               {expandedDept === d.dept && d.empRows.map(e => (
                 <tr key={e.eid} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td></td>
                   <td style={{ padding: "6px 8px 6px 26px", color: "#374151" }}>{e.name}</td>
-                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{e.total}</td>
-                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{e.onTime}</td>
-                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{e.late}</td>
-                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{e.pendingNotDone}</td>
-                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{e.overdueNotDone}</td>
-                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{e.rOnTime}%</td>
-                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{e.rLate}%</td>
-                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{e.rOverdue}%</td>
+                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{V(e).total}</td>
+                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{V(e).onTime}</td>
+                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{V(e).late}</td>
+                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{V(e).pendingNotDone}</td>
+                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{V(e).overdueNotDone}</td>
+                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{V(e).rOnTime}%</td>
+                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{V(e).rLate}%</td>
+                  <td style={{ padding: "6px 8px", textAlign: "center" }}>{V(e).rOverdue}%</td>
                 </tr>
               ))}
             </React.Fragment>))}
             <tr style={{ fontWeight: 800, background: "#eef2ff" }}>
               <td style={{ padding: "8px" }}></td>
               <td style={{ padding: "8px" }}>Tổng cộng</td>
-              <td style={{ padding: "8px", textAlign: "center" }}>{grandTotal.total}</td>
-              <td style={{ padding: "8px", textAlign: "center" }}>{grandTotal.onTime}</td>
-              <td style={{ padding: "8px", textAlign: "center" }}>{grandTotal.late}</td>
-              <td style={{ padding: "8px", textAlign: "center" }}>{grandTotal.pendingNotDone}</td>
-              <td style={{ padding: "8px", textAlign: "center" }}>{grandTotal.overdueNotDone}</td>
-              <td style={{ padding: "8px", textAlign: "center" }}>{grandTotal.rOnTime}%</td>
-              <td style={{ padding: "8px", textAlign: "center" }}>{grandTotal.rLate}%</td>
-              <td style={{ padding: "8px", textAlign: "center" }}>{grandTotal.rOverdue}%</td>
+              <td style={{ padding: "8px", textAlign: "center" }}>{gt.total}</td>
+              <td style={{ padding: "8px", textAlign: "center" }}>{gt.onTime}</td>
+              <td style={{ padding: "8px", textAlign: "center" }}>{gt.late}</td>
+              <td style={{ padding: "8px", textAlign: "center" }}>{gt.pendingNotDone}</td>
+              <td style={{ padding: "8px", textAlign: "center" }}>{gt.overdueNotDone}</td>
+              <td style={{ padding: "8px", textAlign: "center" }}>{gt.rOnTime}%</td>
+              <td style={{ padding: "8px", textAlign: "center" }}>{gt.rLate}%</td>
+              <td style={{ padding: "8px", textAlign: "center" }}>{gt.rOverdue}%</td>
             </tr>
           </tbody>
         </table>

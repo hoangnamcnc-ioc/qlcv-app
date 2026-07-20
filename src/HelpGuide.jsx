@@ -291,6 +291,15 @@ const SECTIONS = [
         "Bảng tốc độ duyệt: thời gian trung bình mỗi người duyệt xử lý yêu cầu + số việc đang treo — đo cả phía quản lý, không chỉ đo nhân viên.",
         "⏳ Sắp đến hạn trong 7 ngày tới: bấm vào ô số của một phòng để lọc danh sách bên dưới chỉ còn việc của phòng đó (bấm lại hoặc bấm ✕ Bỏ lọc để xem lại tất cả). Khi đang lọc, danh sách hiện tới 30 mục thay vì 8 nên xem được gần như trọn danh sách.",
       ]},
+      { h: "📄 KQ nhiệm vụ — báo cáo kết quả thực hiện (BGĐ/TP.HCTH/Admin)" },
+      { p: "Lập báo cáo kết quả thực hiện nhiệm vụ theo kỳ (quý, 6 tháng, cả năm hoặc khoảng ngày tự chọn) đúng mẫu để gửi cấp trên." },
+      { ul: [
+        "Bảng gom theo phòng: Tổng số · HT trong hạn · HT trễ hạn · Chưa HT trong hạn · Chưa HT trễ hạn và 3 cột tỷ lệ. Bấm vào 1 phòng để xem chi tiết từng nhân viên.",
+        "Nút [Đầu việc] / [Quy đổi]: chuyển toàn bộ số liệu của bảng giữa đếm đầu việc và việc quy đổi theo trọng số nhiệm vụ định kỳ — kể cả các cột tỷ lệ.",
+        "🖨 In báo cáo: xuất bản in đúng mẫu (có phần nhận xét, kiến nghị và chỗ ký). Bản in theo đúng chế độ Đầu việc/Quy đổi đang chọn, và khi ở chế độ Quy đổi sẽ tự ghi chú rõ cách quy đổi để người đọc không hiểu nhầm.",
+        "Ô Số báo cáo để điền số hiệu văn bản in lên đầu báo cáo.",
+      ]},
+      { note: "Nhiệm vụ được tính vào kỳ theo HẠN CHÓT nằm trong kỳ, không phải theo ngày tạo." },
     ]
   },
   {
