@@ -78,7 +78,9 @@ export default function useReports({ computed, employees, currentUser, overloadT
     // phòng nhiều nhiệm vụ hàng ngày (0.25) không bị thổi phồng như khi đếm thô.
     const totalW = sumW(dt);
     const doneW = sumW(dt.filter(t => isCompletedStatus(t.status)));
-    return { dept: d, total: dt.length, totalW, doneW, over, overdue, completedLate, nd, done, rate, empCount: deptEmpsList.length, overloaded, lead: lead?.name || "—" };
+    // Tải bình quân đầu người (theo quy đổi) — phòng ít nhân sự mà nhiều việc sẽ lộ ra ở cột này
+    const perHead = deptEmpsList.length ? Math.round(totalW / deptEmpsList.length * 100) / 100 : 0;
+    return { dept: d, total: dt.length, totalW, doneW, perHead, over, overdue, completedLate, nd, done, rate, empCount: deptEmpsList.length, overloaded, lead: lead?.name || "—" };
   }), [computed, employees, overloadThreshold]);
 
   const repTasks = useMemo(() => computed.filter(t => { const d = new Date(t.deadline); return d.getFullYear() === repYear && d.getMonth() === repMonth; }), [computed, repYear, repMonth]);
