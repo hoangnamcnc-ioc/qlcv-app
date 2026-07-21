@@ -44,7 +44,7 @@ const INV_TEMPLATES = {
 };
 const fmtMoney=n=>{const v=Number(n)||0;return v.toLocaleString("vi-VN")+" đ";};
 
-function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,onEdit,onDelete,onUpdateSteps,onSaveQuality,uploadFiles,uploadingFiles,inp,currentUser,showToast,onProposeExt,onApproveExt,onRejectExt}){
+function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,onEdit,onDelete,onUpdateSteps,onUpdateProject,onSaveQuality,uploadFiles,uploadingFiles,inp,currentUser,showToast,onProposeExt,onApproveExt,onRejectExt}){
   const steps=parseJSON(proj.steps,[]);
   const [editStep,setEditStep]=React.useState(null);
   const [stepDraft,setStepDraft]=React.useState(null);
@@ -57,16 +57,19 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
   const isBGD=["admin","director"].includes(currentUser?.role); // Ban Giám đốc
   const isProjLead=myEid&&myEid===proj.lead_eid; // Phụ trách chính dự án
   const isCreator=proj.created_by===currentUser?.full_name; // Người tạo dự án
-  const canEditProject=isBGD||isProjLead; // Sửa dự án + thêm bước
-  const canDeleteProject=isCreator; // Chỉ người tạo được xóa
-  const canEditStep=(s)=>isBGD||isProjLead||(myEid&&s.lead_eid===myEid); // Sửa bước: BGĐ, PT chính, hoặc chủ trì bước đó
+  const locked=!!proj.locked; // Dự án đã "Kết thúc" — khóa mọi tương tác cho tới khi Khôi phục
+  const prevCleared=idx=>steps.slice(0,idx).every(s=>s.status==="done"||s.status==="skipped"); // bước tuần tự
+  const canManageProject=isBGD||isProjLead; // quyền quản lý dự án (dùng cho nút Kết thúc/Khôi phục, kể cả khi đã khóa)
+  const canEditProject=canManageProject&&!locked; // Sửa dự án + thêm bước (bị khóa khi đã kết thúc)
+  const canDeleteProject=isCreator&&!locked; // Chỉ người tạo được xóa
+  const canEditStep=(s)=>!locked&&(isBGD||isProjLead||(myEid&&s.lead_eid===myEid)); // Sửa bước: BGĐ, PT chính, hoặc chủ trì bước đó
   // Duyệt hoàn thành bước: chỉ BGĐ hoặc Trưởng/Phó phòng đúng đơn vị của dự án — không phải người chủ trì tự duyệt
   const myDept=getEmp(myEid)?.dept;
   const isDeptManager=["manager","deputy_manager","manager_hcth"].includes(currentUser?.role)&&myDept===proj.dept;
-  const canApproveStep=isBGD||isDeptManager;
+  const canApproveStep=!locked&&(isBGD||isDeptManager);
   // Đề xuất gia hạn ngày kết thúc 1 bước: chỉ người chủ trì bước đó, khi bước đã có ngày kết thúc và chưa xong;
   // duyệt/từ chối dùng lại canApproveStep (giống quyền duyệt bước hoàn thành hiện có), để nhất quán.
-  const canProposeStepExt=s=>myEid&&myEid===s.lead_eid&&s.status!=="done"&&!!s.end&&!s.ext_proposed;
+  const canProposeStepExt=s=>myEid&&myEid===s.lead_eid&&s.status!=="done"&&!!s.end&&!s.ext_proposed&&!locked;
   const [stepExtRequestModal,setStepExtRequestModal]=React.useState(null); // idx
   const [stepExtDate,setStepExtDate]=React.useState("");
   const [stepExtReason,setStepExtReason]=React.useState("");
@@ -141,6 +144,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
         <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af",marginLeft:8}}>✕</button>
       </div>
       <div style={{padding:20}}>
+        {locked&&<div style={{marginBottom:16,padding:"10px 14px",borderRadius:8,background:"#fef9c3",border:"1px solid #fde68a",color:"#92400e",fontSize:13,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><span>🔒 <b>Dự án đã kết thúc</b> — đang khóa, không thao tác được.{canManageProject?" Bấm Khôi phục để mở lại.":""}</span>{canManageProject&&<button onClick={()=>onUpdateProject(proj,{locked:false})} style={{padding:"5px 12px",border:"1px solid #16a34a",borderRadius:7,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:12.5,fontWeight:600}}>🔓 Khôi phục dự án</button>}</div>}
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:10,marginBottom:16}}>
           <div style={{background:"#eff6ff",borderRadius:10,padding:12}}><div style={{fontSize:11,color:"#6b7280"}}>Tổng mức ĐT</div><div style={{fontSize:15,fontWeight:700,color:"#1e40af"}}>{fmtMoney(proj.total_budget)}</div></div>
           <div style={{background:"#fffbeb",borderRadius:10,padding:12}}><div style={{fontSize:11,color:"#6b7280"}}>Đã chi</div><div style={{fontSize:15,fontWeight:700,color:"#b45309"}}>{fmtMoney(proj.spent)}</div></div>
@@ -163,7 +167,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
         <div style={{marginBottom:16,padding:"12px 14px",background:proj.ext_proposed?"#eff6ff":"#f8fafc",borderRadius:10,border:"1px solid "+(proj.ext_proposed?"#bfdbfe":"#e5e7eb")}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
             <div style={{fontSize:12,fontWeight:700,color:"#374151"}}>📅 Hạn hoàn thành: <span style={{fontWeight:400}}>{fmtDate(proj.deadline)||"— (chưa đặt)"}</span></div>
-            {!proj.ext_proposed&&isProjLead&&pct<100&&<button onClick={onProposeExt} style={{padding:"5px 10px",border:"1px solid #93c5fd",borderRadius:7,background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontSize:12,fontWeight:600}}>📅 Đề xuất gia hạn</button>}
+            {!proj.ext_proposed&&isProjLead&&pct<100&&!locked&&<button onClick={onProposeExt} style={{padding:"5px 10px",border:"1px solid #93c5fd",borderRadius:7,background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontSize:12,fontWeight:600}}>📅 Đề xuất gia hạn</button>}
           </div>
           {proj.ext_proposed&&(<div style={{marginTop:8}}>
             <div style={{fontSize:12,color:"#1d4ed8"}}>{proj.ext_requested_by} đề xuất gia hạn đến <b>{proj.ext_proposed}</b> lúc {proj.ext_requested_at}</div>
@@ -211,8 +215,8 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
                 </div>
               </div>
               <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
-                {canEditStep(s)&&s.status!=="done"&&s.status!=="pending_approval"&&["pending","doing","skipped"].map(k=>{const v=INV_STEP_STATUS[k];return(<button key={k} onClick={()=>setStepStatus(idx,k)} style={{padding:"3px 8px",border:"1px solid "+(s.status===k?v.col:"#e5e7eb"),borderRadius:6,background:s.status===k?v.bg:"#fff",color:s.status===k?v.col:"#9ca3af",cursor:"pointer",fontSize:12.5,fontWeight:s.status===k?600:400}}>{v.label}</button>);})}
-                {canEditStep(s)&&(s.status==="pending"||s.status==="doing")&&<button onClick={()=>setStepStatus(idx,"done")} style={{padding:"3px 10px",border:"1px solid #fbbf24",borderRadius:6,background:"#fffbeb",color:"#92400e",cursor:"pointer",fontSize:12.5,fontWeight:600}}>📨 Yêu cầu hoàn thành</button>}
+                {canEditStep(s)&&s.status!=="done"&&s.status!=="pending_approval"&&["pending","doing","skipped"].map(k=>{const v=INV_STEP_STATUS[k];const blocked=k==="doing"&&!prevCleared(idx);return(<button key={k} disabled={blocked} title={blocked?"Cần hoàn thành hoặc bỏ qua các bước trước đã":""} onClick={()=>setStepStatus(idx,k)} style={{padding:"3px 8px",border:"1px solid "+(s.status===k?v.col:"#e5e7eb"),borderRadius:6,background:s.status===k?v.bg:"#fff",color:s.status===k?v.col:"#9ca3af",cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.45:1,fontSize:12.5,fontWeight:s.status===k?600:400}}>{v.label}</button>);})}
+                {canEditStep(s)&&(s.status==="pending"||s.status==="doing")&&(prevCleared(idx)?<button onClick={()=>setStepStatus(idx,"done")} style={{padding:"3px 10px",border:"1px solid #fbbf24",borderRadius:6,background:"#fffbeb",color:"#92400e",cursor:"pointer",fontSize:12.5,fontWeight:600}}>📨 Yêu cầu hoàn thành</button>:<span style={{fontSize:11,color:"#9ca3af",alignSelf:"center",background:"#f8fafc",padding:"3px 8px",borderRadius:6}}>🔒 Chờ bước trước hoàn thành</span>)}
                 {s.status==="pending_approval"&&canApproveStep&&<>
                   <button onClick={()=>setStepQualityPopup({idx,quality:1,note:""})} style={{padding:"3px 10px",border:"1px solid #16a34a",borderRadius:6,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:12.5,fontWeight:600}}>✅ Duyệt & đánh giá</button>
                   <button onClick={()=>rejectStepRequest(idx)} style={{padding:"3px 10px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",color:"#dc2626",cursor:"pointer",fontSize:12.5}}>↩ Từ chối, làm lại</button>
@@ -231,11 +235,11 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
                 {openComment===idx&&<div style={{marginTop:8}}>
                   {(s.comments||[]).length>0&&<div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:8}}>{(s.comments||[]).map((c,ci)=>(<div key={ci} style={{padding:"7px 10px",background:c.by===currentUser.full_name?"#eef2ff":"#f9fafb",borderRadius:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontWeight:600,fontSize:11,color:c.by===currentUser.full_name?"#4338ca":"#374151"}}>{c.by}</span><span style={{fontSize:10,color:"#9ca3af"}}>{c.at}</span></div>{c.text&&<div style={{fontSize:12}}>{c.text}</div>}{(c.files||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>{(c.files||[]).map((f,fi)=><a key={fi} href={f.url} target="_blank" rel="noreferrer" style={{fontSize:10,background:"#fff",border:"1px solid #d1d5db",color:"#4338ca",padding:"2px 7px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}</div>))}</div>}
                   {cmtFiles.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>{cmtFiles.map((f,fi)=><span key={fi} style={{fontSize:10,background:"#eef2ff",color:"#4338ca",padding:"2px 7px",borderRadius:6,display:"inline-flex",alignItems:"center",gap:3}}>📎 {f.name}<button onClick={()=>setCmtFiles(p=>p.filter((_,i)=>i!==fi))} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:11,padding:0}}>✕</button></span>)}</div>}
-                  <div style={{display:"flex",gap:6}}>
+                  {!locked&&<div style={{display:"flex",gap:6}}>
                     <label style={{display:"flex",alignItems:"center",padding:"6px 9px",border:"1px solid #d1d5db",borderRadius:7,cursor:"pointer",background:"#f9fafb",fontSize:13,flexShrink:0}} title="Đính kèm file">📎<input type="file" multiple style={{display:"none"}} disabled={uploadingFiles} onChange={async e=>{const fl=Array.from(e.target.files);if(!fl.length)return;const up=await uploadFiles(fl,cmtFiles);setCmtFiles(up);e.target.value="";}}/></label>
                     <input value={cmtText} onChange={e=>setCmtText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addStepComment(idx)} placeholder={uploadingFiles?"Đang tải file...":"Nhập trao đổi… (Enter gửi)"} style={{...inp,flex:1,fontSize:12,padding:"6px 10px"}}/>
                     <button onClick={()=>addStepComment(idx)} style={{padding:"6px 12px",background:"#4f46e5",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:12,flexShrink:0}}>Gửi</button>
-                  </div>
+                  </div>}
                 </div>}
               </div>
             </div>))}
@@ -243,7 +247,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
         </div>))}
       </div>
       {/* Nút nghiệm thu tổng thể khi tất cả bước hoàn thành */}
-      {pct===100&&!proj.quality_rating&&isBGD&&(
+      {pct===100&&!proj.quality_rating&&isBGD&&!locked&&(
         <div style={{margin:"0 20px 16px",padding:"14px 16px",background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
           <div><div style={{fontWeight:600,fontSize:13,color:"#15803d"}}>✅ Tất cả bước đã hoàn thành!</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>Đánh giá nghiệm thu tổng thể để lưu kết quả chất lượng dự án.</div></div>
           <button onClick={()=>{setProjQForm({rating:4,note:"",on_time:true,on_budget:true});setProjQualityModal(true);}} style={{padding:"8px 16px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600,whiteSpace:"nowrap"}}>📋 Nghiệm thu</button>
@@ -263,12 +267,17 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
               {proj.quality_note&&<div style={{fontSize:12,color:"#475569",fontStyle:"italic"}}>{proj.quality_note}</div>}
               <div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>Đánh giá bởi {proj.quality_rated_by} · {proj.quality_rated_at}</div>
             </div>
-            {isBGD&&<button onClick={()=>{setProjQForm({rating:proj.quality_rating,note:proj.quality_note||"",on_time:proj.quality_on_time!==false,on_budget:proj.quality_on_budget!==false});setProjQualityModal(true);}} style={{padding:"4px 10px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",cursor:"pointer",fontSize:12,color:"#92400e",flexShrink:0}}>✏️ Sửa</button>}
+            {isBGD&&!locked&&<button onClick={()=>{setProjQForm({rating:proj.quality_rating,note:proj.quality_note||"",on_time:proj.quality_on_time!==false,on_budget:proj.quality_on_budget!==false});setProjQualityModal(true);}} style={{padding:"4px 10px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",cursor:"pointer",fontSize:12,color:"#92400e",flexShrink:0}}>✏️ Sửa</button>}
           </div>
         </div>
       )}
-      {(canEditProject||canDeleteProject)&&<div style={{padding:"12px 20px",borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",position:"sticky",bottom:0,background:"#fff"}}>
-        {canEditProject?<button onClick={onEdit} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>✏️ Sửa dự án</button>:<span/>}
+      {(canManageProject||canDeleteProject)&&<div style={{padding:"12px 20px",borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap",position:"sticky",bottom:0,background:"#fff"}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {canEditProject&&<button onClick={onEdit} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>✏️ Sửa dự án</button>}
+          {canManageProject&&(locked
+            ?<button onClick={()=>onUpdateProject(proj,{locked:false})} style={{padding:"8px 16px",border:"1px solid #16a34a",borderRadius:8,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:13,fontWeight:600}}>🔓 Khôi phục dự án</button>
+            :<button onClick={()=>{if(window.confirm("Kết thúc dự án? Toàn bộ sẽ bị khóa cho tới khi Khôi phục."))onUpdateProject(proj,{locked:true});}} style={{padding:"8px 16px",border:"1px solid #4f46e5",borderRadius:8,background:"#eef2ff",color:"#4338ca",cursor:"pointer",fontSize:13,fontWeight:600}}>🔒 Kết thúc dự án</button>)}
+        </div>
         {canDeleteProject?<button onClick={onDelete} style={{padding:"8px 16px",border:"1px solid #fca5a5",borderRadius:8,background:"#fff0f0",cursor:"pointer",fontSize:13,color:"#dc2626"}}>🗑️ Xóa dự án</button>:<span/>}
       </div>}
     </div>
@@ -467,6 +476,8 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
   const deleteProject=async id=>{if(!window.confirm("Xóa vĩnh viễn dự án này?"))return;setSaving(true);await supabase.from("projects").delete().eq("id",id);setProjects(p=>p.filter(x=>x.id!==id));setProjDetail(null);setSaving(false);showToast&&showToast("Đã xóa dự án");onScoringChange?.();};
   const updateProjectSteps=async(proj,newSteps)=>{const stepsStr=JSON.stringify(newSteps);const{error}=await supabase.from("projects").update({steps:stepsStr}).eq("id",proj.id);if(!error){setProjects(p=>p.map(x=>x.id===proj.id?{...x,steps:stepsStr}:x));setProjDetail(d=>d&&d.id===proj.id?{...d,steps:stepsStr}:d);onScoringChange?.();}else showToast&&showToast("Lỗi cập nhật bước","error");};
   const saveProjectQuality=async(id,upd)=>{const{error}=await supabase.from("projects").update(upd).eq("id",id);if(!error){setProjects(p=>p.map(x=>x.id===id?{...x,...upd}:x));setProjDetail(d=>d&&d.id===id?{...d,...upd}:d);showToast&&showToast("Đã lưu nghiệm thu tổng thể");onScoringChange?.();}else showToast&&showToast("Lỗi lưu nghiệm thu","error");};
+  // Cập nhật trường bất kỳ của dự án (dùng cho Kết thúc/Khôi phục — cột locked)
+  const updateProject=async(proj,fields)=>{const{error}=await supabase.from("projects").update(fields).eq("id",proj.id);if(!error){setProjects(p=>p.map(x=>x.id===proj.id?{...x,...fields}:x));setProjDetail(d=>d&&d.id===proj.id?{...d,...fields}:d);}else showToast&&showToast("Lỗi cập nhật dự án","error");};
 
   // ── Đề xuất & duyệt gia hạn "Hạn hoàn thành" dự án: Phụ trách chính đề xuất, chỉ BGĐ duyệt ──
   const [extRequestModal,setExtRequestModal]=useState(null); // dự án đang đề xuất
@@ -638,7 +649,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
       </div>
     )}
 
-    {projDetail&&(<ProjectDetail proj={projDetail} onClose={()=>setProjDetail(null)} canManage={canManageInvest} getEmp={getEmp} employees={employees} users={users} isMobile={isMobile} onEdit={()=>{setProjForm({...projDetail,total_budget:projDetail.total_budget||0,spent:projDetail.spent||0,member_eids:projDetail.member_eids||"[]",leader_id:projDetail.leader_id||""});setProjDetail(null);}} onDelete={()=>deleteProject(projDetail.id)} onUpdateSteps={updateProjectSteps} onSaveQuality={saveProjectQuality} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} inp={inp} currentUser={currentUser} showToast={showToast} onProposeExt={()=>openExtRequestModal(projDetail)} onApproveExt={()=>openExtApprove(projDetail)} onRejectExt={()=>openExtReject(projDetail)}/>)}
+    {projDetail&&(<ProjectDetail proj={projDetail} onClose={()=>setProjDetail(null)} canManage={canManageInvest} getEmp={getEmp} employees={employees} users={users} isMobile={isMobile} onEdit={()=>{setProjForm({...projDetail,total_budget:projDetail.total_budget||0,spent:projDetail.spent||0,member_eids:projDetail.member_eids||"[]",leader_id:projDetail.leader_id||""});setProjDetail(null);}} onDelete={()=>deleteProject(projDetail.id)} onUpdateSteps={updateProjectSteps} onUpdateProject={updateProject} onSaveQuality={saveProjectQuality} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} inp={inp} currentUser={currentUser} showToast={showToast} onProposeExt={()=>openExtRequestModal(projDetail)} onApproveExt={()=>openExtApprove(projDetail)} onRejectExt={()=>openExtReject(projDetail)}/>)}
 
     {showReport&&(<div onClick={()=>setShowReport(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:isMobile?"12px 8px":16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:920,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
       <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:2}}><span style={{fontWeight:700,fontSize:16}}>📊 Báo cáo tiến độ Nhiệm vụ ngân sách</span><button onClick={()=>setShowReport(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div>
