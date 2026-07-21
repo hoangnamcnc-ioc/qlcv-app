@@ -6,7 +6,7 @@ import { RoleBadge, OverloadPopup } from "./ui";
 
 export default function Dashboard({
   currentUser, isMobile, userDept,
-  execDeptSummary, stats, statsW, deptChart, myTasks, myTrend,
+  execDeptSummary, stats, statsW, deptChart, myTasks, myWorkList, myTrend,
   computed, overloadedEmps, overloadThreshold, setOverloadThreshold,
   dateFrom, setDateFrom, dateTo, setDateTo,
   overloadPopup, setOverloadPopup,
@@ -147,6 +147,41 @@ export default function Dashboard({
         </div>
       )}
 
+      {myWorkList && !FULL_ACCESS.includes(currentUser.role) && (
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+          <div style={{ padding: "10px 14px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 15 }}>📋</span><span style={{ fontWeight: 700, fontSize: 14 }}>Công việc của tôi ({myWorkList.length})</span>
+            <span style={{ fontSize: 11, color: "#9ca3af", marginLeft: isMobile ? 0 : "auto", flex: isMobile ? "1 1 100%" : "0 1 auto" }}>Chủ trì + phối hợp · mọi loại nhiệm vụ · quá hạn/gần hết hạn xếp trên</span>
+          </div>
+          {myWorkList.length === 0 ? (
+            <div style={{ padding: 24, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>🎉 Không còn việc nào đang chờ xử lý</div>
+          ) : (
+            <div style={{ maxHeight: 440, overflowY: "auto" }}>
+              {myWorkList.map(it => {
+                const sc = STATUS[it.status] || STATUS.on_time;
+                const typeColor = it.kind === "task" ? "#4338ca" : it.kind === "proj" ? "#0d9488" : "#c2410c";
+                const typeBg = it.kind === "task" ? "#eef2ff" : it.kind === "proj" ? "#ccfbf1" : "#ffedd5";
+                const open = () => { if (it.kind === "task") { setModal(it.task); loadComments(it.task.id); } else if (it.kind === "proj") setView("investment"); else setView("othertasks"); };
+                return (
+                  <div key={it.key} onClick={open} style={{ padding: "9px 14px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: sc.dot, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "normal", wordBreak: "break-word" }}>{it.title}</div>
+                      <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                        <span style={{ background: typeBg, color: typeColor, padding: "1px 7px", borderRadius: 6, fontWeight: 600 }}>{it.typeLabel}</span>
+                        <span style={{ background: it.role === "Chủ trì" ? "#e0e7ff" : "#f3e8ff", color: it.role === "Chủ trì" ? "#4338ca" : "#7c3aed", padding: "1px 7px", borderRadius: 6 }}>{it.role}</span>
+                        {it.deadline && <span>Hạn: {fmtDate(it.deadline)}</span>}
+                      </div>
+                    </div>
+                    <span style={{ background: sc.bg, color: sc.col, fontSize: 11, padding: "2px 8px", borderRadius: 8, flexShrink: 0, fontWeight: 600 }}>{sc.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {isManagerView && (<>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(7,minmax(0,1fr))", gap: isMobile ? 8 : 8 }}>
         {[{label:"Tổng",val:stats.total,bg:"#eef2ff",col:"#4338ca",key:"total"},{label:"Trong hạn",val:stats.on_time,bg:"#dcfce7",col:"#15803d",key:"on_time"},{label:"Sắp hết hạn",val:stats.nearly_due,bg:"#fef9c3",col:"#92400e",key:"nearly_due"},{label:"Quá hạn",val:stats.overdue,bg:"#fee2e2",col:"#b91c1c",key:"overdue"},{label:"Chờ duyệt",val:stats.pending_approval,bg:"#fef3c7",col:"#92400e",key:"pending_approval"},{label:"HT quá hạn",val:stats.completed_late,bg:"#fee2e2",col:"#991b1b",key:"completed_late"},{label:"Hoàn thành",val:stats.completed,bg:"#e0e7ff",col:"#4338ca",key:"completed"}].map(c => (
@@ -232,8 +267,6 @@ export default function Dashboard({
         </div>
       )}
 
-      </>)}
-
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
         {[{s:"overdue",title:"Quá hạn",border:"#fca5a5",hdr:"#fef2f2"},{s:"nearly_due",title:"Sắp hết hạn",border:"#fde68a",hdr:"#fefce8"}].map(({s,title,border,hdr}) => {
           const list = computed.filter(t => t.status === s);
@@ -255,6 +288,7 @@ export default function Dashboard({
           );
         })}
       </div>
+      </>)}
     </div>
   );
 }

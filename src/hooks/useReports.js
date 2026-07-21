@@ -260,10 +260,40 @@ export default function useReports({ computed, employees, currentUser, overloadT
       breakdown: { task: my.length, support: supportCount, proj: proj.d + proj.a, other: other.d + other.a } };
   }, [computed, currentUser, supportCases, projects, otherTasks]);
 
+  // Danh sách công việc CÒN LÀM của tôi trên mọi module (chủ trì + phối hợp), sắp xếp hạn gần nhất/quá hạn lên đầu.
+  // Không gồm việc đã hoàn thành/bỏ qua và trường hợp Hỗ trợ (bản chất đã xử lý xong khi ghi nhận).
+  const myWorkList = useMemo(() => {
+    const eid = currentUser?.employee_id;
+    if (!eid) return [];
+    const inList = ids => parseJSON(ids, []).includes(eid);
+    const stepStat = dlStr => { if (!dlStr) return "on_time"; const dd = new Date(dlStr); if (isNaN(dd)) return "on_time"; dd.setHours(0, 0, 0, 0); const dl = Math.ceil((dd - today) / 86400000); return dl < 0 ? "overdue" : dl <= 3 ? "nearly_due" : "on_time"; };
+    const out = [];
+    for (const t of computed) {
+      if (isCompletedStatus(t.status)) continue;
+      if (!(t.eid === eid || inList(t.collab_eids))) continue;
+      out.push({ key: `t_${t.id}`, kind: "task", typeLabel: "Nhiệm vụ", title: t.title, dept: t.dept, deadline: t.deadline, role: t.eid === eid ? "Chủ trì" : "Phối hợp", status: t.status, task: t });
+    }
+    for (const p of (projects || [])) for (const s of parseJSON(p.steps, [])) {
+      if (s.status === "done" || s.status === "skipped") continue;
+      if (!(s.lead_eid === eid || inList(s.collab_eids))) continue;
+      out.push({ key: `p_${p.id}_${s.id}`, kind: "proj", typeLabel: "Ngân sách", title: `${p.name} · ${s.content || "Bước"}`, dept: p.dept, deadline: s.end, role: s.lead_eid === eid ? "Chủ trì" : "Phối hợp", status: stepStat(s.end) });
+    }
+    for (const t of (otherTasks || [])) for (const s of parseJSON(t.steps, [])) {
+      if (s.status === "done" || s.status === "skipped") continue;
+      if (!(s.lead_eid === eid || inList(s.collab_eids))) continue;
+      out.push({ key: `o_${t.id}_${s.id}`, kind: "other", typeLabel: "NV khác", title: `${t.name || ""} · ${s.content || "Bước"}`, dept: t.dept, deadline: s.deadline, role: s.lead_eid === eid ? "Chủ trì" : "Phối hợp", status: stepStat(s.deadline) });
+    }
+    return out.sort((a, b) => {
+      const da = a.deadline ? new Date(a.deadline).setHours(0, 0, 0, 0) : Infinity;
+      const db = b.deadline ? new Date(b.deadline).setHours(0, 0, 0, 0) : Infinity;
+      return da - db;
+    });
+  }, [computed, currentUser, projects, otherTasks]);
+
   return {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
-    lateReasonStats, overloadedEmps, myTrend, myTasks,
+    lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList,
     calcMonthPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (snapshot cố định, không đổi khi dữ liệu sống bị sửa)
   };
 }
