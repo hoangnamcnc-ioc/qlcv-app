@@ -131,6 +131,17 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     else showToast("Lỗi khi gửi nhắc, vui lòng thử lại", "error");
   };
 
+  // ── Nhắc VIỆC (trưởng phòng/người giao → người thực hiện): tăng bộ đếm số lần nhắc, ghi vào lịch sử để
+  // có bằng chứng đã đôn đốc, và nhân viên thấy "đã được nhắc N lần". Giới hạn 1 lần/4 giờ tránh làm phiền.
+  const nudgeTask = async (task) => {
+    const last = task.nudged_at ? parseNowStr(task.nudged_at) : null;
+    if (last && (new Date() - last) < REMINDER_COOLDOWN_MS) { showToast("Bạn vừa nhắc gần đây, vui lòng đợi thêm trước khi nhắc lại", "error"); return; }
+    const n = (task.nudge_count || 0) + 1;
+    const ok = await updateTask(task.id, { nudge_count: n, nudged_at: nowStr(), nudged_by: currentUser.full_name }, `Nhắc việc (lần ${n})`);
+    if (ok) { showToast(`Đã nhắc ${getEmp(task.eid)?.name || "người thực hiện"} — ghi vào lịch sử nhiệm vụ`); setModal(m => (m && m.id === task.id) ? { ...m, nudge_count: n, nudged_at: nowStr(), nudged_by: currentUser.full_name } : m); }
+    else showToast("Lỗi khi gửi nhắc, vui lòng thử lại", "error");
+  };
+
   // ── Đề xuất & duyệt gia hạn deadline: nhân viên đề xuất ngày mới + lý do,
   // người giao việc duyệt đúng ngày đó hoặc rút ngắn hơn (bắt buộc nêu lý do), hoặc từ chối hẳn.
   const [extRequestModal, setExtRequestModal] = useState(null);
@@ -249,7 +260,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     isSuspiciousCompletion, toggleDone, confirmCompletion,
     completionNoteModal, setCompletionNoteModal, completionNote, setCompletionNote, completionFiles, setCompletionFiles,
     approveModal, setApproveModal, approveRating, setApproveRating, approveNote, setApproveNote, openApproveModal, confirmApproveCompletion,
-    rejectCompletionRequest, remindApproval,
+    rejectCompletionRequest, remindApproval, nudgeTask,
     extRequestModal, setExtRequestModal, extProposedDate, setExtProposedDate, extReason, setExtReason, openExtRequestModal, submitExtRequest,
     extDecideModal, setExtDecideModal, extDecideDate, setExtDecideDate, extDecideNote, setExtDecideNote, openExtApprove, openExtReject, confirmExtDecision,
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,

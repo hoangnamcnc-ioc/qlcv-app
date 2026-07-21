@@ -75,7 +75,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const done = dt.filter(t => isCompletedStatus(t.status)).length;
     const rate = dt.length ? Math.round(done / dt.length * 100) : 0;
     const deptEmpsList = (employees || []).filter(e => e.dept === d);
-    const overloaded = deptEmpsList.filter(e => computed.filter(t => t.eid === e.id && !isCompletedStatus(t.status)).length >= overloadThreshold).length;
+    const overloaded = deptEmpsList.filter(e => sumW(computed.filter(t => t.eid === e.id && !isCompletedStatus(t.status))) >= overloadThreshold).length;
     const lead = deptEmpsList.find(e => ["Trưởng phòng", "TP. HCTH"].includes(e.role));
     // Số "việc quy đổi" (theo trọng số) để so sánh tải giữa các phòng cho công bằng —
     // phòng nhiều nhiệm vụ hàng ngày (0.25) không bị thổi phồng như khi đếm thô.
@@ -83,8 +83,29 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const doneW = sumW(dt.filter(t => isCompletedStatus(t.status)));
     // Tải bình quân đầu người (theo quy đổi) — phòng ít nhân sự mà nhiều việc sẽ lộ ra ở cột này
     const perHead = deptEmpsList.length ? Math.round(totalW / deptEmpsList.length * 100) / 100 : 0;
-    return { dept: d, total: dt.length, totalW, doneW, perHead, over, overdue, completedLate, nd, done, rate, empCount: deptEmpsList.length, overloaded, lead: lead?.name || "—" };
+    // Tải ĐANG MỞ (chưa hoàn thành) quy đổi & bình quân đầu người — phản ánh áp lực hiện tại,
+    // dùng để phát hiện phòng cần thêm người (quá tải) hay có thể dư người (dưới tải).
+    const activeList = dt.filter(t => !isCompletedStatus(t.status));
+    const activeW = sumW(activeList);
+    const activePerHead = deptEmpsList.length ? Math.round(activeW / deptEmpsList.length * 100) / 100 : 0;
+    return { dept: d, total: dt.length, totalW, doneW, perHead, activeW, activePerHead, over, overdue, completedLate, nd, done, rate, empCount: deptEmpsList.length, overloaded, lead: lead?.name || "—" };
   }), [computed, employees, overloadThreshold]);
+
+  // ── Gợi ý nhân sự: so tải ĐANG MỞ quy đổi/người của từng phòng với mặt bằng chung để chỉ ra phòng nào
+  // có dấu hiệu THIẾU người (tải cao hơn hẳn + có người quá tải) hay THỪA người (tải thấp hơn hẳn).
+  // Chỉ mang tính tham khảo điều phối, không phải kết luận — nên đặt ngưỡng nới rộng để tránh báo động giả. ──
+  const staffingAdvice = useMemo(() => {
+    const rows = execDeptSummary.filter(d => d.empCount > 0);
+    if (rows.length < 2) return [];
+    const avg = rows.reduce((s, d) => s + d.activePerHead, 0) / rows.length;
+    if (avg <= 0) return [];
+    return rows.map(d => {
+      let level = "balanced";
+      if (d.activePerHead >= avg * 1.4 && d.overloaded > 0) level = "over";       // tải cao hơn ~40% VÀ có người quá tải
+      else if (d.activePerHead <= avg * 0.5 && d.empCount >= 2) level = "under";  // tải chỉ bằng nửa mặt bằng
+      return { dept: d.dept, empCount: d.empCount, activeW: d.activeW, activePerHead: d.activePerHead, overloaded: d.overloaded, avgPerHead: Math.round(avg * 100) / 100, level };
+    }).filter(d => d.level !== "balanced").sort((a, b) => (a.level === "over" ? -1 : 1) - (b.level === "over" ? -1 : 1));
+  }, [execDeptSummary]);
 
   const repTasks = useMemo(() => cg.filter(t => { const d = new Date(t.deadline); return d.getFullYear() === repYear && d.getMonth() === repMonth; }), [cg, repYear, repMonth]);
   // Kèm bản QUY ĐỔI (…W) bên cạnh số đầu việc để hiển thị song song / đổi biểu đồ
@@ -192,6 +213,31 @@ export default function useReports({ computed, computedGlobal, employees, curren
 
   const repMonthTrend = useMemo(() => { const months = []; for (let i = 5; i >= 0; i--) { const d = new Date(repYear, repMonth - i, 1); const m = d.getMonth(), y = d.getFullYear(); const mt = cg.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === y && td.getMonth() === m; }); months.push({ name: `T${m + 1}`, done: mt.filter(t => isCompletedStatus(t.status)).length, total: mt.length, doneW: sumW(mt.filter(t => isCompletedStatus(t.status))), totalW: sumW(mt) }); } return months; }, [cg, repYear, repMonth]);
 
+  // ── HỒ SƠ 1 NHÂN VIÊN (gộp mọi chỉ số cho trưởng phòng đánh giá từng người) ──
+  // Gộp: điểm/khối lượng tháng đang xem (đã gồm hỗ trợ + bước ngân sách + phối hợp ½ qua calcMonthPerf),
+  // xu hướng điểm 6 tháng, việc đang mở (chưa xong) sắp theo độ khẩn, và thống kê nguyên nhân trễ của riêng người đó.
+  const empProfile = (empId) => {
+    const emp = (employees || []).find(e => e.id === empId);
+    if (!emp) return null;
+    const cur = calcMonthPerf(empId, repYear, repMonth);
+    const trend = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(repYear, repMonth - i, 1); const m = d.getMonth(), y = d.getFullYear();
+      const mp = calcMonthPerf(empId, y, m);
+      trend.push({ name: `T${m + 1}`, score: mp.resolved > 0 ? mp.perfScore : null, eligible: mp.eligible, resolved: mp.resolved, done: mp.done });
+    }
+    // Việc đang mở (nhiệm vụ thường) của người này — dùng cg để đủ dữ liệu, sắp việc khẩn lên trước
+    const open = cg.filter(t => t.eid === empId && !isCompletedStatus(t.status))
+      .sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9))
+      .map(t => ({ id: t.id, title: t.title, dept: t.dept, deadline: t.deadline, status: t.status, prio: t.prio, weight: t.weight ?? 1, nudge_count: t.nudge_count || 0 }));
+    const openW = sumW(open);
+    // Nguyên nhân trễ của riêng người này (mọi thời gian) — nhìn ra "hay trễ vì lý do gì"
+    const myLate = cg.filter(t => t.eid === empId && t.late_reason);
+    const lateReasons = LATE_REASONS.map(r => ({ ...r, count: myLate.filter(t => t.late_reason === r.value).length })).filter(r => r.count > 0).sort((a, b) => b.count - a.count);
+    const onTimeRate = cur.resolved > 0 ? Math.round(cur.onTime / cur.resolved * 100) : 0;
+    return { emp, cur, trend, open, openCount: open.length, openW, lateReasons, lateTotal: myLate.length, onTimeRate };
+  };
+
   const leaderboard = useMemo(() => {
     const raw = (employees || []).map(emp => {
       const monthly = [...Array(12)].map((_, m) => calcMonthPerf(emp.id, rankYear, m));
@@ -232,7 +278,10 @@ export default function useReports({ computed, computedGlobal, employees, curren
   }, [cg, employees, rankYear, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
 
   const lateReasonStats = useMemo(() => { const lt = cg.filter(t => t.late_reason); const total = lt.length; return LATE_REASONS.map(r => { const tasksForReason = lt.filter(t => t.late_reason === r.value); return { ...r, count: tasksForReason.length, pct: total ? Math.round(tasksForReason.length / total * 100) : 0, tasks: tasksForReason }; }).filter(r => r.count > 0).sort((a, b) => b.count - a.count); }, [cg]);
-  const overloadedEmps = useMemo(() => (employees || []).map(emp => { const active = computed.filter(t => t.eid === emp.id && !isCompletedStatus(t.status)); return { ...emp, activeCount: active.length }; }).filter(e => e.activeCount >= overloadThreshold), [employees, computed, overloadThreshold]);
+  // Cảnh báo quá tải tính theo KHỐI LƯỢNG QUY ĐỔI (activeW) chứ không đếm thô đầu việc — người ôm 12 việc
+  // hàng ngày (0.25 → 3 quy đổi) không bị coi ngang người ôm 8 dự án (8 quy đổi). Ngưỡng người dùng đặt được
+  // hiểu là "số việc quy đổi đang mở". Vẫn giữ activeCount để hiển thị số đầu việc thực tế cho dễ hình dung.
+  const overloadedEmps = useMemo(() => (employees || []).map(emp => { const active = computed.filter(t => t.eid === emp.id && !isCompletedStatus(t.status)); return { ...emp, activeCount: active.length, activeW: sumW(active) }; }).filter(e => e.activeW >= overloadThreshold).sort((a, b) => b.activeW - a.activeW), [employees, computed, overloadThreshold]);
 
   const myTrend = useMemo(() => { if (!currentUser?.employee_id) return []; const months = []; for (let i = 5; i >= 0; i--) { const d = new Date(today.getFullYear(), today.getMonth() - i, 1); const m = d.getMonth(), y = d.getFullYear(); const mt = computed.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === y && td.getMonth() === m && (t.eid === currentUser.employee_id || parseJSON(t.collab_eids, []).includes(currentUser.employee_id)); }); months.push({ name: `T${m + 1}`, "Hoàn thành": mt.filter(t => isCompletedStatus(t.status)).length, "Tổng": mt.length }); } return months; }, [computed, currentUser]);
   // "Việc của tôi" — gộp ĐỦ khối lượng thực của nhân viên trên mọi module (đếm đầu việc, mỗi mục = 1):
@@ -322,7 +371,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
 
   return {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
-    execDeptSummary, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
+    execDeptSummary, staffingAdvice, empProfile, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList,
     calcMonthPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (snapshot cố định, không đổi khi dữ liệu sống bị sửa)
   };

@@ -17,7 +17,7 @@ export default function TaskModal({
   addComment, uploadFiles, uploadingFiles,
   updateTask,
   toggleDone,
-  openApproveModal, rejectCompletionRequest, remindApproval,
+  openApproveModal, rejectCompletionRequest, remindApproval, nudgeTask,
   openExtRequestModal, openExtApprove, openExtReject,
   rateTask, ratingNote, setRatingNote,
   setLateReasonFn, lateNote, setLateNote,
@@ -109,6 +109,20 @@ export default function TaskModal({
           <div style={{ marginBottom: 14 }}>
             <ProgressBar value={modal.progress || 0} editable={!modal.completed && !modal.completion_requested && !!(canCreate || currentUser.employee_id === modal.eid || parseJSON(modal.collab_eids, []).includes(currentUser.employee_id))} onChange={async v => { if (v === 100) { toggleDone(modal); return; } await updateTask(modal.id, { progress: v }, `Cập nhật tiến độ: ${v}%`); setModal(t => ({ ...t, progress: v })); }} />
           </div>
+
+          {/* Nhắc việc: trưởng phòng/người giao đôn đốc người thực hiện; mọi người thấy số lần đã nhắc */}
+          {!modal.completed && (modal.nudge_count > 0 || (canEditTask(modal) && modal.status !== "pending_approval" && modal.eid && modal.eid !== currentUser.employee_id)) && (
+            <div style={{ marginBottom: 14, padding: "10px 14px", background: "#fff7ed", borderRadius: 10, border: "1px solid #fed7aa", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ fontSize: 12, color: "#9a3412" }}>
+                {modal.nudge_count > 0
+                  ? <>🔔 Đã nhắc <b>{modal.nudge_count}</b> lần{modal.nudged_at ? ` · gần nhất ${modal.nudged_at}` : ""}{modal.nudged_by ? ` · bởi ${modal.nudged_by}` : ""}</>
+                  : <>Chậm tiến độ? Đôn đốc người thực hiện — mỗi lần nhắc được ghi vào lịch sử.</>}
+              </div>
+              {canEditTask(modal) && modal.status !== "pending_approval" && modal.eid && modal.eid !== currentUser.employee_id && (
+                <button onClick={() => nudgeTask(modal)} style={{ padding: "6px 12px", border: "1px solid #fb923c", borderRadius: 7, background: "#fff", color: "#9a3412", cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>🔔 Nhắc việc</button>
+              )}
+            </div>
+          )}
 
           {modal.status === "pending_approval" && (
             <div style={{ marginBottom: 14, padding: "12px 14px", background: "#fffbeb", borderRadius: 10, border: "2px solid #fbbf24" }}>

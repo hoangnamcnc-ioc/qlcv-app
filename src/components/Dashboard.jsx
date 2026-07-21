@@ -6,7 +6,8 @@ import { RoleBadge, OverloadPopup } from "./ui";
 
 export default function Dashboard({
   currentUser, isMobile, userDept,
-  execDeptSummary, stats, statsW, deptChart, myTasks, myWorkList, myWorkloadCompare, myDoneList, myTrend,
+  execDeptSummary, staffingAdvice, empProfile, employees,
+  stats, statsW, deptChart, myTasks, myWorkList, myWorkloadCompare, myDoneList, myTrend,
   computed, overloadedEmps, overloadThreshold, setOverloadThreshold,
   dateFrom, setDateFrom, dateTo, setDateTo,
   overloadPopup, setOverloadPopup,
@@ -22,6 +23,9 @@ export default function Dashboard({
   // Phân trang cho danh sách "Công việc của tôi"
   const [wlPage, setWlPage] = useState(1);
   const [doneOpen, setDoneOpen] = useState(false); // mục "Đã hoàn thành tháng này"
+  const [profileId, setProfileId] = useState(null); // hồ sơ nhân viên đang mở
+  // Danh sách nhân sự trong tầm quản lý để lập "bảng nhân sự": TP/PP xem phòng mình, BGĐ xem tất cả
+  const rosterEmps = isManagerView ? (employees || []).filter(e => FULL_ACCESS.includes(currentUser.role) || e.dept === userDept).slice().sort((a, b) => a.dept === b.dept ? a.name.localeCompare(b.name) : a.dept.localeCompare(b.dept)) : [];
   const WL_SIZE = 8;
   const wlTotalPages = Math.max(1, Math.ceil((myWorkList?.length || 0) / WL_SIZE));
   const wlPageSafe = Math.min(wlPage, wlTotalPages);
@@ -99,6 +103,26 @@ export default function Dashboard({
             </div>
           )}
           <div style={{ padding: "8px 16px", fontSize: 11, color: "#9ca3af", borderTop: "1px solid #f3f4f6" }}>💡 Bấm vào một phòng để xem chi tiết danh sách nhiệm vụ</div>
+        </div>
+      )}
+
+      {staffingAdvice && staffingAdvice.length > 0 && (
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+          <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>🧭</span><span style={{ fontWeight: 700, fontSize: 14 }}>Gợi ý điều phối nhân sự</span>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: "#9ca3af" }}>So tải đang mở quy đổi/người với mặt bằng chung — chỉ mang tính tham khảo</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)" }}>
+            {staffingAdvice.map(d => (
+              <div key={d.dept} style={{ padding: "10px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>{d.level === "over" ? "🔴" : "🟢"}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13 }}><span style={{ background: DEPT_COLOR[d.dept] + "22", color: DEPT_COLOR[d.dept], fontWeight: 700, padding: "2px 8px", borderRadius: 8 }}>{d.dept}</span> <b style={{ color: d.level === "over" ? "#b91c1c" : "#15803d" }}>{d.level === "over" ? "có dấu hiệu thiếu người" : "có thể đang dư người"}</b></div>
+                  <div style={{ fontSize: 11.5, color: "#6b7280", marginTop: 3 }}>Tải đang mở: <b>{d.activePerHead}</b> quy đổi/người (TB chung {d.avgPerHead}) · {d.empCount} NV{d.overloaded > 0 ? ` · ${d.overloaded} người quá tải` : ""}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -238,6 +262,29 @@ export default function Dashboard({
       )}
 
       {isManagerView && (<>
+      {rosterEmps.length > 0 && (
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+          <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 16 }}>👥</span><span style={{ fontWeight: 700, fontSize: 14 }}>Nhân sự {FULL_ACCESS.includes(currentUser.role) ? "toàn cơ quan" : `phòng ${userDept}`} ({rosterEmps.length})</span>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: "#9ca3af" }}>Bấm một người để xem hồ sơ đánh giá chi tiết</span>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead><tr style={{ background: "#f9fafb" }}>{[["Nhân viên", "left"], ["Việc đang mở", "center"], ["Điểm tháng", "center"], ["Đúng hạn", "center"], ["", "center"]].map(([h, al], i) => <th key={i} style={{ padding: "8px 12px", textAlign: al, fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+              <tbody>{rosterEmps.map(e => { const p = empProfile(e.id); if (!p) return null; const over = p.openW >= overloadThreshold; return (
+                <tr key={e.id} onClick={() => setProfileId(e.id)} style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer" }} onMouseEnter={ev => ev.currentTarget.style.background = "#f9fafb"} onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}>
+                  <td style={{ padding: "9px 12px" }}><div style={{ fontWeight: 500 }}>{e.name}</div><div style={{ fontSize: 11, color: "#9ca3af" }}>{e.dept} · {e.role}</div></td>
+                  <td style={{ padding: "9px 12px", textAlign: "center", whiteSpace: "nowrap" }}><span style={{ color: over ? "#b91c1c" : "#374151", fontWeight: over ? 700 : 500 }}>{p.openCount}</span> <span style={{ fontSize: 11, color: "#9ca3af" }}>(≈{p.openW})</span>{over && " 🔥"}</td>
+                  <td style={{ padding: "9px 12px", textAlign: "center" }}>{p.cur.resolved > 0 ? <span style={{ fontWeight: 700, color: p.cur.eligible ? "#111827" : "#9ca3af" }}>{p.cur.perfScore}{!p.cur.eligible && <span style={{ fontSize: 10, fontWeight: 400 }}> (tk)</span>}</span> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                  <td style={{ padding: "9px 12px", textAlign: "center", fontWeight: 500, color: p.cur.resolved === 0 ? "#d1d5db" : p.onTimeRate >= 80 ? "#15803d" : p.onTimeRate >= 50 ? "#92400e" : "#b91c1c" }}>{p.cur.resolved > 0 ? p.onTimeRate + "%" : "—"}</td>
+                  <td style={{ padding: "9px 12px", textAlign: "center", color: "#6366f1", fontSize: 12, whiteSpace: "nowrap" }}>Xem ›</td>
+                </tr>
+              ); })}</tbody>
+            </table>
+          </div>
+          <div style={{ padding: "6px 16px", fontSize: 11, color: "#9ca3af", borderTop: "1px solid #f3f4f6" }}>💡 "Điểm tháng" theo tháng đang chọn ở Báo cáo · (tk) = điểm tham khảo khi chưa đủ 5 việc đến hạn</div>
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(7,minmax(0,1fr))", gap: isMobile ? 8 : 8 }}>
         {[{label:"Tổng",val:stats.total,bg:"#eef2ff",col:"#4338ca",key:"total"},{label:"Trong hạn",val:stats.on_time,bg:"#dcfce7",col:"#15803d",key:"on_time"},{label:"Sắp hết hạn",val:stats.nearly_due,bg:"#fef9c3",col:"#92400e",key:"nearly_due"},{label:"Quá hạn",val:stats.overdue,bg:"#fee2e2",col:"#b91c1c",key:"overdue"},{label:"Chờ duyệt",val:stats.pending_approval,bg:"#fef3c7",col:"#92400e",key:"pending_approval"},{label:"HT quá hạn",val:stats.completed_late,bg:"#fee2e2",col:"#991b1b",key:"completed_late"},{label:"Hoàn thành",val:stats.completed,bg:"#e0e7ff",col:"#4338ca",key:"completed"}].map(c => (
           <div key={c.label} onClick={() => setStatFilter(f => f === c.key ? null : c.key)} style={{ background: c.bg, borderRadius: 9, padding: isMobile ? 10 : "10px 12px", minHeight: isMobile ? 92 : 96, cursor: "pointer", border: "1.5px solid " + (statFilter === c.key ? c.col : "transparent"), transition: "border 0.15s", userSelect: "none", boxSizing: "border-box", overflow: "hidden" }}>
@@ -290,13 +337,13 @@ export default function Dashboard({
         <div style={{ background: "#fff", borderRadius: 10, border: "2px solid #fca5a5", overflow: "hidden" }}>
           <div style={{ background: "#fff5f5", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 16 }}>⚠️</span><span style={{ fontWeight: 600, fontSize: 13, color: "#b91c1c" }}>Cảnh báo quá tải ({overloadedEmps.length} người)</span></div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>Ngưỡng: <input type="number" min={2} max={20} value={overloadThreshold} onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1 && v <= 50) { setOverloadThreshold(v); localStorage.setItem("qlcv_overload", v); } }} style={{ width: 44, padding: "2px 6px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12, textAlign: "center" }} /> việc</div>
+            <div title="Tính theo khối lượng QUY ĐỔI đang mở (nhiệm vụ định kỳ nhân trọng số), không đếm thô đầu việc" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>Ngưỡng: <input type="number" min={2} max={20} value={overloadThreshold} onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1 && v <= 50) { setOverloadThreshold(v); localStorage.setItem("qlcv_overload", v); } }} style={{ width: 44, padding: "2px 6px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12, textAlign: "center" }} /> quy đổi</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)" }}>
             {overloadedEmps.map(emp => (
               <div key={emp.id} style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div><div style={{ fontWeight: 500, fontSize: 13 }}>{emp.name}</div><div style={{ fontSize: 11, color: "#6b7280" }}>{emp.dept} · {emp.role}</div></div>
-                <span onClick={() => setOverloadPopup(overloadPopup === emp.id ? null : emp.id)} style={{ background: "#fee2e2", color: "#b91c1c", fontWeight: 700, fontSize: 14, padding: "4px 10px", borderRadius: 20, cursor: "pointer", userSelect: "none" }}>{emp.activeCount} việc</span>
+                <span onClick={() => setOverloadPopup(overloadPopup === emp.id ? null : emp.id)} title={`${emp.activeCount} đầu việc · ${emp.activeW} việc quy đổi`} style={{ background: "#fee2e2", color: "#b91c1c", fontWeight: 700, fontSize: 13, padding: "4px 10px", borderRadius: 20, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>≈{emp.activeW} <span style={{ fontWeight: 400, fontSize: 11 }}>({emp.activeCount} việc)</span></span>
               </div>
             ))}
           </div>
@@ -344,6 +391,83 @@ export default function Dashboard({
         })}
       </div>
       </>)}
+
+      {profileId && <EmpProfileModal profile={empProfile(profileId)} isMobile={isMobile} overloadThreshold={overloadThreshold} onClose={() => setProfileId(null)} onOpenTask={id => { const t = computed.find(x => x.id === id); if (t) { setModal(t); loadComments(t.id); setProfileId(null); } }} />}
+    </div>
+  );
+}
+
+// ── Hồ sơ đánh giá 1 nhân viên (mở từ bảng "Nhân sự") ──
+function EmpProfileModal({ profile, isMobile, overloadThreshold, onClose, onOpenTask }) {
+  if (!profile) return null;
+  const { emp, cur, trend, open, openCount, openW, lateReasons, lateTotal, onTimeRate } = profile;
+  const over = openW >= overloadThreshold;
+  const scoreTrend = trend.filter(t => t.score != null);
+  const box = { background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 12px", textAlign: "center" };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: isMobile ? "12px 8px" : 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 620, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>{emp.name}</div>
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}><span style={{ background: (DEPT_COLOR[emp.dept] || "#888") + "22", color: DEPT_COLOR[emp.dept] || "#555", fontWeight: 600, padding: "1px 8px", borderRadius: 8 }}>{emp.dept}</span> · {emp.role}</div>
+          </div>
+          <button onClick={onClose} style={{ background: "#f3f4f6", border: "none", cursor: "pointer", fontSize: 18, color: "#374151", width: 28, height: 28, borderRadius: "50%" }}>✕</button>
+        </div>
+        <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Chỉ số tháng đang chọn */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8 }}>📊 Tháng đang chọn</div>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 8 }}>
+              <div style={box}><div style={{ fontSize: 22, fontWeight: 800, color: cur.resolved === 0 ? "#d1d5db" : cur.eligible ? "#4338ca" : "#9ca3af" }}>{cur.resolved > 0 ? cur.perfScore : "—"}</div><div style={{ fontSize: 10.5, color: "#6b7280", marginTop: 2 }}>Điểm{cur.resolved > 0 && !cur.eligible ? " (tham khảo)" : ""}</div></div>
+              <div style={box}><div style={{ fontSize: 22, fontWeight: 800, color: onTimeRate >= 80 ? "#15803d" : onTimeRate >= 50 ? "#92400e" : "#b91c1c" }}>{cur.resolved > 0 ? onTimeRate + "%" : "—"}</div><div style={{ fontSize: 10.5, color: "#6b7280", marginTop: 2 }}>Đúng hạn</div></div>
+              <div style={box}><div style={{ fontSize: 22, fontWeight: 800, color: "#0f766e" }}>{cur.done}</div><div style={{ fontSize: 10.5, color: "#6b7280", marginTop: 2 }}>Việc quy đổi HT</div></div>
+              <div style={box}><div style={{ fontSize: 22, fontWeight: 800, color: "#7c3aed" }}>{cur.collabTotal || 0}</div><div style={{ fontSize: 10.5, color: "#6b7280", marginTop: 2 }}>Phối hợp (½)</div></div>
+            </div>
+            {cur.breakdown && (
+              <div style={{ fontSize: 11.5, color: "#6b7280", marginTop: 8, lineHeight: 1.6 }}>
+                Cấu thành điểm: ⏱️ thời hạn <b>{cur.breakdown.timeliness}</b> + ⭐ chất lượng <b>{cur.breakdown.quality}</b>{cur.breakdown.penalty > 0 && <> − phạt trễ <b style={{ color: "#b91c1c" }}>{cur.breakdown.penalty}</b></>}{cur.breakdown.workloadBonus > 0 && <> + thưởng KL <b style={{ color: "#15803d" }}>{cur.breakdown.workloadBonus}</b></>}
+                {!cur.eligible && cur.resolved > 0 && <span style={{ fontStyle: "italic" }}> · chưa đủ 5 việc đến hạn nên chỉ là điểm tham khảo</span>}
+              </div>
+            )}
+          </div>
+          {/* Xu hướng 6 tháng */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8 }}>📈 Xu hướng điểm 6 tháng</div>
+            {scoreTrend.length >= 2 ? (
+              <ResponsiveContainer width="100%" height={140}>
+                <LineChart data={trend} margin={{ top: 6, right: 10, left: -18, bottom: 0 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis domain={[0, 100]} tick={{ fontSize: 10 }} /><Tooltip formatter={v => v == null ? "—" : v + "đ"} />
+                  <Line type="monotone" dataKey="score" stroke="#4f46e5" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : <div style={{ fontSize: 12, color: "#9ca3af", padding: "8px 0" }}>Chưa đủ dữ liệu để vẽ xu hướng.</div>}
+          </div>
+          {/* Nguyên nhân trễ */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8 }}>⏰ Nguyên nhân trễ {lateTotal > 0 && <span style={{ color: "#9ca3af", fontWeight: 400 }}>({lateTotal} lần)</span>}</div>
+            {lateReasons.length > 0 ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {lateReasons.map(r => <span key={r.value} style={{ background: "#fef2f2", color: "#b91c1c", fontSize: 12, padding: "3px 10px", borderRadius: 20, border: "1px solid #fecaca" }}>{r.label}: <b>{r.count}</b></span>)}
+              </div>
+            ) : <div style={{ fontSize: 12, color: "#15803d" }}>✅ Không có việc nào bị ghi nhận trễ hạn.</div>}
+          </div>
+          {/* Việc đang mở */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8 }}>📋 Việc đang mở: {openCount} <span style={{ color: over ? "#b91c1c" : "#9ca3af", fontWeight: over ? 700 : 400 }}>(≈{openW} quy đổi{over ? " · quá tải" : ""})</span></div>
+            {open.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 220, overflowY: "auto" }}>
+                {open.map(t => (
+                  <div key={t.id} onClick={() => onOpenTask(t.id)} style={{ padding: "7px 10px", background: "#f9fafb", borderRadius: 7, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }} onMouseEnter={e => e.currentTarget.style.background = "#f1f5f9"} onMouseLeave={e => e.currentTarget.style.background = "#f9fafb"}>
+                    <div style={{ minWidth: 0 }}><div style={{ fontSize: 12.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div><div style={{ fontSize: 11, color: "#6b7280" }}>Hạn: {fmtDate(t.deadline)}{t.nudge_count > 0 && <span style={{ color: "#9a3412" }}> · 🔔 đã nhắc {t.nudge_count}</span>}</div></div>
+                    <span style={{ background: STATUS[t.status]?.bg, color: STATUS[t.status]?.col, fontSize: 11, padding: "2px 8px", borderRadius: 8, flexShrink: 0, whiteSpace: "nowrap" }}>{STATUS[t.status]?.label}</span>
+                  </div>
+                ))}
+              </div>
+            ) : <div style={{ fontSize: 12, color: "#15803d" }}>✅ Không còn việc nào đang mở.</div>}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
