@@ -20,6 +20,7 @@ export default function Reports({
 }) {
   const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm (tháng)
   const [whyYear, setWhyYear] = useState(null); // nhân viên đang xem giải thích điểm (năm/xếp hạng)
+  const [whyMgr, setWhyMgr] = useState(null); // quản lý đang xem giải thích điểm điều hành (tháng hoặc năm)
   const [lateReasonDetail, setLateReasonDetail] = useState(null); // nguyên nhân đang xem danh sách nhiệm vụ
   const [chartMode, setChartMode] = useState("raw"); // "raw" = số đầu việc | "w" = việc quy đổi theo trọng số
   const isW = chartMode === "w";
@@ -152,7 +153,7 @@ export default function Reports({
             )}
           </div>
         )}
-        <ManagerBoard data={managerBoard} isMobile={isMobile} />
+        <ManagerBoard data={managerBoard} isMobile={isMobile} onWhy={setWhyMgr} />
       </>)}
 
       {repTab === "leaderboard" && (<>
@@ -230,7 +231,7 @@ export default function Reports({
             </div>
           )}
         </div>
-        <ManagerBoard data={managerLeaderboard} isMobile={isMobile} yearly />
+        <ManagerBoard data={managerLeaderboard} isMobile={isMobile} yearly onWhy={setWhyMgr} />
       </>)}
 
       {repTab === "late_reasons" && (
@@ -332,6 +333,69 @@ export default function Reports({
         );
       })()}
 
+      {/* MODAL: Vì sao điểm ĐIỀU HÀNH này? (Trưởng/Phó phòng) */}
+      {whyMgr && (() => {
+        const e = whyMgr;
+        const MRow = ({ icon, label, sub, val, neg }) => (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "9px 0", borderBottom: "1px solid #f3f4f6", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{icon} {label}</div>
+              {sub && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{sub}</div>}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: neg ? "#b91c1c" : val > 0 ? "#15803d" : "#9ca3af", whiteSpace: "nowrap" }}>{neg ? "−" : "+"}{Math.abs(val)}</div>
+          </div>
+        );
+        const scoreColor = s => s >= 80 ? "#15803d" : s >= 50 ? "#92400e" : "#b91c1c";
+        return (
+          <div onClick={() => setWhyMgr(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: isMobile ? "12px 8px" : 16 }}>
+            <div onClick={ev => ev.stopPropagation()} style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+              <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>🏛️ Vì sao {e.yearly ? e.score : e.perfScore}đ điều hành?</div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{e.name} · {e.role} · Phòng {e.dept} · {e.yearly ? `Cả năm ${rankYear}` : `${VI_MONTHS[repMonth]}/${repYear}`}</div>
+                </div>
+                <button onClick={() => setWhyMgr(null)} style={{ background: "#f3f4f6", border: "none", cursor: "pointer", fontSize: 16, color: "#374151", width: 28, height: 28, borderRadius: "50%" }}>✕</button>
+              </div>
+              {!e.yearly && e.breakdown ? (<>
+                <div style={{ padding: "10px 18px 0", fontSize: 11.5, color: "#6b7280", lineHeight: 1.5 }}>Điểm điều hành chấm theo <b>kết quả cả phòng {e.dept}</b> trong tháng (mọi số theo việc quy đổi), không phải vài việc giao riêng.</div>
+                <div style={{ padding: "6px 18px 0" }}>
+                  <MRow icon="①" label="Đúng hạn phòng" sub={`(${r2(e.onTimeW)} đúng hạn ×60 + ${r2(e.lateW)} trễ ×30) ÷ ${r2(e.resolvedW)} việc phòng đã đến hạn · tối đa 60`} val={e.breakdown.timeliness} />
+                  <MRow icon="②" label="Chất lượng phòng" sub={`Trung bình nghiệm thu ${r2(e.onTimeW)} việc đúng hạn của phòng (chưa ĐG = Trung bình) · tối đa 40`} val={e.breakdown.quality} />
+                  <MRow icon="③" label="Tồn đọng quá hạn" sub={`Tỷ lệ việc phòng còn quá hạn chưa xong: ${r2(e.overW)}/${r2(e.resolvedW)} · tối đa −10`} val={e.breakdown.penalty} neg />
+                  <MRow icon="④" label="Thưởng khối lượng điều hành" sub={`Phòng xử lý ${r2(e.resolvedW)} việc đã đến hạn (vượt ${r2(Math.max(e.resolvedW - 15, 0))} so mốc 15) · tối đa +10`} val={e.breakdown.mgmtBonus} />
+                </div>
+                <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f0f9ff", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>Tổng điểm điều hành <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400 }}>(giới hạn 0–100)</span></span>
+                  <span style={{ fontSize: 22, fontWeight: 800, color: scoreColor(e.perfScore) }}>{e.perfScore}đ</span>
+                </div>
+              </>) : (() => {
+                const rows = (e.monthly || []).map((m, idx) => ({ ...m, monthIdx: idx })).filter(m => m.eligible);
+                return (<>
+                  <div style={{ padding: "10px 18px 0", fontSize: 11.5, color: "#9ca3af" }}>{rows.length} tháng phòng đủ điều kiện (≥5 việc quy đổi đến hạn) trong năm — các tháng còn lại không tính.</div>
+                  <div style={{ padding: "8px 18px 0" }}>
+                    {rows.map(m => (
+                      <div key={m.monthIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
+                        <div style={{ fontSize: 13 }}>{VI_MONTHS[m.monthIdx]}/{rankYear} <span style={{ fontSize: 11, color: "#9ca3af" }}>({r2(m.resolvedW)} việc phòng đến hạn)</span></div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: scoreColor(m.perfScore) }}>{m.perfScore}đ</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ margin: "12px 18px", padding: "12px 14px", background: "#f8fafc", borderRadius: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 6 }}><span>Điểm điều hành TB thô ({rows.length} tháng)</span><span style={{ fontWeight: 600 }}>{e.rawScore}đ</span></div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 6 }}><span>Mức TB chung của các quản lý</span><span style={{ fontWeight: 600 }}>{e.baseline}đ</span></div>
+                    <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.5 }}>Ít tháng dữ liệu thì điểm thô được kéo gần mức trung bình chung cho công bằng — càng nhiều tháng đủ ĐK, điểm càng phản ánh đúng.</div>
+                  </div>
+                  <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f0f9ff", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>Điểm điều hành năm <span style={{ fontSize: 11, color: "#075985", fontWeight: 400 }}>(đã điều chỉnh)</span></span>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: scoreColor(e.score) }}>{e.score}đ</span>
+                  </div>
+                </>);
+              })()}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* MODAL: Danh sách nhiệm vụ theo nguyên nhân trễ */}
       {lateReasonDetail && (
         <div onClick={() => setLateReasonDetail(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: isMobile ? "12px 8px" : 16 }}>
@@ -365,7 +429,7 @@ export default function Reports({
 }
 
 // ── Bảng ĐIỂM ĐIỀU HÀNH cho Trưởng/Phó phòng (xếp hạng riêng, dùng cho cả tab Tháng lẫn Xếp hạng năm) ──
-function ManagerBoard({ data, isMobile, yearly }) {
+function ManagerBoard({ data, isMobile, yearly, onWhy }) {
   if (!data || data.length === 0) return null;
   const okOf = e => yearly ? e.score !== null : e.eligible;
   const scoreOf = e => yearly ? e.score : e.perfScore;
@@ -394,10 +458,10 @@ function ManagerBoard({ data, isMobile, yearly }) {
                 <td style={{ padding: "9px 12px", color: "#6b7280" }}>{r2(e.doneW || 0)}/{r2(e.resolvedW || 0)}</td>
                 <td style={{ padding: "9px 12px" }}>
                   {!ok ? <span style={{ fontSize: 12, color: "#9ca3af" }}>{refScore != null && <b style={{ color: "#6b7280", marginRight: 6 }}>~{refScore}đ (tham khảo)</b>}Chưa đủ ĐK</span> : (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }} title={bd ? `Đúng hạn ${bd.timeliness} + Chất lượng ${bd.quality} − Tồn đọng ${bd.penalty} + Khối lượng ĐH ${bd.mgmtBonus}` : ""}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{ width: 60, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: sc + "%", background: sc >= 80 ? "#16a34a" : sc >= 50 ? "#f59e0b" : "#dc2626", borderRadius: 6 }} /></div>
                       <span style={{ fontSize: 12, fontWeight: 700, color: sc >= 80 ? "#15803d" : sc >= 50 ? "#92400e" : "#b91c1c" }}>{sc}đ</span>
-                      {bd && <span style={{ fontSize: 11, color: "#9ca3af", cursor: "help" }}>ℹ️</span>}
+                      <button onClick={() => onWhy && onWhy({ ...e, yearly })} title="Vì sao điểm này?" style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 6, padding: "1px 6px", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>ℹ️</button>
                     </div>
                   )}
                 </td>
