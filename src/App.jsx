@@ -299,7 +299,7 @@ export default function App() {
     execDeptSummary, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks,
     calcMonthPerf,
-  } = useReports({ computed, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring });
+  } = useReports({ computed, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks });
 
   // ── Chốt sổ điểm tháng: lưu snapshot cố định điểm hiệu suất vào monthly_scores để điểm quá khứ
   // không thay đổi khi dữ liệu sống bị sửa/xóa về sau — phục vụ phiếu xếp loại quý/năm (bình xét thi đua).

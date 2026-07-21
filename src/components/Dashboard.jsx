@@ -16,6 +16,9 @@ export default function Dashboard({
   setModal, loadComments,
   getEmp, todayStr,
 }) {
+  // Nhân viên (staff) chỉ thấy việc của mình → ẩn các khối mang tính điều hành/toàn phòng
+  // (thống kê tổng, biểu đồ phòng ban, cảnh báo quá tải, quản lý nhiệm vụ định kỳ) cho gọn và tránh trùng lặp.
+  const isManagerView = FULL_ACCESS.includes(currentUser.role) || ["manager", "deputy_manager"].includes(currentUser.role);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 12px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -105,7 +108,7 @@ export default function Dashboard({
             <div><div style={{ fontWeight: 700, fontSize: 15 }}>👤 {currentUser.full_name}</div><div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{userDept ? `Phòng ${userDept}` : ""}</div></div>
             <div style={{ textAlign: "right" }}><div style={{ fontSize: 28, fontWeight: 800, color: "#a5b4fc" }}>{myTasks.rate}%</div><div style={{ fontSize: 11, opacity: 0.7 }}>Tỷ lệ HT</div></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: myTasks.pending.length ? 12 : 0 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 8 }}>
             {[{v:myTasks.total,l:"Tổng việc",c:"#c7d2fe"},{v:myTasks.done,l:"Hoàn thành",c:"#86efac"},{v:myTasks.over,l:"Quá hạn",c:"#fca5a5"},{v:myTasks.completedLate,l:"HT quá hạn",c:"#fda4af"},{v:myTasks.nd,l:"Sắp hết hạn",c:"#fde68a"},{v:myTasks.rate+"%",l:"Tỷ lệ HT",c:"#a5f3fc"}].map(s => (
               <div key={s.l} style={{ background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 6px", textAlign: "center" }}>
                 <div style={{ fontSize: 22, fontWeight: 700, color: s.c }}>{s.v}</div>
@@ -113,6 +116,12 @@ export default function Dashboard({
               </div>
             ))}
           </div>
+          {myTasks.breakdown && (myTasks.breakdown.support + myTasks.breakdown.proj + myTasks.breakdown.other) > 0 && (
+            <div style={{ fontSize: 11, opacity: 0.8, lineHeight: 1.6, marginBottom: myTasks.pending.length ? 12 : 0 }}>
+              Gồm: 📋 {myTasks.breakdown.task} nhiệm vụ · 🎧 {myTasks.breakdown.support} hỗ trợ · 💰 {myTasks.breakdown.proj} bước ngân sách · 📌 {myTasks.breakdown.other} nhiệm vụ khác
+              <span style={{ opacity: 0.75 }}> · (Quá hạn/Sắp hết hạn chỉ tính nhiệm vụ thường)</span>
+            </div>
+          )}
           {myTasks.pending.length > 0 && (
             <div>
               <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 6 }}>Việc cần làm:</div>
@@ -138,6 +147,7 @@ export default function Dashboard({
         </div>
       )}
 
+      {isManagerView && (<>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(7,minmax(0,1fr))", gap: isMobile ? 8 : 8 }}>
         {[{label:"Tổng",val:stats.total,bg:"#eef2ff",col:"#4338ca",key:"total"},{label:"Trong hạn",val:stats.on_time,bg:"#dcfce7",col:"#15803d",key:"on_time"},{label:"Sắp hết hạn",val:stats.nearly_due,bg:"#fef9c3",col:"#92400e",key:"nearly_due"},{label:"Quá hạn",val:stats.overdue,bg:"#fee2e2",col:"#b91c1c",key:"overdue"},{label:"Chờ duyệt",val:stats.pending_approval,bg:"#fef3c7",col:"#92400e",key:"pending_approval"},{label:"HT quá hạn",val:stats.completed_late,bg:"#fee2e2",col:"#991b1b",key:"completed_late"},{label:"Hoàn thành",val:stats.completed,bg:"#e0e7ff",col:"#4338ca",key:"completed"}].map(c => (
           <div key={c.label} onClick={() => setStatFilter(f => f === c.key ? null : c.key)} style={{ background: c.bg, borderRadius: 9, padding: isMobile ? 10 : "10px 12px", minHeight: isMobile ? 92 : 96, cursor: "pointer", border: "1.5px solid " + (statFilter === c.key ? c.col : "transparent"), transition: "border 0.15s", userSelect: "none", boxSizing: "border-box", overflow: "hidden" }}>
@@ -221,6 +231,8 @@ export default function Dashboard({
           </div>
         </div>
       )}
+
+      </>)}
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
         {[{s:"overdue",title:"Quá hạn",border:"#fca5a5",hdr:"#fef2f2"},{s:"nearly_due",title:"Sắp hết hạn",border:"#fde68a",hdr:"#fefce8"}].map(({s,title,border,hdr}) => {

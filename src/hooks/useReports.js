@@ -21,7 +21,7 @@ const isStepLate = (s) => {
 // Khó = 1 việc, Trung bình = 1/2 việc, Nhanh = 1/4 việc
 export const SUPPORT_WEIGHT = { hard: 1, medium: 0.5, easy: 0.25 };
 
-export default function useReports({ computed, employees, currentUser, overloadThreshold, projects, supportCases }) {
+export default function useReports({ computed, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks }) {
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
   // ── Trường hợp hỗ trợ người dùng nền tảng số dùng chung → quy thành "việc hoàn thành" theo trọng số độ khó,
@@ -230,7 +230,31 @@ export default function useReports({ computed, employees, currentUser, overloadT
   const overloadedEmps = useMemo(() => (employees || []).map(emp => { const active = computed.filter(t => t.eid === emp.id && !isCompletedStatus(t.status)); return { ...emp, activeCount: active.length }; }).filter(e => e.activeCount >= overloadThreshold), [employees, computed, overloadThreshold]);
 
   const myTrend = useMemo(() => { if (!currentUser?.employee_id) return []; const months = []; for (let i = 5; i >= 0; i--) { const d = new Date(today.getFullYear(), today.getMonth() - i, 1); const m = d.getMonth(), y = d.getFullYear(); const mt = computed.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === y && td.getMonth() === m && (t.eid === currentUser.employee_id || parseJSON(t.collab_eids, []).includes(currentUser.employee_id)); }); months.push({ name: `T${m + 1}`, "Hoàn thành": mt.filter(t => isCompletedStatus(t.status)).length, "Tổng": mt.length }); } return months; }, [computed, currentUser]);
-  const myTasks = useMemo(() => { if (!currentUser?.employee_id) return null; const my = computed.filter(t => t.eid === currentUser.employee_id || parseJSON(t.collab_eids, []).includes(currentUser.employee_id)); const done = my.filter(t => isCompletedStatus(t.status)).length, over = my.filter(t => t.status === "overdue").length, completedLate = my.filter(t => t.status === "completed_late").length, nd = my.filter(t => t.status === "nearly_due").length, active = my.filter(t => !isCompletedStatus(t.status)); return { total: my.length, done, over, completedLate, nd, rate: my.length ? Math.round(done / my.length * 100) : 0, pending: active.sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)).slice(0, 3) }; }, [computed, currentUser]);
+  // "Việc của tôi" — gộp ĐỦ khối lượng thực của nhân viên trên mọi module (đếm đầu việc, mỗi mục = 1):
+  // (1) nhiệm vụ thường/định kỳ, (2) trường hợp Hỗ trợ ND/Xử lý lỗi TTDL, (3) bước dự án ngân sách,
+  // (4) bước Nhiệm vụ khác — tính cả vai trò chủ trì lẫn phối hợp. Riêng Quá hạn/Sắp hết hạn chỉ áp cho
+  // nhiệm vụ thường (các module kia không có cùng khái niệm hạn chót từng mục).
+  const myTasks = useMemo(() => {
+    const eid = currentUser?.employee_id;
+    if (!eid) return null;
+    const inList = ids => parseJSON(ids, []).includes(eid);
+    const my = computed.filter(t => t.eid === eid || inList(t.collab_eids));
+    let total = my.length;
+    let done = my.filter(t => isCompletedStatus(t.status)).length;
+    const over = my.filter(t => t.status === "overdue").length;
+    const completedLate = my.filter(t => t.status === "completed_late").length;
+    const nd = my.filter(t => t.status === "nearly_due").length;
+    const active = my.filter(t => !isCompletedStatus(t.status));
+    const supportCount = (supportCases || []).filter(c => c.eid === eid || inList(c.collab_eids)).length;
+    const countSteps = arr => { let d = 0, a = 0; for (const item of (arr || [])) for (const s of parseJSON(item.steps, [])) { if (s.lead_eid === eid || inList(s.collab_eids)) { if (s.status === "done") d++; else a++; } } return { d, a }; };
+    const proj = countSteps(projects);
+    const other = countSteps(otherTasks);
+    total += supportCount + proj.d + proj.a + other.d + other.a;
+    done += supportCount + proj.d + other.d;
+    return { total, done, over, completedLate, nd, rate: total ? Math.round(done / total * 100) : 0,
+      pending: active.sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)).slice(0, 3),
+      breakdown: { task: my.length, support: supportCount, proj: proj.d + proj.a, other: other.d + other.a } };
+  }, [computed, currentUser, supportCases, projects, otherTasks]);
 
   return {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
