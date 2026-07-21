@@ -243,16 +243,18 @@ export default function useReports({ computed, employees, currentUser, overloadT
     let done = my.filter(t => isCompletedStatus(t.status)).length;
     let over = my.filter(t => t.status === "overdue").length;
     const completedLate = my.filter(t => t.status === "completed_late").length;
-    const nd = my.filter(t => t.status === "nearly_due").length;
+    let nd = my.filter(t => t.status === "nearly_due").length;
     const active = my.filter(t => !isCompletedStatus(t.status));
     const supportCount = (supportCases || []).filter(c => c.eid === eid || inList(c.collab_eids)).length;
-    // Bước quá hạn: chưa done/bỏ qua và đã quá hạn chót của bước (dự án dùng s.end, nhiệm vụ khác dùng s.deadline)
-    const countSteps = (arr, dlField) => { let d = 0, a = 0, ov = 0; for (const item of (arr || [])) for (const s of parseJSON(item.steps, [])) { if (s.lead_eid === eid || inList(s.collab_eids)) { if (s.status === "done") d++; else { a++; const dl = s[dlField]; if (dl && s.status !== "skipped") { const dd = new Date(dl); dd.setHours(0, 0, 0, 0); if (dd < today) ov++; } } } } return { d, a, ov }; };
+    // Trạng thái hạn của từng bước (chưa done/bỏ qua): quá hạn nếu hạn < hôm nay, sắp hết hạn nếu còn ≤3 ngày
+    // — cùng công thức nhiệm vụ thường. Dự án dùng s.end, nhiệm vụ khác dùng s.deadline.
+    const countSteps = (arr, dlField) => { let d = 0, a = 0, ov = 0, nDue = 0; for (const item of (arr || [])) for (const s of parseJSON(item.steps, [])) { if (s.lead_eid === eid || inList(s.collab_eids)) { if (s.status === "done") d++; else { a++; const dl = s[dlField]; if (dl && s.status !== "skipped") { const dd = new Date(dl); dd.setHours(0, 0, 0, 0); const dleft = Math.ceil((dd - today) / 86400000); if (dleft < 0) ov++; else if (dleft <= 3) nDue++; } } } } return { d, a, ov, nd: nDue }; };
     const proj = countSteps(projects, "end");
     const other = countSteps(otherTasks, "deadline");
     total += supportCount + proj.d + proj.a + other.d + other.a;
     done += supportCount + proj.d + other.d;
     over += proj.ov + other.ov;
+    nd += proj.nd + other.nd;
     return { total, done, over, completedLate, nd, rate: total ? Math.round(done / total * 100) : 0,
       pending: active.sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)).slice(0, 3),
       breakdown: { task: my.length, support: supportCount, proj: proj.d + proj.a, other: other.d + other.a } };
