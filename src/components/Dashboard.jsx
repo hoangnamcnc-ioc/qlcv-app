@@ -24,8 +24,13 @@ export default function Dashboard({
   const [wlPage, setWlPage] = useState(1);
   const [doneOpen, setDoneOpen] = useState(false); // mục "Đã hoàn thành tháng này"
   const [profileId, setProfileId] = useState(null); // hồ sơ nhân viên đang mở
+  const [rosterPage, setRosterPage] = useState(1); // phân trang bảng nhân sự
   // Danh sách nhân sự trong tầm quản lý để lập "bảng nhân sự": TP/PP xem phòng mình, BGĐ xem tất cả
   const rosterEmps = isManagerView ? (employees || []).filter(e => FULL_ACCESS.includes(currentUser.role) || e.dept === userDept).slice().sort((a, b) => a.dept === b.dept ? a.name.localeCompare(b.name) : a.dept.localeCompare(b.dept)) : [];
+  const ROSTER_SIZE = 8;
+  const rosterTotalPages = Math.max(1, Math.ceil(rosterEmps.length / ROSTER_SIZE));
+  const rosterPageSafe = Math.min(rosterPage, rosterTotalPages);
+  const rosterPaged = rosterEmps.slice((rosterPageSafe - 1) * ROSTER_SIZE, rosterPageSafe * ROSTER_SIZE);
   const WL_SIZE = 8;
   const wlTotalPages = Math.max(1, Math.ceil((myWorkList?.length || 0) / WL_SIZE));
   const wlPageSafe = Math.min(wlPage, wlTotalPages);
@@ -271,7 +276,7 @@ export default function Dashboard({
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead><tr style={{ background: "#f9fafb" }}>{[["Nhân viên", "left"], ["Việc đang mở", "center"], ["Điểm tháng", "center"], ["Đúng hạn", "center"], ["", "center"]].map(([h, al], i) => <th key={i} style={{ padding: "8px 12px", textAlign: al, fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
-              <tbody>{rosterEmps.map(e => { const p = empProfile(e.id); if (!p) return null; const over = p.openW >= overloadThreshold; return (
+              <tbody>{rosterPaged.map(e => { const p = empProfile(e.id); if (!p) return null; const over = p.openW >= overloadThreshold; return (
                 <tr key={e.id} onClick={() => setProfileId(e.id)} style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer" }} onMouseEnter={ev => ev.currentTarget.style.background = "#f9fafb"} onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "9px 12px" }}><div style={{ fontWeight: 500 }}>{e.name}</div><div style={{ fontSize: 11, color: "#9ca3af" }}>{e.dept} · {e.role}</div></td>
                   <td style={{ padding: "9px 12px", textAlign: "center", whiteSpace: "nowrap" }}><span style={{ color: over ? "#b91c1c" : "#374151", fontWeight: over ? 700 : 500 }}>{p.openCount}</span> <span style={{ fontSize: 11, color: "#9ca3af" }}>(≈{p.openW})</span>{over && " 🔥"}</td>
@@ -282,7 +287,16 @@ export default function Dashboard({
               ); })}</tbody>
             </table>
           </div>
-          <div style={{ padding: "6px 16px", fontSize: 11, color: "#9ca3af", borderTop: "1px solid #f3f4f6" }}>💡 "Điểm tháng" theo tháng đang chọn ở Báo cáo · (tk) = điểm tham khảo khi chưa đủ 5 việc đến hạn</div>
+          <div style={{ padding: "8px 16px", borderTop: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: "#9ca3af" }}>💡 "Điểm tháng" theo tháng đang chọn ở Báo cáo · (tk) = điểm tham khảo khi chưa đủ 5 việc đến hạn</span>
+            {rosterTotalPages > 1 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <button onClick={() => setRosterPage(p => Math.max(1, p - 1))} disabled={rosterPageSafe <= 1} style={{ padding: "3px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: rosterPageSafe <= 1 ? "#f3f4f6" : "#fff", color: rosterPageSafe <= 1 ? "#d1d5db" : "#374151", cursor: rosterPageSafe <= 1 ? "default" : "pointer", fontSize: 12 }}>‹</button>
+                <span style={{ fontSize: 12, color: "#6b7280" }}>{rosterPageSafe}/{rosterTotalPages}</span>
+                <button onClick={() => setRosterPage(p => Math.min(rosterTotalPages, p + 1))} disabled={rosterPageSafe >= rosterTotalPages} style={{ padding: "3px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: rosterPageSafe >= rosterTotalPages ? "#f3f4f6" : "#fff", color: rosterPageSafe >= rosterTotalPages ? "#d1d5db" : "#374151", cursor: rosterPageSafe >= rosterTotalPages ? "default" : "pointer", fontSize: 12 }}>›</button>
+              </div>
+            )}
+          </div>
         </div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(7,minmax(0,1fr))", gap: isMobile ? 8 : 8 }}>
