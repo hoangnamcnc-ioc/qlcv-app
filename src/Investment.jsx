@@ -418,8 +418,12 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
   const isBGD=["admin","director"].includes(currentUser?.role); // Ban Giám đốc
   const myEid=currentUser?.employee_id;
   const isProjLead=p=>myEid&&myEid===p.lead_eid; // Phụ trách chính dự án
+  // Nhân viên chỉ được xem dự án mình có tham gia: phụ trách chính / lãnh đạo / thành viên / chủ trì hoặc phối hợp một bước
+  const isInvolved=p=>{if(!myEid)return false;if(p.lead_eid===myEid||(p.leader_id&&p.leader_id===currentUser?.id))return true;if(parseJSON(p.member_eids,[]).includes(myEid))return true;return parseJSON(p.steps,[]).some(s=>s.lead_eid===myEid||parseJSON(s.collab_eids,[]).includes(myEid));};
+  // Lọc theo quyền (giống nhiệm vụ): admin/BGĐ xem tất cả; trưởng/phó phòng theo phòng mình; nhân viên chỉ dự án mình tham gia
+  const visibleProjects=useMemo(()=>{if(canSeeAll)return projects;if(["manager","deputy_manager","manager_hcth"].includes(currentUser?.role))return projects.filter(p=>p.dept===userDept);return projects.filter(isInvolved);},[projects,canSeeAll,currentUser,userDept,myEid]);
   // Dự án thuộc tab đang xem (dự án chưa gán loại chi mặc định coi là Chi Hoạt Động)
-  const baseProjects=useMemo(()=>projects.filter(p=>(p.expense_type||"operating")===expenseTab),[projects,expenseTab]);
+  const baseProjects=useMemo(()=>visibleProjects.filter(p=>(p.expense_type||"operating")===expenseTab),[visibleProjects,expenseTab]);
   const invStats=useMemo(()=>({budget:baseProjects.reduce((s,p)=>s+(Number(p.total_budget)||0),0),spent:baseProjects.reduce((s,p)=>s+(Number(p.spent)||0),0)}),[baseProjects]);
   const projStatus=(p)=>{const steps=parseJSON(p.steps,[]);if(steps.length===0)return"pending";const done=steps.filter(s=>s.status==="done").length;if(countOverdueSteps(steps)>0)return"overdue";if(done===steps.length)return"done";return"doing";};
   const statusCounts=useMemo(()=>{let done=0,doing=0,overdue=0;baseProjects.forEach(p=>{const st=projStatus(p);if(st==="done")done++;else if(st==="overdue")overdue++;else doing++;});return{done,doing,overdue};},[baseProjects]);
