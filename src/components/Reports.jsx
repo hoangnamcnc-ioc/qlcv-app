@@ -362,7 +362,7 @@ export default function Reports({
                   <MRow icon="①" label="Đúng hạn phòng" sub={`(${r2(e.onTimeW)} đúng hạn ×60 + ${r2(e.lateW)} trễ ×30) ÷ ${r2(e.resolvedW)} việc phòng đã đến hạn · tối đa 60`} val={e.breakdown.timeliness} />
                   <MRow icon="②" label="Chất lượng phòng" sub={`Trung bình nghiệm thu ${r2(e.onTimeW)} việc đúng hạn của phòng (chưa ĐG = Trung bình) · tối đa 40`} val={e.breakdown.quality} />
                   <MRow icon="③" label="Tồn đọng quá hạn" sub={`Tỷ lệ việc phòng còn quá hạn chưa xong: ${r2(e.overW)}/${r2(e.resolvedW)} · tối đa −10`} val={e.breakdown.penalty} neg />
-                  <MRow icon="④" label="Thưởng khối lượng điều hành" sub={`Phòng xử lý ${r2(e.resolvedW)} việc đã đến hạn (vượt ${r2(Math.max(e.resolvedW - 15, 0))} so mốc 15) · tối đa +10`} val={e.breakdown.mgmtBonus} />
+                  <MRow icon="④" label="Thưởng khối lượng điều hành" sub={`Phòng ${e.empCount} người xử lý ${r2(e.resolvedW)} việc đã đến hạn → bình quân ${r2(e.perHead)}/người (thưởng khi >10, tối đa +10 khi ≥20/người)`} val={e.breakdown.mgmtBonus} />
                 </div>
                 <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f0f9ff", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>Tổng điểm điều hành <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400 }}>(giới hạn 0–100)</span></span>
@@ -439,7 +439,7 @@ function ManagerBoard({ data, isMobile, yearly, onWhy }) {
     <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #bae6fd", overflow: "hidden" }}>
       <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f0f9ff" }}>
         <span style={{ fontWeight: 600, fontSize: 13, color: "#075985" }}>🏛️ Điểm điều hành — Trưởng/Phó phòng {yearly ? "(cả năm)" : "(tháng)"}</span>
-        {!isMobile && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 3, lineHeight: 1.6 }}>Điểm theo <b>kết quả điều hành cả phòng</b>: Đúng hạn phòng (60%) + Chất lượng phòng (40%) − Tồn đọng quá hạn + Thưởng khối lượng điều hành. Đủ ĐK khi phòng có ≥5 việc quy đổi đã đến hạn/tháng. <b>Xếp hạng riêng, không so trực tiếp với nhân viên.</b></div>}
+        {!isMobile && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 3, lineHeight: 1.6 }}>Điểm theo <b>kết quả điều hành cả phòng</b>: Đúng hạn phòng (60%) + Chất lượng phòng (40%) − Tồn đọng quá hạn + Thưởng khối lượng (bình quân &gt;10 việc quy đổi/người). Đủ ĐK khi phòng có ≥5 việc quy đổi đã đến hạn/tháng. <b>Xếp hạng riêng, không so trực tiếp với nhân viên.</b></div>}
       </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: isMobile ? 0 : 520 }}>

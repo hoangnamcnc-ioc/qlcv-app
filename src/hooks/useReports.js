@@ -261,17 +261,22 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const resolvedW = Math.round((onTimeW + lateW + overW) * 100) / 100;
     const eligible = resolvedW >= 5;
     const onTimeRate = resolvedW > 0 ? Math.round(onTimeW / resolvedW * 100) : 0;
+    // Khối lượng điều hành tính theo BÌNH QUÂN ĐẦU NGƯỜI của phòng (không dùng mốc 15 vốn dành cho 1 cá nhân —
+    // resolvedW của quản lý là khối lượng CẢ PHÒNG nên sẽ luôn kịch trần). Kỳ vọng nền ~10 việc quy đổi/người/tháng:
+    // bình quân >10/người mới bắt đầu thưởng, đạt tối đa +10 khi ≥20/người — công bằng với phòng ít/nhiều nhân sự.
+    const empCount = (employees || []).filter(e => e.dept === dept).length || 1;
+    const perHead = resolvedW / empCount;
     let perfScore = 0, breakdown = null;
     if (resolvedW > 0) {
       const timeliness = (onTimeW * 60 + lateW * 30) / resolvedW;                         // ① 0..60
       const qualitySum = onTimeTasks.reduce((s, t) => s + (RATING[t.rating] ? RATING[t.rating].score : 2) * w(t), 0);
       const quality = qualitySum / (resolvedW * 4) * 40;                                   // ② 0..40
       const penalty = Math.round(overW / resolvedW * 10 * 10) / 10;                        // ③ 0..10 (tỷ lệ tồn đọng)
-      const mgmtBonus = Math.max(0, Math.min((resolvedW - 15) * 0.5, 10));                 // ④ 0..10 (khối lượng điều hành)
+      const mgmtBonus = Math.max(0, Math.min(perHead - 10, 10));                           // ④ 0..10 (khối lượng bình quân/người)
       perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + mgmtBonus)));
       breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, mgmtBonus: Math.round(mgmtBonus * 10) / 10 };
     }
-    return { dept, resolvedW, doneW, onTimeW, lateW, overW, onTimeRate, perfScore, eligible, breakdown };
+    return { dept, resolvedW, doneW, onTimeW, lateW, overW, onTimeRate, empCount, perHead: Math.round(perHead * 10) / 10, perfScore, eligible, breakdown };
   };
 
   // Bảng điểm điều hành THÁNG (xếp hạng riêng cho cấp quản lý)
