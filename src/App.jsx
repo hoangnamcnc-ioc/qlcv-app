@@ -776,7 +776,7 @@ export default function App() {
             <Investment currentUser={currentUser} employees={employees} users={users} getEmp={getEmp} isMobile={isMobile} inp={inp} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} showToast={showToast} onScoringChange={refreshScoringData} openProjectId={pendingOpenProjectId} onProjectOpened={()=>setPendingOpenProjectId(null)}/>
           )}
           {view==="othertasks"&&(
-            <OtherTasks currentUser={currentUser} employees={employees} getEmp={getEmp} isMobile={isMobile} inp={inp} showToast={showToast} tasksData={otherTasks} setTasksData={setOtherTasks} openTaskId={pendingOpenOtherTaskId} onTaskOpened={()=>setPendingOpenOtherTaskId(null)}/>
+            <OtherTasks currentUser={currentUser} employees={employees} getEmp={getEmp} isMobile={isMobile} inp={inp} showToast={showToast} tasksData={otherTasks} setTasksData={setOtherTasks} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} openTaskId={pendingOpenOtherTaskId} onTaskOpened={()=>setPendingOpenOtherTaskId(null)}/>
           )}
           {view==="supportcases"&&(
             <SupportCases currentUser={currentUser} employees={employees} getEmp={getEmp} isMobile={isMobile} inp={inp} showToast={showToast} onScoringChange={refreshScoringData} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles}/>

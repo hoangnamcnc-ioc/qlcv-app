@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
-import { fmtDate } from "./helpers";
+import { fmtDate, getPreviewUrl, getFileIcon } from "./helpers";
 
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
 const today=new Date();today.setHours(0,0,0,0);
@@ -20,9 +20,12 @@ const isStepOverdue=s=>{if(!s.deadline||s.status==="done"||s.status==="skipped")
 const countOverdueSteps=stepsArr=>(stepsArr||[]).filter(isStepOverdue).length;
 
 // ───── Chi tiết nhiệm vụ ─────
-function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUpdateSteps,inp,currentUser,canManage}){
+function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUpdateSteps,onUpdateTask,uploadFiles,uploadingFiles,inp,currentUser,canManage}){
   const steps=parseJSON(task.steps,[]);
   const team=parseJSON(task.team,[]);
+  const locked=!!task.locked; // Nhiệm vụ đã "Kết thúc" — khóa mọi tương tác cho tới khi Khôi phục
+  // Bước tuần tự: chỉ được Đang làm / Yêu cầu hoàn thành khi TẤT CẢ bước trước đã Hoàn thành hoặc Bỏ qua
+  const prevCleared=idx=>steps.slice(0,idx).every(s=>s.status==="done"||s.status==="skipped");
   const [editStep,setEditStep]=useState(null);
   const [stepDraft,setStepDraft]=useState(null);
   const doneCount=steps.filter(s=>s.status==="done").length;
@@ -59,10 +62,11 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
         <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af",marginLeft:8}}>✕</button>
       </div>
       <div style={{padding:20}}>
+        {locked&&<div style={{marginBottom:16,padding:"10px 14px",borderRadius:8,background:"#fef9c3",border:"1px solid #fde68a",color:"#92400e",fontSize:13,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><span>🔒 <b>Nhiệm vụ đã kết thúc</b> — đang khóa, không thao tác được.{canEditTask?" Bấm Khôi phục để mở lại.":""}</span>{canEditTask&&<button onClick={()=>onUpdateTask(task,{locked:false})} style={{padding:"5px 12px",border:"1px solid #16a34a",borderRadius:7,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:12.5,fontWeight:600}}>🔓 Khôi phục nhiệm vụ</button>}</div>}
         {task.content&&<div style={{fontSize:13,color:"#374151",background:"#f8fafc",padding:"12px 14px",borderRadius:8,marginBottom:16,whiteSpace:"pre-wrap"}}>{task.content}</div>}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
           <div style={{fontWeight:600,fontSize:14}}>📋 Trình tự thực hiện ({doneCount}/{steps.length}){countOverdueSteps(steps)>0&&<span style={{marginLeft:8,fontSize:11,background:"#fee2e2",color:"#b91c1c",padding:"2px 8px",borderRadius:8,fontWeight:600}}>⚠ {countOverdueSteps(steps)} bước trễ hạn</span>}</div>
-          {canEditTask&&<button onClick={addStep} style={{padding:"5px 12px",border:"1px solid #86efac",borderRadius:7,background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#15803d"}}>+ Thêm bước</button>}
+          {canEditTask&&!locked&&<button onClick={addStep} style={{padding:"5px 12px",border:"1px solid #86efac",borderRadius:7,background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#15803d"}}>+ Thêm bước</button>}
         </div>
         <div style={{height:6,background:"#e5e7eb",borderRadius:6,overflow:"hidden",marginBottom:16}}><div style={{height:"100%",width:pct+"%",background:pct===100?"#16a34a":"#3b82f6",borderRadius:6}}/></div>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -75,6 +79,7 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
                 {(s.collab_eids||[]).length>0&&<div style={{fontSize:13,color:"#15803d",marginTop:3}}>🤝 Phối hợp: {(s.collab_eids||[]).map(id=>getEmp(id)?.name).filter(Boolean).join(", ")}</div>}
                 {s.deadline&&<div style={{fontSize:13,color:"#6b7280",marginTop:3}}>📅 Hạn hoàn thành: <b>{fmtDate(s.deadline)}</b></div>}
                 {s.note&&<div style={{fontSize:13,color:"#475569",marginTop:3,fontStyle:"italic"}}>{s.note}</div>}
+                {(s.attachments||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:5}}>{(s.attachments||[]).map((f,fi)=><a key={fi} href={getPreviewUrl(f.url,f.name)} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>{getFileIcon(f.name)} {f.name}</a>)}</div>}
                 {s.status==="pending_approval"&&s.requested_by&&<div style={{fontSize:12,color:"#92400e",marginTop:3,background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>📨 {s.requested_by} đã yêu cầu hoàn thành · {s.requested_at}</div>}
                 {s.status==="done"&&s.quality&&<div style={{fontSize:12,color:STEP_QUALITY[s.quality]?.col,marginTop:3,background:STEP_QUALITY[s.quality]?.bg,padding:"4px 10px",borderRadius:6}}>{STEP_QUALITY[s.quality]?.star} {STEP_QUALITY[s.quality]?.label}{s.quality_note&&` — ${s.quality_note}`}<div style={{fontSize:11,opacity:0.75,marginTop:2}}>Duyệt bởi {s.approved_by} · {s.approved_at}</div></div>}
               </div>
@@ -83,10 +88,10 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
                 {isStepOverdue(s)&&<span style={{fontSize:12,background:"#fee2e2",color:"#b91c1c",padding:"3px 8px",borderRadius:8,fontWeight:600}}>⚠ Trễ hạn</span>}
               </div>
             </div>
-            <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
-              {/* Chủ trì: chuyển trạng thái thường + yêu cầu hoàn thành */}
-              {canEditStep(s)&&s.status!=="done"&&s.status!=="pending_approval"&&["pending","doing","skipped"].map(k=>{const v=STEP_STATUS[k];return(<button key={k} onClick={()=>setStepStatus(idx,k)} style={{padding:"3px 8px",border:"1px solid "+(s.status===k?v.col:"#e5e7eb"),borderRadius:6,background:s.status===k?v.bg:"#fff",color:s.status===k?v.col:"#9ca3af",cursor:"pointer",fontSize:12.5,fontWeight:s.status===k?600:400}}>{v.label}</button>);})}
-              {canEditStep(s)&&(s.status==="pending"||s.status==="doing")&&<button onClick={()=>requestStepDone(idx)} style={{padding:"3px 10px",border:"1px solid #fbbf24",borderRadius:6,background:"#fffbeb",color:"#92400e",cursor:"pointer",fontSize:12.5,fontWeight:600}}>📨 Yêu cầu hoàn thành</button>}
+            {!locked&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+              {/* Chủ trì: chuyển trạng thái thường + yêu cầu hoàn thành. "Đang làm" bị chặn nếu bước trước chưa xong */}
+              {canEditStep(s)&&s.status!=="done"&&s.status!=="pending_approval"&&["pending","doing","skipped"].map(k=>{const v=STEP_STATUS[k];const blocked=k==="doing"&&!prevCleared(idx);return(<button key={k} disabled={blocked} title={blocked?"Cần hoàn thành hoặc bỏ qua các bước trước đã":""} onClick={()=>setStepStatus(idx,k)} style={{padding:"3px 8px",border:"1px solid "+(s.status===k?v.col:"#e5e7eb"),borderRadius:6,background:s.status===k?v.bg:"#fff",color:s.status===k?v.col:"#9ca3af",cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.45:1,fontSize:12.5,fontWeight:s.status===k?600:400}}>{v.label}</button>);})}
+              {canEditStep(s)&&(s.status==="pending"||s.status==="doing")&&(prevCleared(idx)?<button onClick={()=>requestStepDone(idx)} style={{padding:"3px 10px",border:"1px solid #fbbf24",borderRadius:6,background:"#fffbeb",color:"#92400e",cursor:"pointer",fontSize:12.5,fontWeight:600}}>📨 Yêu cầu hoàn thành</button>:<span style={{fontSize:11,color:"#9ca3af",alignSelf:"center",background:"#f8fafc",padding:"3px 8px",borderRadius:6}}>🔒 Chờ bước trước hoàn thành</span>)}
               {/* Tổ trưởng/Tổ phó: duyệt hoặc từ chối yêu cầu */}
               {s.status==="pending_approval"&&canApprove&&<>
                 <button onClick={()=>setApprovalPopup({idx,quality:1,note:""})} style={{padding:"3px 10px",border:"1px solid #16a34a",borderRadius:6,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:12.5,fontWeight:600}}>✅ Duyệt & đánh giá</button>
@@ -95,13 +100,18 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
               <button onClick={()=>openEditStep(s,idx)} style={{padding:"3px 8px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:12.5,marginLeft:"auto"}}>✏️ Sửa</button>
               {canEditTask&&<button onClick={()=>insertStepAfter(idx)} style={{padding:"3px 8px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:12.5,color:"#1d4ed8"}}>⤵ Chèn dưới</button>}
               {canEditTask&&<button onClick={()=>deleteStep(idx)} style={{padding:"3px 8px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",cursor:"pointer",fontSize:11,color:"#dc2626"}}>🗑️</button>}
-            </div>
+            </div>}
           </div>))}
         </div>
       </div>
-      {(canEditTask||canDeleteTask)&&<div style={{padding:"12px 20px",borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",position:"sticky",bottom:0,background:"#fff"}}>
-        {canEditTask?<button onClick={onEdit} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>✏️ Sửa nhiệm vụ</button>:<span/>}
-        {canDeleteTask?<button onClick={onDelete} style={{padding:"8px 16px",border:"1px solid #fca5a5",borderRadius:8,background:"#fff0f0",cursor:"pointer",fontSize:13,color:"#dc2626"}}>🗑️ Xóa nhiệm vụ</button>:<span/>}
+      {(canEditTask||canDeleteTask)&&<div style={{padding:"12px 20px",borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap",position:"sticky",bottom:0,background:"#fff"}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {canEditTask&&!locked&&<button onClick={onEdit} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>✏️ Sửa nhiệm vụ</button>}
+          {canEditTask&&(locked
+            ?<button onClick={()=>onUpdateTask(task,{locked:false})} style={{padding:"8px 16px",border:"1px solid #16a34a",borderRadius:8,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:13,fontWeight:600}}>🔓 Khôi phục nhiệm vụ</button>
+            :<button onClick={()=>{if(window.confirm("Kết thúc nhiệm vụ? Toàn bộ sẽ bị khóa cho tới khi Khôi phục."))onUpdateTask(task,{locked:true});}} style={{padding:"8px 16px",border:"1px solid #4f46e5",borderRadius:8,background:"#eef2ff",color:"#4338ca",cursor:"pointer",fontSize:13,fontWeight:600}}>🔒 Kết thúc nhiệm vụ</button>)}
+        </div>
+        {canDeleteTask&&!locked?<button onClick={onDelete} style={{padding:"8px 16px",border:"1px solid #fca5a5",borderRadius:8,background:"#fff0f0",cursor:"pointer",fontSize:13,color:"#dc2626"}}>🗑️ Xóa nhiệm vụ</button>:<span/>}
       </div>}
     </div>
     {/* ── Popup duyệt & đánh giá bước ── */}
@@ -138,6 +148,14 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>👤 Người chủ trì</label><select value={stepDraft.lead_eid||""} onChange={e=>setStepDraft(d=>({...d,lead_eid:e.target.value}))} style={inp}><option value="">— Không gán —</option>{teamEmps.map(e=><option key={e.id} value={e.id}>{e.name} ({e.dept})</option>)}</select></div>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>🤝 Người phối hợp (chọn nhiều)</label><div style={{display:"flex",flexWrap:"wrap",gap:6,maxHeight:140,overflowY:"auto",padding:"4px 0"}}>{teamEmps.map(e=>{const sel=(stepDraft.collab_eids||[]).includes(e.id);const isLead=stepDraft.lead_eid===e.id;return(<button key={e.id} disabled={isLead} onClick={()=>{const c=stepDraft.collab_eids||[];const nc=sel?c.filter(x=>x!==e.id):[...c,e.id];setStepDraft(d=>({...d,collab_eids:nc}));}} style={{padding:"4px 10px",border:"1.5px solid "+(sel?"#16a34a":"#e5e7eb"),borderRadius:20,background:sel?"#dcfce7":"#fff",color:sel?"#15803d":"#6b7280",cursor:isLead?"default":"pointer",fontSize:11,fontWeight:sel?600:400,opacity:isLead?0.4:1}}>{sel&&"✓ "}{e.name}{isLead&&" (chủ trì)"}</button>);})}</div></div>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Ghi chú</label><input value={stepDraft.note||""} onChange={e=>setStepDraft(d=>({...d,note:e.target.value}))} style={inp}/></div>
+          {uploadFiles&&<div>
+            <label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>📎 File đính kèm của bước</label>
+            <label style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",border:"1.5px dashed #d1d5db",borderRadius:8,cursor:"pointer",background:"#f9fafb",fontSize:13,color:"#6b7280"}}>
+              <span>🗂️</span><span>{uploadingFiles?"Đang upload…":"Chọn file (chọn được nhiều file)…"}</span>
+              <input type="file" multiple style={{display:"none"}} disabled={uploadingFiles} onChange={async e=>{const files=Array.from(e.target.files);if(!files.length)return;const up=await uploadFiles(files,stepDraft.attachments||[]);setStepDraft(d=>({...d,attachments:up}));e.target.value="";}}/>
+            </label>
+            {(stepDraft.attachments||[]).length>0&&<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:4}}>{(stepDraft.attachments||[]).map((f,i)=>(<div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:"#f1f5f9",borderRadius:6,fontSize:12}}><span>{getFileIcon(f.name)} {f.name}</span><button onClick={()=>setStepDraft(d=>({...d,attachments:(d.attachments||[]).filter((_,idx)=>idx!==i)}))} style={{background:"none",border:"none",cursor:"pointer",color:"#dc2626",fontSize:14}}>✕</button></div>))}</div>}
+          </div>}
         </div>
         <div style={{padding:"0 18px 18px",display:"flex",gap:10,justifyContent:"flex-end"}}><button onClick={()=>setEditStep(null)} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={saveStep} style={{padding:"8px 16px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Lưu bước</button></div>
       </div>
@@ -190,7 +208,7 @@ function TaskForm({form,setForm,onClose,onSave,employees,isMobile,inp,saving}){
 }
 
 // ───── COMPONENT CHÍNH ─────
-export default function OtherTasks({ currentUser, employees, getEmp, isMobile, inp, showToast, tasksData, setTasksData, openTaskId, onTaskOpened }) {
+export default function OtherTasks({ currentUser, employees, getEmp, isMobile, inp, showToast, tasksData, setTasksData, uploadFiles, uploadingFiles, openTaskId, onTaskOpened }) {
   // Dùng state chung từ App.jsx nếu được truyền vào (để thông báo chờ duyệt cập nhật ngay lập tức),
   // ngược lại tự tải và quản lý state riêng.
   const [localTasks,setLocalTasks]=useState([]);
@@ -255,6 +273,8 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
 
   const deleteTask=async id=>{if(!window.confirm("Xóa vĩnh viễn nhiệm vụ này?"))return;await supabase.from("other_tasks").delete().eq("id",id);setTasks(p=>p.filter(x=>x.id!==id));setDetail(null);showToast&&showToast("Đã xóa nhiệm vụ");};
   const updateSteps=async(task,newSteps)=>{const stepsStr=JSON.stringify(newSteps);const{error}=await supabase.from("other_tasks").update({steps:stepsStr}).eq("id",task.id);if(!error){setTasks(p=>p.map(x=>x.id===task.id?{...x,steps:stepsStr}:x));setDetail(d=>d&&d.id===task.id?{...d,steps:stepsStr}:d);}else showToast&&showToast("Lỗi cập nhật bước","error");};
+  // Cập nhật trường bất kỳ của nhiệm vụ (dùng cho Kết thúc/Khôi phục nhiệm vụ - cột locked)
+  const updateTask=async(task,fields)=>{const{error}=await supabase.from("other_tasks").update(fields).eq("id",task.id);if(!error){setTasks(p=>p.map(x=>x.id===task.id?{...x,...fields}:x));setDetail(d=>d&&d.id===task.id?{...d,...fields}:d);}else showToast&&showToast("Lỗi cập nhật nhiệm vụ","error");};
 
   return (<div style={{display:"flex",flexDirection:"column",gap:14}}>
     <div style={{display:"flex",justifyContent:"flex-end"}}>{canManage&&<button onClick={openCreate} style={{background:"#059669",color:"#fff",border:"none",borderRadius:8,padding:isMobile?"6px 12px":"7px 16px",fontSize:isMobile?12:13,cursor:"pointer",fontWeight:500}}>+ Nhiệm vụ khác</button>}</div>
@@ -298,6 +318,6 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
     )}
 
     {form&&<TaskForm form={form} setForm={setForm} onClose={()=>setForm(null)} onSave={saveTask} employees={employees} isMobile={isMobile} inp={inp} saving={saving}/>}
-    {detail&&<TaskDetail task={detail} onClose={()=>setDetail(null)} getEmp={getEmp} employees={employees} isMobile={isMobile} onEdit={()=>openEdit(detail)} onDelete={()=>deleteTask(detail.id)} onUpdateSteps={updateSteps} inp={inp} currentUser={currentUser} canManage={canManage}/>}
+    {detail&&<TaskDetail task={detail} onClose={()=>setDetail(null)} getEmp={getEmp} employees={employees} isMobile={isMobile} onEdit={()=>openEdit(detail)} onDelete={()=>deleteTask(detail.id)} onUpdateSteps={updateSteps} onUpdateTask={updateTask} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} inp={inp} currentUser={currentUser} canManage={canManage}/>}
   </div>);
 }
