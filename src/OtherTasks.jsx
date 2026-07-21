@@ -206,10 +206,18 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
 
   const taskStatus=(t)=>{const steps=parseJSON(t.steps,[]);if(steps.length===0)return"pending";const done=steps.filter(s=>s.status==="done").length;if(countOverdueSteps(steps)>0)return"overdue";if(done===steps.length)return"done";return"doing";};
 
-  // Nhân viên chỉ xem nhiệm vụ mình tham gia (thành viên team, hoặc chủ trì/phối hợp một bước); quản lý/BGĐ/Admin xem tất cả
+  // Phạm vi xem (nhiệm vụ khác không có phòng ban riêng → suy từ người tham gia = team + chủ trì/phối hợp các bước):
+  //  · Admin/BGĐ: tất cả
+  //  · Trưởng/Phó phòng (& TP.HCTH): nhiệm vụ MÌNH tham gia HOẶC có nhân viên phòng mình tham gia
+  //  · Nhân viên: chỉ nhiệm vụ mình tham gia
   const myEid=currentUser?.employee_id;
-  const isInvolved=t=>{if(!myEid)return false;if(parseJSON(t.team,[]).includes(myEid))return true;return parseJSON(t.steps,[]).some(s=>s.lead_eid===myEid||parseJSON(s.collab_eids,[]).includes(myEid));};
-  const visibleTasks=useMemo(()=>canManage?tasks:tasks.filter(isInvolved),[tasks,canManage,myEid]);
+  const otherUserDept=getEmp(myEid)?.dept;
+  const partOf=t=>{const set=new Set(parseJSON(t.team,[]));parseJSON(t.steps,[]).forEach(s=>{if(s.lead_eid)set.add(s.lead_eid);parseJSON(s.collab_eids,[]).forEach(c=>set.add(c));});return[...set];};
+  const visibleTasks=useMemo(()=>{
+    if(["admin","director"].includes(currentUser?.role))return tasks;
+    const isMgr=["manager","deputy_manager","manager_hcth"].includes(currentUser?.role);
+    return tasks.filter(t=>{const ps=partOf(t);if(myEid&&ps.includes(myEid))return true;if(isMgr&&otherUserDept)return ps.some(eid=>getEmp(eid)?.dept===otherUserDept);return false;});
+  },[tasks,currentUser,myEid,otherUserDept,getEmp]);
   const filteredTasks=useMemo(()=>visibleTasks.filter(t=>{if(dateFrom&&(!t.created||t.created<dateFrom))return false;if(dateTo&&(!t.created||t.created>dateTo))return false;return true;}),[visibleTasks,dateFrom,dateTo]);
 
   useEffect(()=>{
