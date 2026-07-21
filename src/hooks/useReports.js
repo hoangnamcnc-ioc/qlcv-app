@@ -21,7 +21,10 @@ const isStepLate = (s) => {
 // Khó = 1 việc, Trung bình = 1/2 việc, Nhanh = 1/4 việc
 export const SUPPORT_WEIGHT = { hard: 1, medium: 0.5, easy: 0.25 };
 
-export default function useReports({ computed, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks }) {
+export default function useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks }) {
+  // Báo cáo/xếp hạng dùng dữ liệu TOÀN CỤC để mọi vai trò thấy giống nhau; nếu vì lý do nào đó
+  // không truyền computedGlobal thì lùi về computed (an toàn).
+  const cg = computedGlobal || computed;
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
   // ── Trường hợp hỗ trợ người dùng nền tảng số dùng chung → quy thành "việc hoàn thành" theo trọng số độ khó,
@@ -83,7 +86,7 @@ export default function useReports({ computed, employees, currentUser, overloadT
     return { dept: d, total: dt.length, totalW, doneW, perHead, over, overdue, completedLate, nd, done, rate, empCount: deptEmpsList.length, overloaded, lead: lead?.name || "—" };
   }), [computed, employees, overloadThreshold]);
 
-  const repTasks = useMemo(() => computed.filter(t => { const d = new Date(t.deadline); return d.getFullYear() === repYear && d.getMonth() === repMonth; }), [computed, repYear, repMonth]);
+  const repTasks = useMemo(() => cg.filter(t => { const d = new Date(t.deadline); return d.getFullYear() === repYear && d.getMonth() === repMonth; }), [cg, repYear, repMonth]);
   // Kèm bản QUY ĐỔI (…W) bên cạnh số đầu việc để hiển thị song song / đổi biểu đồ
   const repStats = useMemo(() => {
     const total = repTasks.length, done = repTasks.filter(t => isCompletedStatus(t.status)).length, over = repTasks.filter(t => t.status === "overdue").length, completedLate = repTasks.filter(t => t.status === "completed_late").length;
@@ -100,7 +103,7 @@ export default function useReports({ computed, employees, currentUser, overloadT
   const collabPseudoTasks = useMemo(() => {
     const out = [];
     // Gồm cả trường hợp hỗ trợ (supportPseudoTasks) để người phối hợp được cộng 1/2 trọng số như việc thường
-    for (const t of [...computed, ...supportPseudoTasks]) {
+    for (const t of [...cg, ...supportPseudoTasks]) {
       if (!isCompletedStatus(t.status)) continue;
       for (const cid of parseJSON(t.collab_eids, [])) {
         if (cid === t.eid) continue; // tránh trùng nếu dữ liệu lỗi gán chính mình vào phối hợp
@@ -108,14 +111,14 @@ export default function useReports({ computed, employees, currentUser, overloadT
       }
     }
     return out;
-  }, [computed, supportPseudoTasks]);
+  }, [cg, supportPseudoTasks]);
 
   // ── Index theo (nhân viên | năm | tháng) — dựng MỘT lần, tra cứu O(1) thay vì quét toàn bộ mỗi lần ──
   // byEid: việc mình chủ trì (đã gồm phối hợp weight 0.5) ; byCollab: đếm thô số việc phối hợp (chỉ để hiển thị badge)
   const perfIndex = useMemo(() => {
     const byEid = new Map(), byCollab = new Map();
     const push = (map, key, t) => { let a = map.get(key); if (!a) { a = []; map.set(key, a); } a.push(t); };
-    for (const t of [...computed, ...projPseudoTasks, ...supportPseudoTasks, ...collabPseudoTasks]) {
+    for (const t of [...cg, ...projPseudoTasks, ...supportPseudoTasks, ...collabPseudoTasks]) {
       if (!t.deadline) continue;
       const d = new Date(t.deadline); if (isNaN(d)) continue;
       const ym = `${d.getFullYear()}|${d.getMonth()}`;
@@ -131,7 +134,7 @@ export default function useReports({ computed, employees, currentUser, overloadT
       push(byCollab, `${t.eid}|${ym}`, t);
     }
     return { byEid, byCollab };
-  }, [computed, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
+  }, [cg, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
 
   // ── Công thức tính điểm hiệu suất 1 THÁNG (dùng chung cho bảng "Hiệu suất tháng" và "Xếp hạng năm") ──
   // (w / sumW đã khai báo ở trên, dùng chung cho cả tổng hợp điều hành lẫn chấm điểm)
@@ -183,9 +186,9 @@ export default function useReports({ computed, employees, currentUser, overloadT
     if (a.eligible !== b.eligible) return a.eligible ? -1 : 1; // người đủ điều kiện hiện trước
     if (b.perfScore !== a.perfScore) return b.perfScore - a.perfScore;
     return b.done - a.done; // cùng điểm -> ai hoàn thành nhiều việc hơn xếp trên
-  }), [employees, repYear, repMonth, computed, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
+  }), [employees, repYear, repMonth, cg, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
 
-  const repMonthTrend = useMemo(() => { const months = []; for (let i = 5; i >= 0; i--) { const d = new Date(repYear, repMonth - i, 1); const m = d.getMonth(), y = d.getFullYear(); const mt = computed.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === y && td.getMonth() === m; }); months.push({ name: `T${m + 1}`, done: mt.filter(t => isCompletedStatus(t.status)).length, total: mt.length, doneW: sumW(mt.filter(t => isCompletedStatus(t.status))), totalW: sumW(mt) }); } return months; }, [computed, repYear, repMonth]);
+  const repMonthTrend = useMemo(() => { const months = []; for (let i = 5; i >= 0; i--) { const d = new Date(repYear, repMonth - i, 1); const m = d.getMonth(), y = d.getFullYear(); const mt = cg.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === y && td.getMonth() === m; }); months.push({ name: `T${m + 1}`, done: mt.filter(t => isCompletedStatus(t.status)).length, total: mt.length, doneW: sumW(mt.filter(t => isCompletedStatus(t.status))), totalW: sumW(mt) }); } return months; }, [cg, repYear, repMonth]);
 
   const leaderboard = useMemo(() => {
     const raw = (employees || []).map(emp => {
@@ -224,9 +227,9 @@ export default function useReports({ computed, employees, currentUser, overloadT
       if (aHas && bHas && b.score !== a.score) return b.score - a.score;
       return b.rate - a.rate;
     });
-  }, [computed, employees, rankYear, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
+  }, [cg, employees, rankYear, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
 
-  const lateReasonStats = useMemo(() => { const lt = computed.filter(t => t.late_reason); const total = lt.length; return LATE_REASONS.map(r => { const tasksForReason = lt.filter(t => t.late_reason === r.value); return { ...r, count: tasksForReason.length, pct: total ? Math.round(tasksForReason.length / total * 100) : 0, tasks: tasksForReason }; }).filter(r => r.count > 0).sort((a, b) => b.count - a.count); }, [computed]);
+  const lateReasonStats = useMemo(() => { const lt = cg.filter(t => t.late_reason); const total = lt.length; return LATE_REASONS.map(r => { const tasksForReason = lt.filter(t => t.late_reason === r.value); return { ...r, count: tasksForReason.length, pct: total ? Math.round(tasksForReason.length / total * 100) : 0, tasks: tasksForReason }; }).filter(r => r.count > 0).sort((a, b) => b.count - a.count); }, [cg]);
   const overloadedEmps = useMemo(() => (employees || []).map(emp => { const active = computed.filter(t => t.eid === emp.id && !isCompletedStatus(t.status)); return { ...emp, activeCount: active.length }; }).filter(e => e.activeCount >= overloadThreshold), [employees, computed, overloadThreshold]);
 
   const myTrend = useMemo(() => { if (!currentUser?.employee_id) return []; const months = []; for (let i = 5; i >= 0; i--) { const d = new Date(today.getFullYear(), today.getMonth() - i, 1); const m = d.getMonth(), y = d.getFullYear(); const mt = computed.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === y && td.getMonth() === m && (t.eid === currentUser.employee_id || parseJSON(t.collab_eids, []).includes(currentUser.employee_id)); }); months.push({ name: `T${m + 1}`, "Hoàn thành": mt.filter(t => isCompletedStatus(t.status)).length, "Tổng": mt.length }); } return months; }, [computed, currentUser]);

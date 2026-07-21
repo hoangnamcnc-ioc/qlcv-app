@@ -285,7 +285,7 @@ export default function App() {
     extRequestModal, setExtRequestModal, extProposedDate, setExtProposedDate, extReason, setExtReason, openExtRequestModal, submitExtRequest,
     extDecideModal, setExtDecideModal, extDecideDate, setExtDecideDate, extDecideNote, setExtDecideNote, openExtApprove, openExtReject, confirmExtDecision,
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,
-    visibleTasks, trashedTasks, computed, stats, statsW, deptChart,
+    visibleTasks, trashedTasks, computed, computedGlobal, stats, statsW, deptChart,
     dateFrom, setDateFrom, dateTo, setDateTo,
     fStatus, setFStatus, fDept, setFDept, fEid, setFEid, fAssignedByMe, setFAssignedByMe, search, setSearch, fSort, setFSort, page, setPage,
     filtered, paged, totalPages,
@@ -299,7 +299,7 @@ export default function App() {
     execDeptSummary, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList,
     calcMonthPerf,
-  } = useReports({ computed, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks });
+  } = useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks });
 
   // ── Chốt sổ điểm tháng: lưu snapshot cố định điểm hiệu suất vào monthly_scores để điểm quá khứ
   // không thay đổi khi dữ liệu sống bị sửa/xóa về sau — phục vụ phiếu xếp loại quý/năm (bình xét thi đua).

@@ -195,6 +195,15 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     });
   }, [computedAll, dateFrom, dateTo]);
 
+  // Bản TOÀN CỤC (không lọc theo quyền xem) — chỉ dùng cho Báo cáo/xếp hạng để mọi vai trò thấy
+  // số liệu hiệu suất nhất quán, đầy đủ (khớp với dữ liệu Hỗ trợ/dự án vốn đã tải toàn cục).
+  // KHÔNG dùng cho các danh sách thao tác — chúng vẫn giới hạn theo quyền qua "computed".
+  const computedGlobal = useMemo(() => {
+    const all = (tasks || []).filter(t => !t.deleted).map(t => ({ ...t, status: getStatus(t) }));
+    if (!dateFrom && !dateTo) return all;
+    return all.filter(t => { if (!t.deadline) return false; if (dateFrom && t.deadline < dateFrom) return false; if (dateTo && t.deadline > dateTo) return false; return true; });
+  }, [tasks, dateFrom, dateTo]);
+
   const stats = useMemo(() => computed.reduce((a, t) => { a.total += 1; a[t.status] = (a[t.status] || 0) + 1; return a; }, { total: 0, on_time: 0, nearly_due: 0, overdue: 0, pending_approval: 0, completed_late: 0, completed: 0 }), [computed]);
   // Cùng các chỉ số trên nhưng tính theo TRỌNG SỐ quy đổi (nhiệm vụ định kỳ: ngày 0.25 … năm 3;
   // nhiệm vụ thường = 1) để hiển thị song song với số đầu việc, tránh hiểu nhầm khối lượng.
@@ -244,7 +253,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     extRequestModal, setExtRequestModal, extProposedDate, setExtProposedDate, extReason, setExtReason, openExtRequestModal, submitExtRequest,
     extDecideModal, setExtDecideModal, extDecideDate, setExtDecideDate, extDecideNote, setExtDecideNote, openExtApprove, openExtReject, confirmExtDecision,
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,
-    visibleTasks, trashedTasks, computed, stats, statsW, deptChart,
+    visibleTasks, trashedTasks, computed, computedGlobal, stats, statsW, deptChart,
     dateFrom, setDateFrom, dateTo, setDateTo,
     fStatus, setFStatus, fDept, setFDept, fEid, setFEid, fAssignedByMe, setFAssignedByMe, search, setSearch, fSort, setFSort, page, setPage,
     filtered, paged, totalPages,
