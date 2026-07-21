@@ -420,8 +420,14 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
   const isProjLead=p=>myEid&&myEid===p.lead_eid; // Phụ trách chính dự án
   // Nhân viên chỉ được xem dự án mình có tham gia: phụ trách chính / lãnh đạo / thành viên / chủ trì hoặc phối hợp một bước
   const isInvolved=p=>{if(!myEid)return false;if(p.lead_eid===myEid||(p.leader_id&&p.leader_id===currentUser?.id))return true;if(parseJSON(p.member_eids,[]).includes(myEid))return true;return parseJSON(p.steps,[]).some(s=>s.lead_eid===myEid||parseJSON(s.collab_eids,[]).includes(myEid));};
-  // Lọc theo quyền (giống nhiệm vụ): admin/BGĐ xem tất cả; trưởng/phó phòng theo phòng mình; nhân viên chỉ dự án mình tham gia
-  const visibleProjects=useMemo(()=>{if(canSeeAll)return projects;if(["manager","deputy_manager","manager_hcth"].includes(currentUser?.role))return projects.filter(p=>p.dept===userDept);return projects.filter(isInvolved);},[projects,canSeeAll,currentUser,userDept,myEid]);
+  // Người tham gia dự án (theo employee id): PT chính + thành viên + chủ trì/phối hợp các bước
+  const partOfProj=p=>{const set=new Set(parseJSON(p.member_eids,[]));if(p.lead_eid)set.add(p.lead_eid);parseJSON(p.steps,[]).forEach(s=>{if(s.lead_eid)set.add(s.lead_eid);parseJSON(s.collab_eids,[]).forEach(c=>set.add(c));});return[...set];};
+  // Lọc theo quyền: admin/BGĐ tất cả; trưởng/phó phòng (& TP.HCTH) xem dự án của phòng mình HOẶC có nhân viên phòng mình tham gia HOẶC mình tham gia; nhân viên chỉ dự án mình tham gia
+  const visibleProjects=useMemo(()=>{
+    if(canSeeAll)return projects;
+    if(["manager","deputy_manager","manager_hcth"].includes(currentUser?.role))return projects.filter(p=>isInvolved(p)||p.dept===userDept||partOfProj(p).some(eid=>getEmp(eid)?.dept===userDept));
+    return projects.filter(isInvolved);
+  },[projects,canSeeAll,currentUser,userDept,myEid,getEmp]);
   // Dự án thuộc tab đang xem (dự án chưa gán loại chi mặc định coi là Chi Hoạt Động)
   const baseProjects=useMemo(()=>visibleProjects.filter(p=>(p.expense_type||"operating")===expenseTab),[visibleProjects,expenseTab]);
   const invStats=useMemo(()=>({budget:baseProjects.reduce((s,p)=>s+(Number(p.total_budget)||0),0),spent:baseProjects.reduce((s,p)=>s+(Number(p.spent)||0),0)}),[baseProjects]);
