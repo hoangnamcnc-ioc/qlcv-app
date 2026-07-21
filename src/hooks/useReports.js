@@ -271,7 +271,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
       perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + mgmtBonus)));
       breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, mgmtBonus: Math.round(mgmtBonus * 10) / 10 };
     }
-    return { dept, resolvedW, doneW, onTimeW, overW, onTimeRate, perfScore, eligible, breakdown };
+    return { dept, resolvedW, doneW, onTimeW, lateW, overW, onTimeRate, perfScore, eligible, breakdown };
   };
 
   // Bảng điểm điều hành THÁNG (xếp hạng riêng cho cấp quản lý)
@@ -433,6 +433,6 @@ export default function useReports({ computed, computedGlobal, employees, curren
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList,
-    calcMonthPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (snapshot cố định, không đổi khi dữ liệu sống bị sửa)
+    calcMonthPerf, managerPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (nhân viên theo calcMonthPerf, quản lý theo managerPerf)
   };
 }

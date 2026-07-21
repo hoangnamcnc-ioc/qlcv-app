@@ -19,7 +19,7 @@ import useTasks from "./hooks/useTasks";
 import useAuth from "./hooks/useAuth";
 import useEmployees from "./hooks/useEmployees";
 import useUsers from "./hooks/useUsers";
-import useReports from "./hooks/useReports";
+import useReports, { MANAGER_EMP_ROLES } from "./hooks/useReports";
 const Dashboard = lazy(()=>import("./components/Dashboard"));
 import TaskList from "./components/TaskList";
 const Reports = lazy(()=>import("./components/Reports"));
@@ -298,7 +298,7 @@ export default function App() {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList,
-    calcMonthPerf,
+    calcMonthPerf, managerPerf,
   } = useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks });
 
   // ── Chốt sổ điểm tháng: lưu snapshot cố định điểm hiệu suất vào monthly_scores để điểm quá khứ
@@ -306,9 +306,16 @@ export default function App() {
   // mJs = tháng theo JS (0-11); trong DB lưu 1-12 cho dễ đọc.
   const snapshotMonth=async(y,mJs,opts={})=>{
     const rows=(employees||[]).map(emp=>{
+      // Cấp quản lý (TP/PP) chốt theo ĐIỂM ĐIỀU HÀNH (kết quả phòng); nhân viên theo điểm hiệu suất cá nhân.
+      const isMgr=MANAGER_EMP_ROLES.includes(emp.role);
+      if(isMgr){
+        const m=managerPerf(emp.id,y,mJs);
+        if((m.resolvedW||0)<=0)return null;
+        return {id:`ms${y}_${mJs+1}_${emp.id}`,year:y,month:mJs+1,eid:emp.id,name:emp.name,dept:emp.dept,score:m.eligible?m.perfScore:null,eligible:m.eligible,total:m.resolvedW,done:m.doneW,on_time:m.onTimeW,completed_late:m.lateW,over:m.overW,is_manager:true,breakdown:m.breakdown?JSON.stringify(m.breakdown):null,snapshot_at:nowStr(),snapshot_by:currentUser.full_name};
+      }
       const m=calcMonthPerf(emp.id,y,mJs);
       if(m.total<=0)return null;
-      return {id:`ms${y}_${mJs+1}_${emp.id}`,year:y,month:mJs+1,eid:emp.id,name:emp.name,dept:emp.dept,score:m.eligible?m.perfScore:null,eligible:m.eligible,total:m.total,done:m.done,on_time:m.onTime,completed_late:m.completedLate,over:m.over,breakdown:m.breakdown?JSON.stringify(m.breakdown):null,snapshot_at:nowStr(),snapshot_by:currentUser.full_name};
+      return {id:`ms${y}_${mJs+1}_${emp.id}`,year:y,month:mJs+1,eid:emp.id,name:emp.name,dept:emp.dept,score:m.eligible?m.perfScore:null,eligible:m.eligible,total:m.total,done:m.done,on_time:m.onTime,completed_late:m.completedLate,over:m.over,is_manager:false,breakdown:m.breakdown?JSON.stringify(m.breakdown):null,snapshot_at:nowStr(),snapshot_by:currentUser.full_name};
     }).filter(Boolean);
     if(rows.length===0){if(!opts.silent)showToast("Tháng này không có dữ liệu để chốt","error");return false;}
     const{error:delErr}=await supabase.from("monthly_scores").delete().eq("year",y).eq("month",mJs+1);

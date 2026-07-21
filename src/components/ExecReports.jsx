@@ -34,7 +34,8 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, curren
     for (const r of monthlyScores) {
       if (r.year !== gYear || !periodMonths.includes(r.month)) continue;
       let e = byEid.get(r.eid);
-      if (!e) { e = { eid: r.eid, name: r.name, dept: r.dept, months: {} }; byEid.set(r.eid, e); }
+      if (!e) { e = { eid: r.eid, name: r.name, dept: r.dept, is_manager: false, months: {} }; byEid.set(r.eid, e); }
+      if (r.is_manager) e.is_manager = true;
       e.months[r.month] = r;
     }
     return [...byEid.values()].map(e => {
@@ -52,7 +53,7 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, curren
   const doSnapshot = async () => { setSnapping(true); await snapshotMonth(snapYear, snapMonth - 1); setSnapping(false); };
 
   const printSheet = () => {
-    const rowsHtml = rows.map((e, i) => `<tr><td style="text-align:center">${i + 1}</td><td>${e.name}</td><td style="text-align:center">${e.dept}</td>${periodMonths.map(m => { const r = e.months[m]; return `<td style="text-align:center">${r ? (r.eligible ? r.score : "KĐK") : "—"}</td>`; }).join("")}<td style="text-align:center;font-weight:700">${e.avg ?? "—"}</td><td style="text-align:center;font-weight:600">${e.grade ? e.grade.label : "Chưa đủ dữ liệu"}</td></tr>`).join("");
+    const rowsHtml = rows.map((e, i) => `<tr><td style="text-align:center">${i + 1}</td><td>${e.name}${e.is_manager ? " (ĐH)" : ""}</td><td style="text-align:center">${e.dept}</td>${periodMonths.map(m => { const r = e.months[m]; return `<td style="text-align:center">${r ? (r.eligible ? r.score : "KĐK") : "—"}</td>`; }).join("")}<td style="text-align:center;font-weight:700">${e.avg ?? "—"}</td><td style="text-align:center;font-weight:600">${e.grade ? e.grade.label : "Chưa đủ dữ liệu"}</td></tr>`).join("");
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Phiếu xếp loại ${periodLabel}</title><style>body{font-family:"Times New Roman",serif;padding:28px;color:#111}h1{font-size:17px;text-align:center;text-transform:uppercase;margin-bottom:2px}h2{font-size:13px;text-align:center;font-weight:400;color:#444;margin-top:0}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:12.5px}th,td{border:1px solid #333;padding:6px 8px}th{background:#f0f0f0}.sign{display:flex;justify-content:space-between;margin-top:36px;font-size:13px;text-align:center}.sign div{width:45%}.note{font-size:11.5px;color:#555;margin-top:12px;font-style:italic}@media print{button{display:none}}</style></head><body><h1>Phiếu tổng hợp xếp loại hiệu suất công việc</h1><h2>Trung tâm Giám sát, Điều hành Đô thị thông minh tỉnh Đắk Lắk — Kỳ đánh giá: ${periodLabel}</h2><table><thead><tr><th>TT</th><th>Họ và tên</th><th>Phòng</th>${periodMonths.map(m => `<th>T${m}</th>`).join("")}<th>Điểm TB</th><th>Xếp loại</th></tr></thead><tbody>${rowsHtml}</tbody></table><div class="note">Điểm lấy từ sổ điểm đã chốt hàng tháng (KĐK = tháng đó chưa đủ điều kiện chấm điểm, không tính vào trung bình). Ngưỡng xếp loại: ≥90 Hoàn thành xuất sắc · ≥75 Hoàn thành tốt · ≥50 Hoàn thành · &lt;50 Không hoàn thành.</div><div class="sign"><div>NGƯỜI LẬP BIỂU<br/><br/><br/><br/>${currentUser?.full_name || ""}</div><div>GIÁM ĐỐC<br/><br/><br/><br/></div></div><script>window.onload=()=>window.print()<\/script></body></html>`;
     const w = window.open("", "_blank"); if (w) { w.document.write(html); w.document.close(); }
   };
@@ -86,7 +87,7 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, curren
     </div>
 
     <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
-      <div style={{ padding: "8px 16px", borderBottom: "1px solid #e5e7eb", fontSize: 11, color: "#9ca3af" }}>Điểm lấy từ sổ đã chốt (không đổi khi dữ liệu sống bị sửa) · Điểm TB = trung bình các tháng đủ điều kiện · Ngưỡng: ≥90 HTXS · ≥75 HT tốt · ≥50 HT · &lt;50 KHT</div>
+      <div style={{ padding: "8px 16px", borderBottom: "1px solid #e5e7eb", fontSize: 11, color: "#9ca3af" }}>Điểm lấy từ sổ đã chốt (không đổi khi dữ liệu sống bị sửa) · Điểm TB = trung bình các tháng đủ điều kiện · Ngưỡng: ≥90 HTXS · ≥75 HT tốt · ≥50 HT · &lt;50 KHT · <span style={{ color: "#075985" }}>🏛️ ĐH = Trưởng/Phó phòng chấm theo điểm điều hành (kết quả cả phòng)</span></div>
       {rows.length === 0 ? <div style={{ padding: 30, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>Chưa có tháng nào trong {periodLabel} được chốt sổ — dùng nút "📌 Chốt sổ" ở trên.</div> : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 560 }}>
@@ -94,7 +95,7 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, curren
             <tbody>{rows.map((e, i) => (
               <tr key={e.eid} style={{ borderBottom: "1px solid #f3f4f6" }}>
                 <td style={{ padding: "8px 10px", color: "#9ca3af" }}>{i + 1}</td>
-                <td style={{ padding: "8px 10px", fontWeight: 500, whiteSpace: "nowrap" }}>{e.name}</td>
+                <td style={{ padding: "8px 10px", fontWeight: 500, whiteSpace: "nowrap" }}>{e.name}{e.is_manager && <span title="Điểm điều hành (tính theo kết quả cả phòng)" style={{ marginLeft: 6, fontSize: 10, background: "#e0f2fe", color: "#075985", padding: "1px 6px", borderRadius: 6, fontWeight: 600 }}>🏛️ ĐH</span>}</td>
                 <td style={{ padding: "8px 10px" }}><span style={{ background: DEPT_COLOR[e.dept] + "22", color: DEPT_COLOR[e.dept], fontSize: 11, padding: "2px 6px", borderRadius: 8 }}>{e.dept}</span></td>
                 {periodMonths.map(m => { const r = e.months[m]; return <td key={m} style={{ padding: "8px 10px", textAlign: "center", color: r ? (r.eligible ? (r.score >= 80 ? "#15803d" : r.score >= 50 ? "#92400e" : "#b91c1c") : "#9ca3af") : "#d1d5db", fontWeight: r?.eligible ? 700 : 400, fontSize: r?.eligible ? 13 : 11 }} title={r && !r.eligible ? `Chưa đủ điều kiện (${r.total} việc)` : ""}>{r ? (r.eligible ? r.score : "KĐK") : "—"}</td>; })}
                 <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, fontSize: 14, color: e.avg === null ? "#9ca3af" : e.avg >= 80 ? "#15803d" : e.avg >= 50 ? "#92400e" : "#b91c1c" }}>{e.avg ?? "—"}</td>
