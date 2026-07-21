@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { DEPTS, DEPT_COLOR, ROLE_COLORS, FULL_ACCESS, STATUS, STATUS_ORDER, FREQUENCIES, RATING } from "../constants";
 import { isCompletedStatus, fmtDate } from "../helpers";
@@ -19,6 +19,12 @@ export default function Dashboard({
   // Nhân viên (staff) chỉ thấy việc của mình → ẩn các khối mang tính điều hành/toàn phòng
   // (thống kê tổng, biểu đồ phòng ban, cảnh báo quá tải, quản lý nhiệm vụ định kỳ) cho gọn và tránh trùng lặp.
   const isManagerView = FULL_ACCESS.includes(currentUser.role) || ["manager", "deputy_manager"].includes(currentUser.role);
+  // Phân trang cho danh sách "Công việc của tôi"
+  const [wlPage, setWlPage] = useState(1);
+  const WL_SIZE = 8;
+  const wlTotalPages = Math.max(1, Math.ceil((myWorkList?.length || 0) / WL_SIZE));
+  const wlPageSafe = Math.min(wlPage, wlTotalPages);
+  const wlPaged = (myWorkList || []).slice((wlPageSafe - 1) * WL_SIZE, wlPageSafe * WL_SIZE);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 12px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -155,9 +161,9 @@ export default function Dashboard({
           </div>
           {myWorkList.length === 0 ? (
             <div style={{ padding: 24, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>🎉 Không còn việc nào đang chờ xử lý</div>
-          ) : (
-            <div style={{ maxHeight: 440, overflowY: "auto" }}>
-              {myWorkList.map(it => {
+          ) : (<>
+            <div>
+              {wlPaged.map(it => {
                 const sc = STATUS[it.status] || STATUS.on_time;
                 const typeColor = it.kind === "task" ? "#4338ca" : it.kind === "proj" ? "#0d9488" : "#c2410c";
                 const typeBg = it.kind === "task" ? "#eef2ff" : it.kind === "proj" ? "#ccfbf1" : "#ffedd5";
@@ -178,7 +184,14 @@ export default function Dashboard({
                 );
               })}
             </div>
-          )}
+            {myWorkList.length > WL_SIZE && (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, padding: "10px 0", borderTop: "1px solid #f3f4f6" }}>
+                <button disabled={wlPageSafe === 1} onClick={() => setWlPage(p => Math.max(1, p - 1))} style={{ padding: "5px 12px", border: "1px solid #d1d5db", borderRadius: 7, background: "#fff", cursor: wlPageSafe === 1 ? "default" : "pointer", opacity: wlPageSafe === 1 ? 0.5 : 1, fontSize: 13 }}>◀</button>
+                <span style={{ fontSize: 13, color: "#6b7280" }}>Trang {wlPageSafe}/{wlTotalPages}</span>
+                <button disabled={wlPageSafe === wlTotalPages} onClick={() => setWlPage(p => Math.min(wlTotalPages, p + 1))} style={{ padding: "5px 12px", border: "1px solid #d1d5db", borderRadius: 7, background: "#fff", cursor: wlPageSafe === wlTotalPages ? "default" : "pointer", opacity: wlPageSafe === wlTotalPages ? 0.5 : 1, fontSize: 13 }}>▶</button>
+              </div>
+            )}
+          </>)}
         </div>
       )}
 
