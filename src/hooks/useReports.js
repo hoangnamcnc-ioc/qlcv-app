@@ -161,7 +161,9 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const collabDone = sumW(collabTasks.filter(t => isCompletedStatus(t.status)));
     const collabTotal = sumW(collabTasks);
     let perfScore = 0, breakdown = null;
-    if (eligible) {
+    // Tính điểm cho MỌI người có ≥1 việc đến hạn (kể cả <5) — người <5 chỉ dùng làm "điểm tham khảo",
+    // KHÔNG được xếp hạng/chốt sổ (vẫn dựa vào cờ eligible = resolved>=5).
+    if (resolved > 0) {
       // ① Điểm thời hạn (tối đa 60) — chưa có việc nào đến hạn xử lý xong thì tạm tính 0, tránh chia cho 0
       const timeliness = resolved > 0 ? (onTime * 60 + completedLate * 30) / resolved : 0;
       // ② Điểm chất lượng (tối đa 40)
@@ -274,7 +276,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     for (const t of computed) {
       if (isCompletedStatus(t.status)) continue;
       if (!(t.eid === eid || inList(t.collab_eids))) continue;
-      out.push({ key: `t_${t.id}`, kind: "task", typeLabel: "Nhiệm vụ", title: t.title, dept: t.dept, deadline: t.deadline, role: t.eid === eid ? "Chủ trì" : "Phối hợp", status: t.status, task: t });
+      out.push({ key: `t_${t.id}`, kind: "task", typeLabel: "Nhiệm vụ", title: t.title, dept: t.dept, deadline: t.deadline, prio: t.prio, role: t.eid === eid ? "Chủ trì" : "Phối hợp", status: t.status, task: t });
     }
     for (const p of (projects || [])) for (const s of parseJSON(p.steps, [])) {
       if (s.status === "done" || s.status === "skipped") continue;
@@ -286,17 +288,42 @@ export default function useReports({ computed, computedGlobal, employees, curren
       if (!(s.lead_eid === eid || inList(s.collab_eids))) continue;
       out.push({ key: `o_${t.id}_${s.id}`, kind: "other", typeLabel: "NV khác", title: `${t.name || ""} · ${s.content || "Bước"}`, dept: t.dept, deadline: s.deadline, role: s.lead_eid === eid ? "Chủ trì" : "Phối hợp", status: stepStat(s.deadline) });
     }
-    return out.sort((a, b) => {
-      const da = a.deadline ? new Date(a.deadline).setHours(0, 0, 0, 0) : Infinity;
-      const db = b.deadline ? new Date(b.deadline).setHours(0, 0, 0, 0) : Infinity;
-      return da - db;
-    });
+    // Ưu tiên = quá hạn/gần hết hạn lên đầu, đồng thời việc Ưu tiên CAO được "kéo" lên sớm ~2 ngày,
+    // việc Ưu tiên THẤP lùi lại ~2 ngày (chỉ nhiệm vụ thường có mức ưu tiên; bước dự án/NV khác coi như Trung bình).
+    const prioAdj = p => p === "high" ? -2 : p === "low" ? 2 : 0;
+    const dleft = d => { if (!d) return 99999; const dd = new Date(d); if (isNaN(dd)) return 99999; dd.setHours(0, 0, 0, 0); return Math.ceil((dd - today) / 86400000); };
+    return out.sort((a, b) => (dleft(a.deadline) + prioAdj(a.prio)) - (dleft(b.deadline) + prioAdj(b.prio)));
   }, [computed, currentUser, projects, otherTasks]);
+
+  // So sánh khối lượng (việc quy đổi) của tôi với TRUNG BÌNH phòng trong tháng hiện tại
+  const myWorkloadCompare = useMemo(() => {
+    const eid = currentUser?.employee_id; if (!eid) return null;
+    const emp = (employees || []).find(e => e.id === eid); if (!emp) return null;
+    const y = today.getFullYear(), m = today.getMonth();
+    const mine = calcMonthPerf(eid, y, m).total;
+    const totals = (employees || []).filter(e => e.dept === emp.dept).map(e => calcMonthPerf(e.id, y, m).total).filter(v => v > 0);
+    const deptAvg = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
+    return { mine: Math.round(mine * 100) / 100, deptAvg: Math.round(deptAvg * 100) / 100, dept: emp.dept, n: totals.length, diffPct: deptAvg ? Math.round((mine - deptAvg) / deptAvg * 100) : 0 };
+  }, [currentUser, employees, perfIndex]);
+
+  // Việc tôi ĐÃ HOÀN THÀNH trong tháng hiện tại (gộp mọi module) — để tự soi lại trước kỳ đánh giá
+  const myDoneList = useMemo(() => {
+    const eid = currentUser?.employee_id; if (!eid) return [];
+    const inList = ids => parseJSON(ids, []).includes(eid);
+    const y = today.getFullYear(), m = today.getMonth();
+    const inMonth = d => { if (!d) return false; const dd = new Date(d); return !isNaN(dd) && dd.getFullYear() === y && dd.getMonth() === m; };
+    const out = [];
+    for (const t of computed) { if (!isCompletedStatus(t.status)) continue; if (!(t.eid === eid || inList(t.collab_eids))) continue; if (!inMonth(t.deadline)) continue; out.push({ key: `dt_${t.id}`, kind: "task", typeLabel: "Nhiệm vụ", title: t.title, date: t.deadline, role: t.eid === eid ? "Chủ trì" : "Phối hợp", status: t.status, task: t }); }
+    for (const c of (supportCases || [])) { if (!(c.eid === eid || inList(c.collab_eids))) continue; if (!inMonth(c.created)) continue; out.push({ key: `ds_${c.id}`, kind: "support", typeLabel: "Hỗ trợ", title: c.content || "Trường hợp hỗ trợ", date: c.created, role: c.eid === eid ? "Chủ trì" : "Phối hợp", status: "completed" }); }
+    for (const p of (projects || [])) for (const s of parseJSON(p.steps, [])) { if (s.status !== "done") continue; if (!(s.lead_eid === eid || inList(s.collab_eids))) continue; if (!inMonth(s.end)) continue; out.push({ key: `dp_${p.id}_${s.id}`, kind: "proj", typeLabel: "Ngân sách", title: `${p.name} · ${s.content || "Bước"}`, date: s.end, role: s.lead_eid === eid ? "Chủ trì" : "Phối hợp", status: "completed" }); }
+    for (const t of (otherTasks || [])) for (const s of parseJSON(t.steps, [])) { if (s.status !== "done") continue; if (!(s.lead_eid === eid || inList(s.collab_eids))) continue; if (!inMonth(s.deadline)) continue; out.push({ key: `do_${t.id}_${s.id}`, kind: "other", typeLabel: "NV khác", title: `${t.name || ""} · ${s.content || "Bước"}`, date: s.deadline, role: s.lead_eid === eid ? "Chủ trì" : "Phối hợp", status: "completed" }); }
+    return out.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [computed, currentUser, supportCases, projects, otherTasks]);
 
   return {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
-    lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList,
+    lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList,
     calcMonthPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (snapshot cố định, không đổi khi dữ liệu sống bị sửa)
   };
 }

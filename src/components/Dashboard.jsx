@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { DEPTS, DEPT_COLOR, ROLE_COLORS, FULL_ACCESS, STATUS, STATUS_ORDER, FREQUENCIES, RATING } from "../constants";
+import { DEPTS, DEPT_COLOR, ROLE_COLORS, FULL_ACCESS, STATUS, STATUS_ORDER, FREQUENCIES, RATING, PRIO } from "../constants";
 import { isCompletedStatus, fmtDate } from "../helpers";
 import { RoleBadge, OverloadPopup } from "./ui";
 
 export default function Dashboard({
   currentUser, isMobile, userDept,
-  execDeptSummary, stats, statsW, deptChart, myTasks, myWorkList, myTrend,
+  execDeptSummary, stats, statsW, deptChart, myTasks, myWorkList, myWorkloadCompare, myDoneList, myTrend,
   computed, overloadedEmps, overloadThreshold, setOverloadThreshold,
   dateFrom, setDateFrom, dateTo, setDateTo,
   overloadPopup, setOverloadPopup,
@@ -21,6 +21,7 @@ export default function Dashboard({
   const isManagerView = FULL_ACCESS.includes(currentUser.role) || ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role);
   // Phân trang cho danh sách "Công việc của tôi"
   const [wlPage, setWlPage] = useState(1);
+  const [doneOpen, setDoneOpen] = useState(false); // mục "Đã hoàn thành tháng này"
   const WL_SIZE = 8;
   const wlTotalPages = Math.max(1, Math.ceil((myWorkList?.length || 0) / WL_SIZE));
   const wlPageSafe = Math.min(wlPage, wlTotalPages);
@@ -128,6 +129,12 @@ export default function Dashboard({
               <span style={{ opacity: 0.75 }}> · (mọi chỉ số gồm cả bước dự án/nhiệm vụ khác)</span>
             </div>
           )}
+          {myWorkloadCompare && myWorkloadCompare.n > 0 && (
+            <div style={{ fontSize: 11.5, marginTop: 8, background: "rgba(255,255,255,0.12)", borderRadius: 8, padding: "7px 10px", lineHeight: 1.5 }}>
+              📊 Khối lượng quy đổi tháng này của bạn: <b>{myWorkloadCompare.mine}</b> · TB phòng {myWorkloadCompare.dept}: <b>{myWorkloadCompare.deptAvg}</b>
+              {myWorkloadCompare.deptAvg > 0 && <> → bạn <b style={{ color: myWorkloadCompare.diffPct >= 0 ? "#86efac" : "#fca5a5" }}>{myWorkloadCompare.diffPct >= 0 ? "cao hơn" : "thấp hơn"} {Math.abs(myWorkloadCompare.diffPct)}%</b> trung bình phòng</>}
+            </div>
+          )}
           {myTasks.pending.length > 0 && (
             <div>
               <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 6 }}>Việc cần làm:</div>
@@ -176,6 +183,7 @@ export default function Dashboard({
                       <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
                         <span style={{ background: typeBg, color: typeColor, padding: "1px 7px", borderRadius: 6, fontWeight: 600 }}>{it.typeLabel}</span>
                         <span style={{ background: it.role === "Chủ trì" ? "#e0e7ff" : "#f3e8ff", color: it.role === "Chủ trì" ? "#4338ca" : "#7c3aed", padding: "1px 7px", borderRadius: 6 }}>{it.role}</span>
+                        {it.prio && it.prio !== "medium" && PRIO[it.prio] && <span style={{ background: PRIO[it.prio].bg, color: PRIO[it.prio].col, padding: "1px 7px", borderRadius: 6, fontWeight: 600 }}>⚡ {PRIO[it.prio].label}</span>}
                         {it.deadline && <span>Hạn: {fmtDate(it.deadline)}</span>}
                       </div>
                     </div>
@@ -192,6 +200,40 @@ export default function Dashboard({
               </div>
             )}
           </>)}
+        </div>
+      )}
+
+      {myDoneList && !FULL_ACCESS.includes(currentUser.role) && (
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+          <div onClick={() => setDoneOpen(o => !o)} style={{ padding: "10px 14px", background: "#f8fafc", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
+            <span style={{ fontSize: 15 }}>✅</span><span style={{ fontWeight: 700, fontSize: 14 }}>Đã hoàn thành tháng này ({myDoneList.length})</span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "#6b7280" }}>{doneOpen ? "Thu gọn ▲" : "Xem ▼"}</span>
+          </div>
+          {doneOpen && (myDoneList.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>Chưa có việc nào hoàn thành trong tháng này</div>
+          ) : (
+            <div style={{ maxHeight: 360, overflowY: "auto" }}>
+              {myDoneList.map(it => {
+                const typeColor = it.kind === "task" ? "#4338ca" : it.kind === "proj" ? "#0d9488" : it.kind === "support" ? "#b45309" : "#c2410c";
+                const typeBg = it.kind === "task" ? "#eef2ff" : it.kind === "proj" ? "#ccfbf1" : it.kind === "support" ? "#fef3c7" : "#ffedd5";
+                const onClk = it.kind === "task" ? () => { setModal(it.task); loadComments(it.task.id); } : it.kind === "proj" ? () => setView("investment") : it.kind === "support" ? () => setView("supportcases") : () => setView("othertasks");
+                return (
+                  <div key={it.key} onClick={onClk} style={{ padding: "8px 14px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <span style={{ fontSize: 13, color: "#16a34a", flexShrink: 0 }}>✓</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, whiteSpace: "normal", wordBreak: "break-word" }}>{it.title}</div>
+                      <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                        <span style={{ background: typeBg, color: typeColor, padding: "1px 7px", borderRadius: 6, fontWeight: 600 }}>{it.typeLabel}</span>
+                        <span style={{ background: it.role === "Chủ trì" ? "#e0e7ff" : "#f3e8ff", color: it.role === "Chủ trì" ? "#4338ca" : "#7c3aed", padding: "1px 7px", borderRadius: 6 }}>{it.role}</span>
+                        {it.date && <span>{fmtDate(it.date)}</span>}
+                      </div>
+                    </div>
+                    {it.status === "completed_late" && <span style={{ background: "#fee2e2", color: "#991b1b", fontSize: 10.5, padding: "2px 7px", borderRadius: 8, flexShrink: 0 }}>HT trễ</span>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
 

@@ -297,7 +297,7 @@ export default function App() {
   const {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
-    lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList,
+    lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList,
     calcMonthPerf,
   } = useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks });
 
@@ -655,7 +655,7 @@ export default function App() {
             <Dashboard
               currentUser={currentUser} isMobile={isMobile} userDept={userDept}
               execDeptSummary={execDeptSummary} stats={stats} statsW={statsW} deptChart={deptChart}
-              myTasks={myTasks} myWorkList={myWorkList} myTrend={myTrend}
+              myTasks={myTasks} myWorkList={myWorkList} myWorkloadCompare={myWorkloadCompare} myDoneList={myDoneList} myTrend={myTrend}
               computed={computed} overloadedEmps={overloadedEmps}
               dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo}
               overloadThreshold={overloadThreshold} setOverloadThreshold={setOverloadThreshold}
