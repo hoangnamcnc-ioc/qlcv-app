@@ -119,7 +119,7 @@ export default function Dashboard({
           {myTasks.breakdown && (myTasks.breakdown.support + myTasks.breakdown.proj + myTasks.breakdown.other) > 0 && (
             <div style={{ fontSize: 11, opacity: 0.8, lineHeight: 1.6, marginBottom: myTasks.pending.length ? 12 : 0 }}>
               Gồm: 📋 {myTasks.breakdown.task} nhiệm vụ · 🎧 {myTasks.breakdown.support} hỗ trợ · 💰 {myTasks.breakdown.proj} bước ngân sách · 📌 {myTasks.breakdown.other} nhiệm vụ khác
-              <span style={{ opacity: 0.75 }}> · (Quá hạn/Sắp hết hạn chỉ tính nhiệm vụ thường)</span>
+              <span style={{ opacity: 0.75 }}> · (Quá hạn gồm cả bước dự án/nhiệm vụ khác trễ hạn; Sắp hết hạn chỉ tính nhiệm vụ thường)</span>
             </div>
           )}
           {myTasks.pending.length > 0 && (

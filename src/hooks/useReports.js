@@ -241,16 +241,18 @@ export default function useReports({ computed, employees, currentUser, overloadT
     const my = computed.filter(t => t.eid === eid || inList(t.collab_eids));
     let total = my.length;
     let done = my.filter(t => isCompletedStatus(t.status)).length;
-    const over = my.filter(t => t.status === "overdue").length;
+    let over = my.filter(t => t.status === "overdue").length;
     const completedLate = my.filter(t => t.status === "completed_late").length;
     const nd = my.filter(t => t.status === "nearly_due").length;
     const active = my.filter(t => !isCompletedStatus(t.status));
     const supportCount = (supportCases || []).filter(c => c.eid === eid || inList(c.collab_eids)).length;
-    const countSteps = arr => { let d = 0, a = 0; for (const item of (arr || [])) for (const s of parseJSON(item.steps, [])) { if (s.lead_eid === eid || inList(s.collab_eids)) { if (s.status === "done") d++; else a++; } } return { d, a }; };
-    const proj = countSteps(projects);
-    const other = countSteps(otherTasks);
+    // Bước quá hạn: chưa done/bỏ qua và đã quá hạn chót của bước (dự án dùng s.end, nhiệm vụ khác dùng s.deadline)
+    const countSteps = (arr, dlField) => { let d = 0, a = 0, ov = 0; for (const item of (arr || [])) for (const s of parseJSON(item.steps, [])) { if (s.lead_eid === eid || inList(s.collab_eids)) { if (s.status === "done") d++; else { a++; const dl = s[dlField]; if (dl && s.status !== "skipped") { const dd = new Date(dl); dd.setHours(0, 0, 0, 0); if (dd < today) ov++; } } } } return { d, a, ov }; };
+    const proj = countSteps(projects, "end");
+    const other = countSteps(otherTasks, "deadline");
     total += supportCount + proj.d + proj.a + other.d + other.a;
     done += supportCount + proj.d + other.d;
+    over += proj.ov + other.ov;
     return { total, done, over, completedLate, nd, rate: total ? Math.round(done / total * 100) : 0,
       pending: active.sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)).slice(0, 3),
       breakdown: { task: my.length, support: supportCount, proj: proj.d + proj.a, other: other.d + other.a } };
