@@ -451,7 +451,11 @@ export default function App() {
     setLoginNotifShown(true);
   },[currentUser,loading,loginNotifShown,myNewTasks.length,myOverdueTasks.length,myPendingApprovals.length,myPendingTaskApprovals.length,myPendingExtRequests.length,myPendingDocForwards.length]);
   const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length+suspiciousTasks.length+myPendingApprovals.length+myPendingTaskApprovals.length+myPendingExtRequests.length+unreadCommentTasks.length+myPendingDocForwards.length;
-  const activityLog=useMemo(()=>{if(!canSeeAll)return[];const logs=[];(tasks||[]).forEach(t=>{parseJSON(t.history,[]).forEach((h,i)=>{logs.push({id:t.id+"_"+i,task:t.title,action:h.action,by:h.by,at:h.at});});});return logs.sort((a,b)=>{const pa=a.at.split(" ");const pb=b.at.split(" ");const da=pa[1]?pa[1].split("/").reverse().join("")+pa[0]:"";const db=pb[1]?pb[1].split("/").reverse().join("")+pb[0]:"";return db.localeCompare(da);}).slice(0,200);},[tasks,canSeeAll]);
+  // Nhật ký = gộp lịch sử (history) của MỌI nhiệm vụ, sắp theo mốc thời gian THẬT rồi lấy 200 thao tác mới nhất
+  // (chỉ giới hạn HIỂN THỊ, không hề xóa dữ liệu — history vẫn lưu đầy đủ trong DB).
+  // LƯU Ý: phải sort theo timestamp thật (parseNowStr) — cách cũ ghép chuỗi ngày/tháng KHÔNG có số 0 đầu nên
+  // "9/7" bị xếp trên "21/7", đẩy thao tác mới ra ngoài top-200 (nhìn như nhật ký dừng ở ngày mùng 9).
+  const activityLog=useMemo(()=>{if(!canSeeAll)return[];const logs=[];(tasks||[]).forEach(t=>{parseJSON(t.history,[]).forEach((h,i)=>{logs.push({id:t.id+"_"+i,task:t.title,action:h.action,by:h.by,at:h.at});});});return logs.sort((a,b)=>{const da=parseNowStr(a.at),db=parseNowStr(b.at);return (db?db.getTime():0)-(da?da.getTime():0);}).slice(0,200);},[tasks,canSeeAll]);
   useEffect(()=>{setPage(1);},[fStatus,fDept,fEid,fAssignedByMe,search,fSort]);
   const emptyTaskData=()=>{const dept=availableDepts[0];const first=(employees||[]).find(e=>e.dept===dept);return{title:"",description:"",dept,eid:first?.id||"",prio:"medium",deadline:addDays(today,7),attachments:"[]",progress:0,collab_eids:"[]",collab_note:""};};
   // Khối lượng ĐANG MỞ của mỗi nhân viên (đếm trên toàn bộ nhiệm vụ chưa hoàn thành, không phụ thuộc bộ lọc
