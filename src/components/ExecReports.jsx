@@ -22,6 +22,8 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, curren
   const [snapMonth, setSnapMonth] = useState(now.getMonth() === 0 ? 12 : now.getMonth()); // mặc định: tháng trước (1-12)
   const [snapYear, setSnapYear] = useState(now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear());
   const [snapping, setSnapping] = useState(false);
+  // Chốt sổ điểm (ghi dữ liệu) chỉ dành cho BGĐ/Admin — mọi vai trò xem được bảng nhưng không tự chốt.
+  const canFinalize = ["admin", "director"].includes(currentUser?.role);
 
   const periodMonths = useMemo(() => gPeriod === "year" ? [1,2,3,4,5,6,7,8,9,10,11,12] : (() => { const q = Number(gPeriod[1]); return [q*3-2, q*3-1, q*3]; })(), [gPeriod]);
   const periodLabel = gPeriod === "year" ? `năm ${gYear}` : `quý ${gPeriod[1]}/${gYear}`;
@@ -70,6 +72,7 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, curren
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
         {snapshotStatus.map(s => <span key={s.month} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 12, background: s.count ? "#dcfce7" : "#f3f4f6", color: s.count ? "#15803d" : "#9ca3af" }}>T{s.month}: {s.count ? `✓ ${s.count} NV` : "chưa chốt"}</span>)}
       </div>
+      {canFinalize ? (
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", borderTop: "1px dashed #e5e7eb", paddingTop: 10 }}>
         <span style={{ fontSize: 12, color: "#6b7280" }}>Chốt sổ / chốt lại:</span>
         <select value={snapMonth} onChange={e => setSnapMonth(Number(e.target.value))} style={{ ...inp, width: "auto", padding: "5px 8px", fontSize: 12 }}>{VI_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}</select>
@@ -77,6 +80,9 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, curren
         <button onClick={doSnapshot} disabled={snapping} style={{ padding: "5px 14px", border: "none", borderRadius: 7, background: snapping ? "#d1d5db" : "#4f46e5", color: "#fff", cursor: snapping ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600 }}>{snapping ? "Đang chốt…" : "📌 Chốt sổ"}</button>
         <span style={{ fontSize: 11, color: "#9ca3af" }}>Tháng vừa kết thúc được tự chốt khi BGĐ/Admin đăng nhập; chốt lại sẽ ghi đè theo dữ liệu hiện tại.</span>
       </div>
+      ) : (
+      <div style={{ borderTop: "1px dashed #e5e7eb", paddingTop: 10, fontSize: 11, color: "#9ca3af" }}>Sổ điểm do Ban Giám đốc/Quản trị viên chốt hàng tháng. Bạn xem được kết quả đã chốt bên dưới.</div>
+      )}
     </div>
 
     <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>

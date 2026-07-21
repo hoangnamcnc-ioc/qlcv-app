@@ -324,7 +324,7 @@ const SECTIONS = [
       ]},
       { note: "Vì sao cột \"Tổng\" ở bảng Hiệu suất nhân viên KHÔNG khớp với cột \"Quy đổi\" ở bảng Tổng hợp điều hành? Vì (1) bảng nhân viên chỉ tính THÁNG đang chọn, còn bảng điều hành tính toàn bộ thời gian; (2) bảng nhân viên còn cộng thêm Hỗ trợ ND/Xử lý lỗi TTDL và dự án ngân sách; (3) quan trọng nhất — một nhiệm vụ được tính cho CẢ người chủ trì lẫn người phối hợp (phối hợp = 1/2 trọng số), nên cộng dồn theo người sẽ luôn lớn hơn tổng theo nhiệm vụ. Đây là cố ý để ghi nhận công phối hợp, không phải sai số." },
       { p: "Xuất báo cáo ra PDF (để in) hoặc CSV (Excel)." },
-      { h: "📑 Xếp loại (chốt sổ điểm) — dành cho BGĐ/Admin" },
+      { h: "📑 Xếp loại (chốt sổ điểm) — mọi vai trò xem được; riêng nút Chốt sổ chỉ BGĐ/Admin" },
       { p: "Điểm hiệu suất được \"chốt sổ\" cố định vào đầu mỗi tháng cho tháng vừa kết thúc (tự động khi BGĐ/Admin đăng nhập, hoặc chốt thủ công). Điểm đã chốt KHÔNG thay đổi khi dữ liệu cũ bị sửa — dùng làm căn cứ bình xét." },
       { ul: [
         "Chọn kỳ (Quý 1–4 hoặc Cả năm) để xem điểm từng tháng, điểm trung bình và xếp loại của toàn bộ nhân viên.",
@@ -332,14 +332,14 @@ const SECTIONS = [
         "🖨 In phiếu xếp loại: xuất phiếu tổng hợp có chỗ ký, dùng cho họp bình xét thi đua.",
         "Có thể \"Chốt lại\" một tháng nếu dữ liệu tháng đó vừa được bổ sung/sửa — sổ sẽ ghi đè theo dữ liệu hiện tại.",
       ]},
-      { h: "🏛️ Điều hành — dành cho BGĐ/Admin" },
+      { h: "🏛️ Điều hành — mọi vai trò xem được" },
       { ul: [
         "Biểu đồ tỷ lệ hoàn thành của 3 phòng qua 6 tháng gần nhất — phát hiện phòng đang đi xuống.",
         "Top việc quá hạn lâu nhất toàn đơn vị (bấm mở xem chi tiết ngay).",
         "Bảng tốc độ duyệt: thời gian trung bình mỗi người duyệt xử lý yêu cầu + số việc đang treo — đo cả phía quản lý, không chỉ đo nhân viên.",
         "⏳ Sắp đến hạn trong 7 ngày tới: bấm vào ô số của một phòng để lọc danh sách bên dưới chỉ còn việc của phòng đó (bấm lại hoặc bấm ✕ Bỏ lọc để xem lại tất cả). Khi đang lọc, danh sách hiện tới 30 mục thay vì 8 nên xem được gần như trọn danh sách.",
       ]},
-      { h: "📄 KQ nhiệm vụ — báo cáo kết quả thực hiện (BGĐ/Admin)" },
+      { h: "📄 KQ nhiệm vụ — báo cáo kết quả thực hiện (mọi vai trò xem được)" },
       { p: "Lập báo cáo kết quả thực hiện nhiệm vụ theo kỳ (quý, 6 tháng, cả năm hoặc khoảng ngày tự chọn) đúng mẫu để gửi cấp trên." },
       { ul: [
         "Bảng gom theo phòng: Tổng số · HT trong hạn · HT trễ hạn · Chưa HT trong hạn · Chưa HT trễ hạn và 3 cột tỷ lệ. Bấm vào 1 phòng để xem chi tiết từng nhân viên.",
@@ -398,7 +398,8 @@ const SECTIONS = [
         ["Duyệt hoàn thành & đánh giá", "❌", "✅ (phòng mình)", "✅"],
         ["Chuyển tiếp nhiệm vụ", "❌", "✅ (phòng mình)", "✅"],
         ["Xóa nhiệm vụ", "❌", "✅ (phòng mình)", "✅"],
-        ["Báo cáo Xếp loại / Điều hành / KQ nhiệm vụ", "❌", "❌", "✅"],
+        ["Xem Báo cáo (tất cả các tab)", "✅", "✅", "✅"],
+        ["Chốt sổ điểm (tab Xếp loại)", "❌", "❌", "✅"],
         ["Quản lý tài khoản", "❌", "❌", "✅ (Admin)"],
         ["Xem Nhật ký / Bảo mật", "❌", "❌", "✅"],
       ]
