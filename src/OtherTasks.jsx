@@ -206,7 +206,11 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
 
   const taskStatus=(t)=>{const steps=parseJSON(t.steps,[]);if(steps.length===0)return"pending";const done=steps.filter(s=>s.status==="done").length;if(countOverdueSteps(steps)>0)return"overdue";if(done===steps.length)return"done";return"doing";};
 
-  const filteredTasks=useMemo(()=>tasks.filter(t=>{if(dateFrom&&(!t.created||t.created<dateFrom))return false;if(dateTo&&(!t.created||t.created>dateTo))return false;return true;}),[tasks,dateFrom,dateTo]);
+  // Nhân viên chỉ xem nhiệm vụ mình tham gia (thành viên team, hoặc chủ trì/phối hợp một bước); quản lý/BGĐ/Admin xem tất cả
+  const myEid=currentUser?.employee_id;
+  const isInvolved=t=>{if(!myEid)return false;if(parseJSON(t.team,[]).includes(myEid))return true;return parseJSON(t.steps,[]).some(s=>s.lead_eid===myEid||parseJSON(s.collab_eids,[]).includes(myEid));};
+  const visibleTasks=useMemo(()=>canManage?tasks:tasks.filter(isInvolved),[tasks,canManage,myEid]);
+  const filteredTasks=useMemo(()=>visibleTasks.filter(t=>{if(dateFrom&&(!t.created||t.created<dateFrom))return false;if(dateTo&&(!t.created||t.created>dateTo))return false;return true;}),[visibleTasks,dateFrom,dateTo]);
 
   useEffect(()=>{
     if(tasksData){setLoading(false);return;} // đã có dữ liệu từ App.jsx
@@ -256,7 +260,7 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
     </div>
 
     {loading?(<div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>Đang tải…</div>):filteredTasks.length===0?(
-      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:40,textAlign:"center",color:"#9ca3af"}}><div style={{fontSize:40,marginBottom:8}}>📌</div><div style={{fontSize:14,marginBottom:4}}>{tasks.length===0?"Chưa có nhiệm vụ nào":"Không có nhiệm vụ trong khoảng thời gian này"}</div>{canManage&&tasks.length===0&&<div style={{fontSize:12}}>Bấm "+ Nhiệm vụ khác" ở góc trên để tạo mới</div>}</div>
+      <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:40,textAlign:"center",color:"#9ca3af"}}><div style={{fontSize:40,marginBottom:8}}>📌</div><div style={{fontSize:14,marginBottom:4}}>{visibleTasks.length===0?"Chưa có nhiệm vụ nào":"Không có nhiệm vụ trong khoảng thời gian này"}</div>{canManage&&visibleTasks.length===0&&<div style={{fontSize:12}}>Bấm "+ Nhiệm vụ khác" ở góc trên để tạo mới</div>}</div>
     ):(
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(2,1fr)",gap:12}}>
         {filteredTasks.map(t=>{
