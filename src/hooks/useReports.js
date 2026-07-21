@@ -21,6 +21,9 @@ const isStepLate = (s) => {
 // Khó = 1 việc, Trung bình = 1/2 việc, Nhanh = 1/4 việc
 export const SUPPORT_WEIGHT = { hard: 1, medium: 0.5, easy: 0.25 };
 
+// Chức danh (nhãn nhân viên) được coi là CẤP QUẢN LÝ — chấm "điểm điều hành" theo kết quả phòng, xếp hạng riêng.
+export const MANAGER_EMP_ROLES = ["Trưởng phòng", "Phó trưởng phòng", "TP. HCTH", "PP. HCTH"];
+
 export default function useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks }) {
   // Báo cáo/xếp hạng dùng dữ liệu TOÀN CỤC để mọi vai trò thấy giống nhau; nếu vì lý do nào đó
   // không truyền computedGlobal thì lùi về computed (an toàn).
@@ -202,7 +205,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     return { total: etWeight, done, onTime, completedLate, over, resolved, completionRate, collabTotal, collabDone, perfScore, eligible, breakdown };
   };
 
-  const repEmpData = useMemo(() => (employees || []).map(emp => {
+  const repEmpData = useMemo(() => (employees || []).filter(e => !MANAGER_EMP_ROLES.includes(e.role)).map(emp => {
     const m = calcMonthPerf(emp.id, repYear, repMonth);
     return { ...emp, ...m, perfScore: m.perfScore };
   }).filter(e => e.total > 0).sort((a, b) => {
@@ -238,6 +241,63 @@ export default function useReports({ computed, computedGlobal, employees, curren
     return { emp, cur, trend, open, openCount: open.length, openW, lateReasons, lateTotal: myLate.length, onTimeRate };
   };
 
+  // ── ĐIỂM ĐIỀU HÀNH cho Trưởng/Phó phòng (kết hợp: hiệu quả điều hành phòng + khối lượng điều hành) ──
+  // Điểm không dựa trên vài việc giao đích danh cho họ (vốn rất ít), mà dựa trên KẾT QUẢ CẢ PHÒNG họ điều hành:
+  //   ① Đúng hạn phòng (tối đa 60): (đúng hạn×60 + trễ×30) / việc phòng đã đến hạn — thưởng phòng làm đúng hạn.
+  //   ② Chất lượng phòng (tối đa 40): trung bình nghiệm thu việc phòng.
+  //   ③ − Tồn đọng quá hạn (tối đa 10): tỷ lệ việc phòng còn quá hạn chưa xong.
+  //   ④ + Khối lượng điều hành (tối đa 10): phòng vận hành càng nhiều việc (đã đến hạn) càng được ghi nhận công quản lý.
+  // Tất cả tính theo QUY ĐỔI (trọng số định kỳ). Đủ điều kiện khi phòng có ≥5 việc quy đổi đã đến hạn trong tháng.
+  const managerPerf = (empId, year, month) => {
+    const emp = (employees || []).find(e => e.id === empId);
+    if (!emp) return { dept: null, resolvedW: 0, doneW: 0, onTimeW: 0, overW: 0, onTimeRate: 0, perfScore: 0, eligible: false, breakdown: null };
+    const dept = emp.dept;
+    const dt = cg.filter(t => { if (t.dept !== dept) return false; const d = new Date(t.deadline); return d.getFullYear() === year && d.getMonth() === month; });
+    const onTimeTasks = dt.filter(t => t.status === "completed");
+    const onTimeW = sumW(onTimeTasks);
+    const lateW = sumW(dt.filter(t => t.status === "completed_late"));
+    const overW = sumW(dt.filter(t => t.status === "overdue"));
+    const doneW = Math.round((onTimeW + lateW) * 100) / 100;
+    const resolvedW = Math.round((onTimeW + lateW + overW) * 100) / 100;
+    const eligible = resolvedW >= 5;
+    const onTimeRate = resolvedW > 0 ? Math.round(onTimeW / resolvedW * 100) : 0;
+    let perfScore = 0, breakdown = null;
+    if (resolvedW > 0) {
+      const timeliness = (onTimeW * 60 + lateW * 30) / resolvedW;                         // ① 0..60
+      const qualitySum = onTimeTasks.reduce((s, t) => s + (RATING[t.rating] ? RATING[t.rating].score : 2) * w(t), 0);
+      const quality = qualitySum / (resolvedW * 4) * 40;                                   // ② 0..40
+      const penalty = Math.round(overW / resolvedW * 10 * 10) / 10;                        // ③ 0..10 (tỷ lệ tồn đọng)
+      const mgmtBonus = Math.max(0, Math.min((resolvedW - 15) * 0.5, 10));                 // ④ 0..10 (khối lượng điều hành)
+      perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + mgmtBonus)));
+      breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, mgmtBonus: Math.round(mgmtBonus * 10) / 10 };
+    }
+    return { dept, resolvedW, doneW, onTimeW, overW, onTimeRate, perfScore, eligible, breakdown };
+  };
+
+  // Bảng điểm điều hành THÁNG (xếp hạng riêng cho cấp quản lý)
+  const managerBoard = useMemo(() => (employees || [])
+    .filter(e => MANAGER_EMP_ROLES.includes(e.role))
+    .map(e => ({ ...e, ...managerPerf(e.id, repYear, repMonth) }))
+    .sort((a, b) => { if (a.eligible !== b.eligible) return a.eligible ? -1 : 1; if (b.perfScore !== a.perfScore) return b.perfScore - a.perfScore; return (b.doneW || 0) - (a.doneW || 0); }),
+    [employees, repYear, repMonth, cg]);
+
+  // Bảng điểm điều hành NĂM (trung bình có điều chỉnh theo số tháng đủ ĐK, giống bảng nhân viên)
+  const managerLeaderboard = useMemo(() => {
+    const raw = (employees || []).filter(e => MANAGER_EMP_ROLES.includes(e.role)).map(emp => {
+      const monthly = [...Array(12)].map((_, m) => managerPerf(emp.id, rankYear, m));
+      const eligibleMonths = monthly.filter(m => m.eligible);
+      const resolvedW = Math.round(monthly.reduce((s, m) => s + (m.resolvedW || 0), 0) * 100) / 100;
+      const doneW = Math.round(monthly.reduce((s, m) => s + (m.doneW || 0), 0) * 100) / 100;
+      const rawScore = eligibleMonths.length ? eligibleMonths.reduce((s, m) => s + m.perfScore, 0) / eligibleMonths.length : null;
+      return { ...emp, resolvedW, doneW, eligibleMonths: eligibleMonths.length, rawScore, monthly };
+    }).filter(e => e.monthly.some(m => m.resolvedW > 0));
+    const PRIOR = 2; let sumAll = 0, cntAll = 0;
+    raw.forEach(e => e.monthly.filter(m => m.eligible).forEach(m => { sumAll += m.perfScore; cntAll++; }));
+    const baseline = cntAll ? sumAll / cntAll : 0;
+    return raw.map(e => { const v = e.eligibleMonths; const score = v ? Math.round((v / (v + PRIOR)) * e.rawScore + (PRIOR / (v + PRIOR)) * baseline) : null; return { ...e, rawScore: v ? Math.round(e.rawScore) : null, baseline: Math.round(baseline), score }; })
+      .sort((a, b) => { const aH = a.score !== null, bH = b.score !== null; if (aH !== bH) return aH ? -1 : 1; if (aH && bH && b.score !== a.score) return b.score - a.score; return (b.doneW || 0) - (a.doneW || 0); });
+  }, [employees, rankYear, cg]);
+
   const leaderboard = useMemo(() => {
     const raw = (employees || []).map(emp => {
       const monthly = [...Array(12)].map((_, m) => calcMonthPerf(emp.id, rankYear, m));
@@ -251,7 +311,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
       const collabTotal = monthly.reduce((s, m) => s + (m.collabTotal || 0), 0);
       const collabDone = monthly.reduce((s, m) => s + (m.collabDone || 0), 0);
       return { ...emp, total, resolved, done, completedLate, over, collabTotal, collabDone, eligibleMonths: eligibleMonths.length, rawScore, rate: total ? Math.round(done / total * 100) : 0, monthly };
-    }).filter(e => e.total > 0);
+    }).filter(e => e.total > 0 && !MANAGER_EMP_ROLES.includes(e.role));
 
     // ── Làm công bằng hơn cho người có ÍT tháng đủ điều kiện: dùng "trung bình có điều chỉnh"
     // (Bayesian/weighted average, giống cách IMDB xếp hạng phim) thay vì trung bình cộng thô.
@@ -371,7 +431,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
 
   return {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
-    execDeptSummary, staffingAdvice, empProfile, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
+    execDeptSummary, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList,
     calcMonthPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (snapshot cố định, không đổi khi dữ liệu sống bị sửa)
   };

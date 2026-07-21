@@ -13,7 +13,7 @@ export default function Reports({
   repMonth, setRepMonth, repYear, setRepYear,
   rankYear, setRankYear,
   repStats, repTasks, repDeptData, repEmpData, repMonthTrend,
-  leaderboard,
+  leaderboard, managerBoard, managerLeaderboard,
   lateReasonStats,
   getEmp, setModal, loadComments,
   canExec, computed, monthlyScores, snapshotMonth, currentUser, overloadThreshold,
@@ -152,6 +152,7 @@ export default function Reports({
             )}
           </div>
         )}
+        <ManagerBoard data={managerBoard} isMobile={isMobile} />
       </>)}
 
       {repTab === "leaderboard" && (<>
@@ -229,6 +230,7 @@ export default function Reports({
             </div>
           )}
         </div>
+        <ManagerBoard data={managerLeaderboard} isMobile={isMobile} yearly />
       </>)}
 
       {repTab === "late_reasons" && (
@@ -358,6 +360,52 @@ export default function Reports({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Bảng ĐIỂM ĐIỀU HÀNH cho Trưởng/Phó phòng (xếp hạng riêng, dùng cho cả tab Tháng lẫn Xếp hạng năm) ──
+function ManagerBoard({ data, isMobile, yearly }) {
+  if (!data || data.length === 0) return null;
+  const okOf = e => yearly ? e.score !== null : e.eligible;
+  const scoreOf = e => yearly ? e.score : e.perfScore;
+  const ranked = data.filter(okOf);
+  const rankOf = e => ranked.findIndex(x => x.id === e.id);
+  return (
+    <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #bae6fd", overflow: "hidden" }}>
+      <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f0f9ff" }}>
+        <span style={{ fontWeight: 600, fontSize: 13, color: "#075985" }}>🏛️ Điểm điều hành — Trưởng/Phó phòng {yearly ? "(cả năm)" : "(tháng)"}</span>
+        {!isMobile && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 3, lineHeight: 1.6 }}>Điểm theo <b>kết quả điều hành cả phòng</b>: Đúng hạn phòng (60%) + Chất lượng phòng (40%) − Tồn đọng quá hạn + Thưởng khối lượng điều hành. Đủ ĐK khi phòng có ≥5 việc quy đổi đã đến hạn/tháng. <b>Xếp hạng riêng, không so trực tiếp với nhân viên.</b></div>}
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: isMobile ? 0 : 520 }}>
+          <thead><tr style={{ background: "#f9fafb" }}>{["", "Cán bộ", "Phòng", yearly ? "Tháng đủ ĐK" : "Đúng hạn phòng", "Việc phòng (HT/đến hạn)", "Điểm điều hành"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+          <tbody>{data.map(e => {
+            const rk = okOf(e) ? rankOf(e) : -1;
+            const medal = rk === 0 ? "🥇" : rk === 1 ? "🥈" : rk === 2 ? "🥉" : "";
+            const sc = scoreOf(e); const ok = okOf(e); const bd = e.breakdown;
+            const refScore = yearly ? e.rawScore : (e.resolvedW > 0 ? e.perfScore : null);
+            return (
+              <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6", background: medal ? "#eff6ff" : "#fff", opacity: ok ? 1 : 0.6 }}>
+                <td style={{ padding: "9px 12px", fontSize: 16 }}>{medal}</td>
+                <td style={{ padding: "9px 12px" }}><div style={{ fontWeight: 500 }}>{e.name}</div><div style={{ fontSize: 11, color: "#9ca3af" }}>{e.role}</div></td>
+                <td style={{ padding: "9px 12px" }}><span style={{ background: (DEPT_COLOR[e.dept] || "#888") + "22", color: DEPT_COLOR[e.dept] || "#555", fontSize: 11, padding: "2px 6px", borderRadius: 8 }}>{e.dept}</span></td>
+                <td style={{ padding: "9px 12px", color: "#6b7280" }}>{yearly ? `${e.eligibleMonths}/12` : (e.resolvedW > 0 ? e.onTimeRate + "%" : "–")}</td>
+                <td style={{ padding: "9px 12px", color: "#6b7280" }}>{r2(e.doneW || 0)}/{r2(e.resolvedW || 0)}</td>
+                <td style={{ padding: "9px 12px" }}>
+                  {!ok ? <span style={{ fontSize: 12, color: "#9ca3af" }}>{refScore != null && <b style={{ color: "#6b7280", marginRight: 6 }}>~{refScore}đ (tham khảo)</b>}Chưa đủ ĐK</span> : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }} title={bd ? `Đúng hạn ${bd.timeliness} + Chất lượng ${bd.quality} − Tồn đọng ${bd.penalty} + Khối lượng ĐH ${bd.mgmtBonus}` : ""}>
+                      <div style={{ width: 60, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: sc + "%", background: sc >= 80 ? "#16a34a" : sc >= 50 ? "#f59e0b" : "#dc2626", borderRadius: 6 }} /></div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: sc >= 80 ? "#15803d" : sc >= 50 ? "#92400e" : "#b91c1c" }}>{sc}đ</span>
+                      {bd && <span style={{ fontSize: 11, color: "#9ca3af", cursor: "help" }}>ℹ️</span>}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}</tbody>
+        </table>
+      </div>
     </div>
   );
 }
