@@ -5,7 +5,8 @@ export const VI_MONTHS = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5"
 export const VI_DAYS = ["CN","T2","T3","T4","T5","T6","T7"];
 export const ROLE_LABELS = {admin:"Quản trị viên",director:"Ban Giám đốc",manager_hcth:"TP. HCTH",manager:"Trưởng phòng",deputy_manager:"Phó trưởng phòng",staff:"Nhân viên"};
 export const ROLE_COLORS = {admin:["#4338ca","#e0e7ff"],director:["#7c3aed","#f3e8ff"],manager_hcth:["#0369a1","#e0f2fe"],manager:["#15803d","#dcfce7"],deputy_manager:["#0f766e","#ccfbf1"],staff:["#92400e","#fef9c3"]};
-export const FULL_ACCESS = ["admin","director","manager_hcth"];
+// TP.HCTH (manager_hcth) đối xử như Trưởng phòng thường (chỉ trong phòng mình) — KHÔNG có quyền xem toàn đơn vị.
+export const FULL_ACCESS = ["admin","director"];
 export const CAN_CREATE  = ["admin","director","manager_hcth","manager","deputy_manager"];
 export const RATING = {xuat_sac:{label:"Xuất sắc",bg:"#fef9c3",col:"#854d0e",icon:"🏆",score:4},tot:{label:"Tốt",bg:"#dcfce7",col:"#15803d",icon:"🌟",score:3},tb:{label:"Trung bình",bg:"#e0e7ff",col:"#4338ca",icon:"⚡",score:2},kem:{label:"Kém",bg:"#fee2e2",col:"#b91c1c",icon:"❌",score:0}};
 export const LATE_REASONS = [{value:"overload",label:"Khối lượng quá lớn"},{value:"missing_info",label:"Thiếu thông tin/tài liệu"},{value:"dependency",label:"Phụ thuộc bên khác"},{value:"unexpected",label:"Phát sinh đột xuất"},{value:"other",label:"Lý do khác"}];

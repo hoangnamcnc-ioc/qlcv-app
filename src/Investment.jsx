@@ -413,7 +413,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
 
   const userDept=useMemo(()=>!currentUser||!employees?null:employees.find(e=>e.id===currentUser.employee_id)?.dept||null,[currentUser,employees]);
   const leaders=useMemo(()=>(users||[]).filter(u=>u.role==="director"||u.role==="admin"),[users]);
-  const canSeeAll=["admin","director","manager_hcth"].includes(currentUser?.role);
+  const canSeeAll=["admin","director"].includes(currentUser?.role);
   const canManageInvest=["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role);
   const isBGD=["admin","director"].includes(currentUser?.role); // Ban Giám đốc
   const myEid=currentUser?.employee_id;

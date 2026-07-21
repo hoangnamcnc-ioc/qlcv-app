@@ -18,7 +18,7 @@ export default function Dashboard({
 }) {
   // Nhân viên (staff) chỉ thấy việc của mình → ẩn các khối mang tính điều hành/toàn phòng
   // (thống kê tổng, biểu đồ phòng ban, cảnh báo quá tải, quản lý nhiệm vụ định kỳ) cho gọn và tránh trùng lặp.
-  const isManagerView = FULL_ACCESS.includes(currentUser.role) || ["manager", "deputy_manager"].includes(currentUser.role);
+  const isManagerView = FULL_ACCESS.includes(currentUser.role) || ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role);
   // Phân trang cho danh sách "Công việc của tôi"
   const [wlPage, setWlPage] = useState(1);
   const WL_SIZE = 8;
@@ -104,7 +104,7 @@ export default function Dashboard({
       {currentUser.role !== "admin" && (
         <div style={{ background: ROLE_COLORS[currentUser.role]?.[1] || "#eef2ff", borderRadius: 8, padding: "8px 14px", fontSize: 13, color: ROLE_COLORS[currentUser.role]?.[0] || "#4338ca", display: "flex", alignItems: "center", gap: 8, border: "1px solid " + (ROLE_COLORS[currentUser.role]?.[0] || "#4338ca") + "22" }}>
           <RoleBadge role={currentUser.role} />
-          <span>{FULL_ACCESS.includes(currentUser.role) ? "Bạn đang xem toàn bộ nhiệm vụ." : ["manager","deputy_manager"].includes(currentUser.role) ? `Bạn đang xem nhiệm vụ phòng ${userDept}.` : "Bạn đang xem nhiệm vụ được giao và phối hợp."}</span>
+          <span>{FULL_ACCESS.includes(currentUser.role) ? "Bạn đang xem toàn bộ nhiệm vụ." : ["manager","deputy_manager","manager_hcth"].includes(currentUser.role) ? `Bạn đang xem nhiệm vụ phòng ${userDept}.` : "Bạn đang xem nhiệm vụ được giao và phối hợp."}</span>
         </div>
       )}
 

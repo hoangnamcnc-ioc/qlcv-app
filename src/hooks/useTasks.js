@@ -10,7 +10,7 @@ const PAGE_SIZE = 20;
 // Tách khỏi App.jsx để component chính không phải ôm hết state + xử lý của module này.
 export default function useTasks({ tasks, setTasks, employees, currentUser, canSeeAll, userDept, canCreate, showToast, getEmp, setModal, setSaving, delegations }) {
   // ── Phân quyền ──
-  const canSeeTask = useMemo(() => (t) => { if (!currentUser) return false; if (canSeeAll) return true; if (["manager", "deputy_manager"].includes(currentUser.role)) return t.dept === userDept; if (t.eid === currentUser.employee_id) return true; return parseJSON(t.collab_eids, []).includes(currentUser.employee_id); }, [currentUser, canSeeAll, userDept]);
+  const canSeeTask = useMemo(() => (t) => { if (!currentUser) return false; if (canSeeAll) return true; if (["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; if (t.eid === currentUser.employee_id) return true; return parseJSON(t.collab_eids, []).includes(currentUser.employee_id); }, [currentUser, canSeeAll, userDept]);
   const canEditTask = useMemo(() => (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; return false; }, [currentUser, userDept]);
   const canDeleteTask = useMemo(() => (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (["manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; return false; }, [currentUser, userDept]);
   // Cập nhật tiến độ: người chủ trì, quản lý, VÀ người phối hợp (họ đóng góp phần việc nên được ghi nhận tiến độ).
