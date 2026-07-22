@@ -396,10 +396,47 @@ export default function useReports({ computed, computedGlobal, employees, curren
     return out.sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [computed, currentUser, supportCases, projects, otherTasks]);
 
+  const dleft = (d) => { if (!d) return 99999; const dd = new Date(d); if (isNaN(dd)) return 99999; dd.setHours(0, 0, 0, 0); return Math.ceil((dd - today) / 86400000); };
+
+  // ── #1 VIỆC NGUY CƠ TRỄ: chưa quá hạn nhưng khả năng trễ cao (hạn ≤3 ngày & tiến độ <50% & chưa gửi duyệt) ──
+  // Nổi lên TRƯỚC khi thành quá hạn để can thiệp kịp. Theo phạm vi quyền xem (TP thấy phòng, nhân viên thấy việc mình).
+  const atRiskTasks = useMemo(() => computed
+    .filter(t => !t.completed && !t.completion_requested && !isCompletedStatus(t.status) && t.status !== "overdue" && (t.progress || 0) < 50 && dleft(t.deadline) >= 0 && dleft(t.deadline) <= 3)
+    .sort((a, b) => dleft(a.deadline) - dleft(b.deadline) || (a.progress || 0) - (b.progress || 0)), [computed, today]);
+
+  // ── #7 BẢN TIN TUẦN (7 ngày qua) theo phạm vi quyền xem ──
+  const weeklyDigest = useMemo(() => {
+    const wk = new Date(today); wk.setDate(wk.getDate() - 7);
+    let newly = 0, done = 0;
+    for (const t of computed) {
+      if (t.created && !isNaN(new Date(t.created)) && new Date(t.created) >= wk) newly++;
+      if (isCompletedStatus(t.status) && t.completed_at && !isNaN(new Date(t.completed_at)) && new Date(t.completed_at) >= wk) done++;
+    }
+    return { newly, done, nearly: computed.filter(t => t.status === "nearly_due").length, overdue: computed.filter(t => t.status === "overdue").length };
+  }, [computed, today]);
+
+  // ── #2 CẢNH BÁO XU HƯỚNG (BGĐ): phòng đi xuống 3 tháng liên tiếp + nhân viên rớt điểm mạnh vs tháng trước ──
+  const watchList = useMemo(() => {
+    const alerts = [];
+    const y = today.getFullYear(), m = today.getMonth();
+    const monthRate = (dept, yy, mm) => { const mt = cg.filter(t => { if (t.dept !== dept) return false; const td = new Date(t.deadline); return td.getFullYear() === yy && td.getMonth() === mm; }); return mt.length ? Math.round(mt.filter(t => isCompletedStatus(t.status)).length / mt.length * 100) : null; };
+    for (const d of DEPTS) {
+      const seq = [2, 1, 0].map(i => { const dd = new Date(y, m - i, 1); return monthRate(d, dd.getFullYear(), dd.getMonth()); });
+      if (seq.every(v => v != null) && seq[0] > seq[1] && seq[1] > seq[2]) alerts.push({ kind: "dept_down", dept: d, detail: `Tỷ lệ HT giảm 3 tháng liên tiếp: ${seq[0]}% → ${seq[1]}% → ${seq[2]}%`, drop: seq[0] - seq[2] });
+    }
+    const prev = new Date(y, m - 1, 1); const py = prev.getFullYear(), pm = prev.getMonth();
+    for (const emp of (employees || [])) {
+      if (emp.no_kpi) continue;
+      const cur = calcMonthPerf(emp.id, y, m), pr = calcMonthPerf(emp.id, py, pm);
+      if (cur.eligible && pr.eligible && (pr.perfScore - cur.perfScore) >= 15) alerts.push({ kind: "emp_down", dept: emp.dept, name: emp.name, detail: `Điểm rớt ${pr.perfScore - cur.perfScore}đ so tháng trước (${pr.perfScore} → ${cur.perfScore})`, drop: pr.perfScore - cur.perfScore });
+    }
+    return alerts.sort((a, b) => b.drop - a.drop);
+  }, [cg, employees, perfIndex, today]);
+
   return {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
-    lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList,
+    lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList,
     calcMonthPerf, managerPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (nhân viên theo calcMonthPerf, quản lý theo managerPerf)
   };
 }

@@ -8,6 +8,7 @@ export default function Dashboard({
   currentUser, isMobile, userDept,
   execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, employees,
   stats, statsW, deptChart, myTasks, myWorkList, myWorkloadCompare, myDoneList, myTrend,
+  atRiskTasks, weeklyDigest, watchList,
   computed, overloadedEmps, overloadThreshold, setOverloadThreshold, kpiOnTime, setKpiOnTime,
   dateFrom, setDateFrom, dateTo, setDateTo,
   overloadPopup, setOverloadPopup,
@@ -116,6 +117,26 @@ export default function Dashboard({
         </div>
       )}
 
+      {["admin","director"].includes(currentUser.role) && watchList && watchList.length > 0 && (
+        <div style={{ background: "#fff", borderRadius: 12, border: "2px solid #fecaca", overflow: "hidden" }}>
+          <div style={{ padding: "10px 16px", borderBottom: "1px solid #fecaca", background: "#fef2f2", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>🚩</span><span style={{ fontWeight: 700, fontSize: 14, color: "#b91c1c" }}>Cần chú ý ({watchList.length})</span>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: "#9ca3af" }}>Dấu hiệu đi xuống — nên can thiệp sớm</span>
+          </div>
+          <div>
+            {watchList.map((a, i) => (
+              <div key={i} onClick={() => a.kind === "dept_down" ? (setView("tasks"), setFDept(a.dept)) : null} style={{ padding: "10px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", gap: 10, cursor: a.kind === "dept_down" ? "pointer" : "default" }}>
+                <span style={{ fontSize: 18 }}>{a.kind === "dept_down" ? "📉" : "👤"}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{a.kind === "dept_down" ? <>Phòng <span style={{ background: DEPT_COLOR[a.dept] + "22", color: DEPT_COLOR[a.dept], fontWeight: 700, padding: "1px 8px", borderRadius: 8 }}>{a.dept}</span></> : <>{a.name} <span style={{ color: "#9ca3af", fontSize: 11 }}>({a.dept})</span></>}</div>
+                  <div style={{ fontSize: 11.5, color: "#b91c1c", marginTop: 2 }}>{a.detail}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {staffingAdvice && staffingAdvice.length > 0 && (
         <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
           <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", gap: 8 }}>
@@ -140,6 +161,38 @@ export default function Dashboard({
         <div style={{ background: ROLE_COLORS[currentUser.role]?.[1] || "#eef2ff", borderRadius: 8, padding: "8px 14px", fontSize: 13, color: ROLE_COLORS[currentUser.role]?.[0] || "#4338ca", display: "flex", alignItems: "center", gap: 8, border: "1px solid " + (ROLE_COLORS[currentUser.role]?.[0] || "#4338ca") + "22" }}>
           <RoleBadge role={currentUser.role} />
           <span>{FULL_ACCESS.includes(currentUser.role) ? "Bạn đang xem toàn bộ nhiệm vụ." : ["manager","deputy_manager","manager_hcth"].includes(currentUser.role) ? `Bạn đang xem nhiệm vụ phòng ${userDept}.` : "Bạn đang xem nhiệm vụ được giao và phối hợp."}</span>
+        </div>
+      )}
+
+      {isManagerView && weeklyDigest && (
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 8 }}>
+          {[{ l: "Việc mới giao (7 ngày)", v: weeklyDigest.newly, bg: "#eef2ff", c: "#4338ca", i: "🆕" }, { l: "Hoàn thành (7 ngày)", v: weeklyDigest.done, bg: "#dcfce7", c: "#15803d", i: "✅" }, { l: "Sắp hết hạn", v: weeklyDigest.nearly, bg: "#fef9c3", c: "#92400e", i: "⏳" }, { l: "Đang quá hạn", v: weeklyDigest.overdue, bg: "#fee2e2", c: "#b91c1c", i: "❗" }].map(k => (
+            <div key={k.l} style={{ background: k.bg, borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ fontSize: 16 }}>{k.i}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: k.c, lineHeight: 1.2 }}>{k.v}</div>
+              <div style={{ fontSize: 11, color: k.c, opacity: 0.85 }}>{k.l}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {atRiskTasks && atRiskTasks.length > 0 && (
+        <div style={{ background: "#fff", borderRadius: 12, border: "2px solid #fed7aa", overflow: "hidden" }}>
+          <div style={{ padding: "10px 16px", borderBottom: "1px solid #fed7aa", background: "#fff7ed", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⚠️</span><span style={{ fontWeight: 700, fontSize: 14, color: "#9a3412" }}>Nguy cơ trễ ({atRiskTasks.length})</span>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: "#9ca3af" }}>Hạn ≤3 ngày · tiến độ &lt;50% · chưa gửi duyệt</span>
+          </div>
+          <div style={{ maxHeight: 220, overflowY: "auto" }}>
+            {atRiskTasks.slice(0, 12).map(t => { const dl = t.deadline; const dd = dl ? Math.ceil((new Date(new Date(dl).setHours(0,0,0,0)) - new Date(new Date().setHours(0,0,0,0))) / 86400000) : null; return (
+              <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "9px 16px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }} onMouseEnter={e => e.currentTarget.style.background = "#fff7ed"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>{t.dept} · {getEmp(t.eid)?.name || "–"} · TĐ {t.progress || 0}%</div>
+                </div>
+                <span style={{ background: dd === 0 ? "#fee2e2" : "#ffedd5", color: dd === 0 ? "#b91c1c" : "#9a3412", fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>{dd === 0 ? "Hết hạn hôm nay" : `Còn ${dd} ngày`}</span>
+              </div>
+            ); })}
+          </div>
         </div>
       )}
 
