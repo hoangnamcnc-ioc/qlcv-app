@@ -315,7 +315,7 @@ export default function App() {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList, dataHealth,
-    empReliability, execNarrative,
+    empReliability, execNarrative, lateInsights,
     calcMonthPerf, managerPerf,
   } = useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks });
 
@@ -720,7 +720,7 @@ export default function App() {
               execDeptSummary={execDeptSummary} execMonth={execMonth} setExecMonth={setExecMonth} execYear={execYear} setExecYear={setExecYear} staffingAdvice={staffingAdvice} empProfile={empProfile} employees={employees}
               stats={stats} statsW={statsW} deptChart={deptChart}
               myTasks={myTasks} myWorkList={myWorkList} myWorkloadCompare={myWorkloadCompare} myDoneList={myDoneList} myTrend={myTrend}
-              atRiskTasks={atRiskTasks} weeklyDigest={weeklyDigest} watchList={watchList} dataHealth={dataHealth} execNarrative={execNarrative}
+              atRiskTasks={atRiskTasks} weeklyDigest={weeklyDigest} watchList={watchList} dataHealth={dataHealth} execNarrative={execNarrative} lateInsights={lateInsights}
               computed={computed} overloadedEmps={overloadedEmps}
               dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo}
               overloadThreshold={overloadThreshold} setOverloadThreshold={setOverloadThreshold}

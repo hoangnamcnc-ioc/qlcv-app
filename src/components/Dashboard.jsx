@@ -8,7 +8,7 @@ export default function Dashboard({
   currentUser, isMobile, userDept,
   execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, employees,
   stats, statsW, deptChart, myTasks, myWorkList, myWorkloadCompare, myDoneList, myTrend,
-  atRiskTasks, weeklyDigest, watchList, dataHealth, execNarrative,
+  atRiskTasks, weeklyDigest, watchList, dataHealth, execNarrative, lateInsights,
   computed, overloadedEmps, overloadThreshold, setOverloadThreshold, kpiOnTime, setKpiOnTime,
   dateFrom, setDateFrom, dateTo, setDateTo,
   overloadPopup, setOverloadPopup,
@@ -207,6 +207,22 @@ export default function Dashboard({
               <div style={{ fontSize: 11, color: k.c, opacity: 0.85 }}>{k.l}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {isManagerView && lateInsights && lateInsights.length > 0 && (
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+          <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>🩻</span><span style={{ fontWeight: 700, fontSize: 14 }}>Phân tích nguyên nhân trễ</span>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: "#9ca3af" }}>Rút ra từ dữ liệu · gợi ý cải tiến</span>
+          </div>
+          <div style={{ padding: "6px 8px" }}>
+            {lateInsights.map((a, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, padding: "8px 10px", fontSize: 13, color: "#374151", lineHeight: 1.55 }}>
+                <span style={{ fontSize: 15, flexShrink: 0 }}>{a.icon}</span><span>{a.text}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -542,7 +558,7 @@ export default function Dashboard({
 // ── Hồ sơ đánh giá 1 nhân viên (mở từ bảng "Nhân sự") ──
 function EmpProfileModal({ profile, isMobile, overloadThreshold, onClose, onOpenTask }) {
   if (!profile) return null;
-  const { emp, cur, trend, open, openCount, openW, lateReasons, lateTotal, onTimeRate, proactive } = profile;
+  const { emp, cur, trend, open, openCount, openW, lateReasons, lateTotal, onTimeRate, proactive, skills } = profile;
   const over = openW >= overloadThreshold;
   const scoreTrend = trend.filter(t => t.score != null);
   const box = { background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 12px", textAlign: "center" };
@@ -573,6 +589,20 @@ function EmpProfileModal({ profile, isMobile, overloadThreshold, onClose, onOpen
               </div>
             )}
           </div>
+          {/* Chân dung năng lực theo loại việc */}
+          {skills && skills.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8 }}>🎯 Năng lực theo loại việc <span style={{ color: "#9ca3af", fontWeight: 400 }}>(lịch sử)</span></div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : `repeat(${skills.length},1fr)`, gap: 8 }}>
+                {skills.map(s => (
+                  <div key={s.label} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 10, padding: "9px 12px" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>{s.label} <span style={{ color: "#9ca3af", fontWeight: 400 }}>({s.resolved})</span></div>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>Đúng hạn <b style={{ color: s.onTimeRate >= 80 ? "#15803d" : s.onTimeRate >= 50 ? "#92400e" : "#b91c1c" }}>{s.onTimeRate}%</b>{s.avgRating != null && <> · Chất lượng TB <b>{s.avgRating}</b>/4</>}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Chỉ số chủ động (tham khảo, không vào điểm) */}
           {proactive && (
             <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 10, padding: "10px 12px" }}>

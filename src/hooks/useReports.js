@@ -231,7 +231,11 @@ export default function useReports({ computed, computedGlobal, employees, curren
     let early = 0;
     for (const t of myDone) { const cd = new Date(t.completed_at); const dl = new Date(t.deadline); dl.setHours(23, 59, 59, 999); if (!isNaN(cd) && !isNaN(dl) && (dl - cd) / 86400000 >= 1) early++; }
     const proactive = { doneOnTime: myDone.length, early, earlyRate: myDone.length ? Math.round(early / myDone.length * 100) : 0, collabW: cur.collabTotal || 0 };
-    return { emp, cur, trend, open, openCount: open.length, openW, lateReasons, lateTotal: myLate.length, onTimeRate, proactive };
+    // TV6 — Chân dung năng lực: tỷ lệ đúng hạn + chất lượng theo LOẠI việc (thường / định kỳ) từ lịch sử.
+    const myResolved = cg.filter(t => t.eid === empId && (t.status === "completed" || t.status === "completed_late" || t.status === "overdue"));
+    const skillDefs = [{ label: "Nhiệm vụ thường", m: t => !t.template_id }, { label: "Nhiệm vụ định kỳ", m: t => !!t.template_id }];
+    const skills = skillDefs.map(sd => { const arr = myResolved.filter(sd.m); const onTime = arr.filter(t => t.status === "completed").length; const rated = arr.filter(t => RATING[t.rating]); return { label: sd.label, resolved: arr.length, onTimeRate: arr.length ? Math.round(onTime / arr.length * 100) : null, avgRating: rated.length ? Math.round(rated.reduce((s, t) => s + RATING[t.rating].score, 0) / rated.length * 10) / 10 : null }; }).filter(s => s.resolved > 0);
+    return { emp, cur, trend, open, openCount: open.length, openW, lateReasons, lateTotal: myLate.length, onTimeRate, proactive, skills };
   };
 
   // ── ĐIỂM ĐIỀU HÀNH cho Trưởng/Phó phòng (kết hợp: hiệu quả điều hành phòng + khối lượng điều hành) ──
@@ -456,6 +460,28 @@ export default function useReports({ computed, computedGlobal, employees, curren
     return { overdueNoReason, pendingLong, stale, total: overdueNoReason.length + pendingLong.length + stale.length };
   }, [computed, today]);
 
+  // ── TV5 PHÂN TÍCH NGUYÊN NHÂN TRỄ THEO MẪU: tìm quy luật & khuyến nghị (không chỉ đếm) ──
+  const lateInsights = useMemo(() => {
+    const late = computed.filter(t => t.status === "completed_late" || t.status === "overdue");
+    const out = [];
+    if (late.length < 3) return out;
+    const withReason = late.filter(t => t.late_reason);
+    if (withReason.length >= 2) {
+      const counts = {}; withReason.forEach(t => counts[t.late_reason] = (counts[t.late_reason] || 0) + 1);
+      const [val, n] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+      const label = LATE_REASONS.find(r => r.value === val)?.label || val;
+      const rec = /thông tin|tài liệu/i.test(label) ? " Nên cải thiện khâu cung cấp thông tin/tài liệu đầu vào." : /phối hợp|đơn vị/i.test(label) ? " Nên rà soát khâu phối hợp giữa các bộ phận." : "";
+      out.push({ icon: "📌", text: `Nguyên nhân trễ phổ biến nhất: "${label}" (${Math.round(n / withReason.length * 100)}% số việc trễ có khai lý do).${rec}` });
+    }
+    const endMonth = late.filter(t => { const d = new Date(t.deadline); return !isNaN(d) && d.getDate() >= 21; }).length;
+    const pctEnd = Math.round(endMonth / late.length * 100);
+    if (pctEnd >= 50) out.push({ icon: "📅", text: `${pctEnd}% việc trễ có hạn rơi vào CUỐI THÁNG (ngày 21+). Nên dàn đều tiến độ trong tháng thay vì dồn cuối kỳ.` });
+    const byEid = {}; late.forEach(t => { if (t.eid) byEid[t.eid] = (byEid[t.eid] || 0) + 1; });
+    const worst = Object.entries(byEid).sort((a, b) => b[1] - a[1])[0];
+    if (worst && worst[1] >= 3) { const nm = (employees || []).find(e => e.id === worst[0])?.name; if (nm) out.push({ icon: "👤", text: `${nm} có nhiều việc trễ nhất (${worst[1]} việc). Cân nhắc giảm tải hoặc hỗ trợ thêm.` }); }
+    return out;
+  }, [computed, employees]);
+
   // ── TV7 TÓM TẮT ĐIỀU HÀNH BẰNG LỜI (BGĐ): tự ghép các chỉ số & cảnh báo thành một đoạn "đọc là hiểu" ──
   const execNarrative = useMemo(() => {
     const rows = execDeptSummary.filter(d => d.empCount > 0);
@@ -515,7 +541,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList, dataHealth,
-    empReliability, execNarrative,
+    empReliability, execNarrative, lateInsights,
     calcMonthPerf, managerPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (nhân viên theo calcMonthPerf, quản lý theo managerPerf)
   };
 }
