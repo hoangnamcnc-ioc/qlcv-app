@@ -482,24 +482,6 @@ export default function useReports({ computed, computedGlobal, employees, curren
     return out;
   }, [computed, employees]);
 
-  // ── TV7 TÓM TẮT ĐIỀU HÀNH BẰNG LỜI (BGĐ): tự ghép các chỉ số & cảnh báo thành một đoạn "đọc là hiểu" ──
-  const execNarrative = useMemo(() => {
-    const rows = execDeptSummary.filter(d => d.empCount > 0);
-    const totalTasks = rows.reduce((s, d) => s + d.total, 0);
-    if (totalTasks === 0) return "";
-    const doneAll = rows.reduce((s, d) => s + d.done, 0);
-    const overdueAll = rows.reduce((s, d) => s + d.overdue, 0);
-    const rate = totalTasks ? Math.round(doneAll / totalTasks * 100) : 0;
-    const sorted = [...rows].sort((a, b) => b.rate - a.rate);
-    const best = sorted[0], worst = sorted[sorted.length - 1];
-    const parts = [`Kỳ đang xem: ${totalTasks} nhiệm vụ, tỷ lệ hoàn thành ${rate}%${overdueAll > 0 ? `, còn ${overdueAll} việc quá hạn` : ""}.`];
-    if (best && worst && best.dept !== worst.dept) parts.push(`Phòng ${best.dept} dẫn đầu (${best.rate}%), ${worst.dept} thấp nhất (${worst.rate}%).`);
-    if (watchList && watchList.length) { const dd = watchList.filter(a => a.kind === "dept_down"), ee = watchList.filter(a => a.kind === "emp_down"); if (dd.length) parts.push(`⚠️ ${dd.map(x => x.dept).join(", ")} đang có xu hướng đi xuống nhiều tháng.`); if (ee.length) parts.push(`${ee.length} nhân viên rớt điểm mạnh so tháng trước.`); }
-    if (staffingAdvice && staffingAdvice.length) { const ov = staffingAdvice.filter(x => x.level === "over").map(x => x.dept), un = staffingAdvice.filter(x => x.level === "under").map(x => x.dept); if (ov.length) parts.push(`Gợi ý điều phối: ${ov.join(", ")} có dấu hiệu thiếu người${un.length ? `, ${un.join(", ")} có thể dư người` : ""}.`); else if (un.length) parts.push(`${un.join(", ")} có thể đang dư người.`); }
-    if (dataHealth && dataHealth.total > 0) { const bits = []; if (dataHealth.overdueNoReason.length) bits.push(`${dataHealth.overdueNoReason.length} việc quá hạn chưa nêu lý do`); if (dataHealth.pendingLong.length) bits.push(`${dataHealth.pendingLong.length} việc chờ duyệt lâu`); if (dataHealth.stale.length) bits.push(`${dataHealth.stale.length} việc bỏ hoang`); if (bits.length) parts.push(`Cần chấn chỉnh dữ liệu: ${bits.join(", ")}.`); }
-    return parts.join(" ");
-  }, [execDeptSummary, watchList, staffingAdvice, dataHealth]);
-
   // ── TV1 VIỆC NGUY CƠ TRỄ (thang xác suất): chưa quá hạn nhưng khả năng trễ Cao/TB theo riskOf ──
   // Thông minh hơn quy tắc cứng cũ: 1 việc 60% tiến độ nhưng hạn ngày mai + người hay trễ vẫn bị cảnh báo.
   const atRiskTasks = useMemo(() => computed
@@ -536,6 +518,25 @@ export default function useReports({ computed, computedGlobal, employees, curren
     }
     return alerts.sort((a, b) => b.drop - a.drop);
   }, [cg, employees, perfIndex, today]);
+
+  // ── TV7 TÓM TẮT ĐIỀU HÀNH BẰNG LỜI (BGĐ): tự ghép các chỉ số & cảnh báo thành một đoạn "đọc là hiểu" ──
+  // (Đặt SAU watchList/staffingAdvice/dataHealth vì phụ thuộc chúng — tránh lỗi truy cập trước khởi tạo.)
+  const execNarrative = useMemo(() => {
+    const rows = execDeptSummary.filter(d => d.empCount > 0);
+    const totalTasks = rows.reduce((s, d) => s + d.total, 0);
+    if (totalTasks === 0) return "";
+    const doneAll = rows.reduce((s, d) => s + d.done, 0);
+    const overdueAll = rows.reduce((s, d) => s + d.overdue, 0);
+    const rate = totalTasks ? Math.round(doneAll / totalTasks * 100) : 0;
+    const sorted = [...rows].sort((a, b) => b.rate - a.rate);
+    const best = sorted[0], worst = sorted[sorted.length - 1];
+    const parts = [`Kỳ đang xem: ${totalTasks} nhiệm vụ, tỷ lệ hoàn thành ${rate}%${overdueAll > 0 ? `, còn ${overdueAll} việc quá hạn` : ""}.`];
+    if (best && worst && best.dept !== worst.dept) parts.push(`Phòng ${best.dept} dẫn đầu (${best.rate}%), ${worst.dept} thấp nhất (${worst.rate}%).`);
+    if (watchList && watchList.length) { const dd = watchList.filter(a => a.kind === "dept_down"), ee = watchList.filter(a => a.kind === "emp_down"); if (dd.length) parts.push(`⚠️ ${dd.map(x => x.dept).join(", ")} đang có xu hướng đi xuống nhiều tháng.`); if (ee.length) parts.push(`${ee.length} nhân viên rớt điểm mạnh so tháng trước.`); }
+    if (staffingAdvice && staffingAdvice.length) { const ov = staffingAdvice.filter(x => x.level === "over").map(x => x.dept), un = staffingAdvice.filter(x => x.level === "under").map(x => x.dept); if (ov.length) parts.push(`Gợi ý điều phối: ${ov.join(", ")} có dấu hiệu thiếu người${un.length ? `, ${un.join(", ")} có thể dư người` : ""}.`); else if (un.length) parts.push(`${un.join(", ")} có thể đang dư người.`); }
+    if (dataHealth && dataHealth.total > 0) { const bits = []; if (dataHealth.overdueNoReason.length) bits.push(`${dataHealth.overdueNoReason.length} việc quá hạn chưa nêu lý do`); if (dataHealth.pendingLong.length) bits.push(`${dataHealth.pendingLong.length} việc chờ duyệt lâu`); if (dataHealth.stale.length) bits.push(`${dataHealth.stale.length} việc bỏ hoang`); if (bits.length) parts.push(`Cần chấn chỉnh dữ liệu: ${bits.join(", ")}.`); }
+    return parts.join(" ");
+  }, [execDeptSummary, watchList, staffingAdvice, dataHealth]);
 
   return {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
