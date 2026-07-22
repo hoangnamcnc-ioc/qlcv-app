@@ -8,7 +8,7 @@ export default function Dashboard({
   currentUser, isMobile, userDept,
   execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, employees,
   stats, statsW, deptChart, myTasks, myWorkList, myWorkloadCompare, myDoneList, myTrend,
-  atRiskTasks, weeklyDigest, watchList, dataHealth,
+  atRiskTasks, weeklyDigest, watchList, dataHealth, execNarrative,
   computed, overloadedEmps, overloadThreshold, setOverloadThreshold, kpiOnTime, setKpiOnTime,
   dateFrom, setDateFrom, dateTo, setDateTo,
   overloadPopup, setOverloadPopup,
@@ -141,6 +141,16 @@ export default function Dashboard({
         </div>
       )}
 
+      {["admin","director"].includes(currentUser.role) && execNarrative && (
+        <div style={{ background: "linear-gradient(135deg,#0f172a,#1e293b)", borderRadius: 12, padding: "14px 18px", color: "#e2e8f0", display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <span style={{ fontSize: 22, flexShrink: 0 }}>🧠</span>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#93c5fd", marginBottom: 3 }}>Trợ lý điều hành</div>
+            <div style={{ fontSize: 13.5, lineHeight: 1.65 }}>{execNarrative}</div>
+          </div>
+        </div>
+      )}
+
       {["admin","director"].includes(currentUser.role) && watchList && watchList.length > 0 && (
         <div style={{ background: "#fff", borderRadius: 12, border: "2px solid #fecaca", overflow: "hidden" }}>
           <div style={{ padding: "10px 16px", borderBottom: "1px solid #fecaca", background: "#fef2f2", display: "flex", alignItems: "center", gap: 8 }}>
@@ -240,16 +250,16 @@ export default function Dashboard({
         <div style={{ background: "#fff", borderRadius: 12, border: "2px solid #fed7aa", overflow: "hidden" }}>
           <div style={{ padding: "10px 16px", borderBottom: "1px solid #fed7aa", background: "#fff7ed", display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 16 }}>⚠️</span><span style={{ fontWeight: 700, fontSize: 14, color: "#9a3412" }}>Nguy cơ trễ ({atRiskTasks.length})</span>
-            <span style={{ marginLeft: "auto", fontSize: 11, color: "#9ca3af" }}>Hạn ≤3 ngày · tiến độ &lt;50% · chưa gửi duyệt</span>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: "#9ca3af" }}>Dự báo theo tiến độ vs thời gian + lịch sử người thực hiện</span>
           </div>
-          <div style={{ maxHeight: 220, overflowY: "auto" }}>
-            {atRiskTasks.slice(0, 12).map(t => { const dl = t.deadline; const dd = dl ? Math.ceil((new Date(new Date(dl).setHours(0,0,0,0)) - new Date(new Date().setHours(0,0,0,0))) / 86400000) : null; return (
+          <div style={{ maxHeight: 240, overflowY: "auto" }}>
+            {atRiskTasks.slice(0, 12).map(t => { const dl = t.deadline; const dd = dl ? Math.ceil((new Date(new Date(dl).setHours(0,0,0,0)) - new Date(new Date().setHours(0,0,0,0))) / 86400000) : null; const hi = t.__risk?.level === "high"; return (
               <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "9px 16px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }} onMouseEnter={e => e.currentTarget.style.background = "#fff7ed"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>{t.dept} · {getEmp(t.eid)?.name || "–"} · TĐ {t.progress || 0}%</div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>{t.dept} · {getEmp(t.eid)?.name || "–"} · TĐ {t.progress || 0}% · {dd === 0 ? "hết hạn hôm nay" : `còn ${dd} ngày`}</div>
                 </div>
-                <span style={{ background: dd === 0 ? "#fee2e2" : "#ffedd5", color: dd === 0 ? "#b91c1c" : "#9a3412", fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>{dd === 0 ? "Hết hạn hôm nay" : `Còn ${dd} ngày`}</span>
+                <span title={`Điểm rủi ro ${t.__risk?.score}`} style={{ background: hi ? "#fee2e2" : "#fef3c7", color: hi ? "#b91c1c" : "#92400e", fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>{hi ? "🔴 Cao" : "🟡 TB"}</span>
               </div>
             ); })}
           </div>

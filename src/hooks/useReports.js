@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { DEPTS, LATE_REASONS, STATUS_ORDER } from "../constants";
+import { DEPTS, RATING, LATE_REASONS, STATUS_ORDER } from "../constants";
 import { isCompletedStatus, parseJSON, pendingApprovalDays } from "../helpers";
 import { w, sumW, staffScore, managerScore } from "../scoring";
 
@@ -409,6 +409,43 @@ export default function useReports({ computed, computedGlobal, employees, curren
 
   const dleft = (d) => { if (!d) return 99999; const dd = new Date(d); if (isNaN(dd)) return 99999; dd.setHours(0, 0, 0, 0); return Math.ceil((dd - today) / 86400000); };
 
+  // ── ĐỘ TIN CẬY của mỗi người từ LỊCH SỬ (dùng cho dự báo rủi ro & gợi ý người nhận) ──
+  // onTimeRate = tỷ lệ việc hoàn thành đúng hạn trên tổng việc đã đến hạn; avgDays = thời gian TB thực tế hoàn thành.
+  const empReliability = useMemo(() => {
+    const m = {};
+    for (const t of cg) {
+      if (!t.eid) continue;
+      const st = t.status;
+      if (st === "completed" || st === "completed_late" || st === "overdue") {
+        const e = m[t.eid] || (m[t.eid] = { onTime: 0, resolved: 0, ratingSum: 0, ratingN: 0, durSum: 0, durN: 0 });
+        e.resolved++; if (st === "completed") e.onTime++;
+        if (RATING[t.rating]) { e.ratingSum += RATING[t.rating].score; e.ratingN++; }
+        if (t.completed_at && t.created) { const cd = new Date(t.completed_at), cr = new Date(t.created); if (!isNaN(cd) && !isNaN(cr) && cd >= cr) { e.durSum += (cd - cr) / 86400000; e.durN++; } }
+      }
+    }
+    const out = {};
+    for (const [eid, v] of Object.entries(m)) out[eid] = { onTimeRate: v.resolved ? Math.round(v.onTime / v.resolved * 100) : null, resolved: v.resolved, avgRating: v.ratingN ? Math.round(v.ratingSum / v.ratingN * 10) / 10 : null, avgDays: v.durN ? Math.round(v.durSum / v.durN * 10) / 10 : null };
+    return out;
+  }, [cg]);
+
+  // ── DỰ BÁO RỦI RO TRỄ cho 1 việc đang mở (chưa quá hạn): kết hợp "tiến độ so với thời gian đã trôi" +
+  // lịch sử đúng hạn của người thực hiện + độ gấp + ưu tiên → mức Cao / TB / Thấp ──
+  const riskOf = (t) => {
+    if (t.status === "overdue") return { level: "overdue", score: 100 };
+    if (isCompletedStatus(t.status) || t.completed || t.completion_requested) return { level: "none", score: 0 };
+    const dl = dleft(t.deadline);
+    if (dl > 7) return { level: "low", score: 0 };
+    let timeRatio = 0.5;
+    const cr = t.created ? new Date(t.created) : null, de = t.deadline ? new Date(t.deadline) : null;
+    if (cr && de && !isNaN(cr) && !isNaN(de) && de > cr) timeRatio = Math.min(1, Math.max(0, (today - cr) / (de - cr)));
+    const deficit = timeRatio * 100 - (t.progress || 0);         // >0: đang chậm so với lịch
+    const rel = empReliability[t.eid];
+    const onTime = rel && rel.onTimeRate != null ? rel.onTimeRate : 70;
+    let score = deficit + (100 - onTime) * 0.4 + (dl <= 1 ? 20 : 0) + (t.prio === "high" ? 10 : t.prio === "low" ? -10 : 0);
+    const level = score >= 45 ? "high" : score >= 20 ? "medium" : "low";
+    return { level, score: Math.round(score) };
+  };
+
   // ── GY1 SỨC KHỎE DỮ LIỆU: điểm/báo cáo chỉ đáng tin khi dữ liệu được nhập đầy đủ, kịp thời ──
   // Theo phạm vi quyền xem (TP thấy phòng, BGĐ thấy toàn đơn vị). 3 nhóm cần chấn chỉnh:
   const dataHealth = useMemo(() => {
@@ -419,11 +456,31 @@ export default function useReports({ computed, computedGlobal, employees, curren
     return { overdueNoReason, pendingLong, stale, total: overdueNoReason.length + pendingLong.length + stale.length };
   }, [computed, today]);
 
-  // ── #1 VIỆC NGUY CƠ TRỄ: chưa quá hạn nhưng khả năng trễ cao (hạn ≤3 ngày & tiến độ <50% & chưa gửi duyệt) ──
-  // Nổi lên TRƯỚC khi thành quá hạn để can thiệp kịp. Theo phạm vi quyền xem (TP thấy phòng, nhân viên thấy việc mình).
+  // ── TV7 TÓM TẮT ĐIỀU HÀNH BẰNG LỜI (BGĐ): tự ghép các chỉ số & cảnh báo thành một đoạn "đọc là hiểu" ──
+  const execNarrative = useMemo(() => {
+    const rows = execDeptSummary.filter(d => d.empCount > 0);
+    const totalTasks = rows.reduce((s, d) => s + d.total, 0);
+    if (totalTasks === 0) return "";
+    const doneAll = rows.reduce((s, d) => s + d.done, 0);
+    const overdueAll = rows.reduce((s, d) => s + d.overdue, 0);
+    const rate = totalTasks ? Math.round(doneAll / totalTasks * 100) : 0;
+    const sorted = [...rows].sort((a, b) => b.rate - a.rate);
+    const best = sorted[0], worst = sorted[sorted.length - 1];
+    const parts = [`Kỳ đang xem: ${totalTasks} nhiệm vụ, tỷ lệ hoàn thành ${rate}%${overdueAll > 0 ? `, còn ${overdueAll} việc quá hạn` : ""}.`];
+    if (best && worst && best.dept !== worst.dept) parts.push(`Phòng ${best.dept} dẫn đầu (${best.rate}%), ${worst.dept} thấp nhất (${worst.rate}%).`);
+    if (watchList && watchList.length) { const dd = watchList.filter(a => a.kind === "dept_down"), ee = watchList.filter(a => a.kind === "emp_down"); if (dd.length) parts.push(`⚠️ ${dd.map(x => x.dept).join(", ")} đang có xu hướng đi xuống nhiều tháng.`); if (ee.length) parts.push(`${ee.length} nhân viên rớt điểm mạnh so tháng trước.`); }
+    if (staffingAdvice && staffingAdvice.length) { const ov = staffingAdvice.filter(x => x.level === "over").map(x => x.dept), un = staffingAdvice.filter(x => x.level === "under").map(x => x.dept); if (ov.length) parts.push(`Gợi ý điều phối: ${ov.join(", ")} có dấu hiệu thiếu người${un.length ? `, ${un.join(", ")} có thể dư người` : ""}.`); else if (un.length) parts.push(`${un.join(", ")} có thể đang dư người.`); }
+    if (dataHealth && dataHealth.total > 0) { const bits = []; if (dataHealth.overdueNoReason.length) bits.push(`${dataHealth.overdueNoReason.length} việc quá hạn chưa nêu lý do`); if (dataHealth.pendingLong.length) bits.push(`${dataHealth.pendingLong.length} việc chờ duyệt lâu`); if (dataHealth.stale.length) bits.push(`${dataHealth.stale.length} việc bỏ hoang`); if (bits.length) parts.push(`Cần chấn chỉnh dữ liệu: ${bits.join(", ")}.`); }
+    return parts.join(" ");
+  }, [execDeptSummary, watchList, staffingAdvice, dataHealth]);
+
+  // ── TV1 VIỆC NGUY CƠ TRỄ (thang xác suất): chưa quá hạn nhưng khả năng trễ Cao/TB theo riskOf ──
+  // Thông minh hơn quy tắc cứng cũ: 1 việc 60% tiến độ nhưng hạn ngày mai + người hay trễ vẫn bị cảnh báo.
   const atRiskTasks = useMemo(() => computed
-    .filter(t => !t.completed && !t.completion_requested && !isCompletedStatus(t.status) && t.status !== "overdue" && (t.progress || 0) < 50 && dleft(t.deadline) >= 0 && dleft(t.deadline) <= 3)
-    .sort((a, b) => dleft(a.deadline) - dleft(b.deadline) || (a.progress || 0) - (b.progress || 0)), [computed, today]);
+    .filter(t => !t.completed && !t.completion_requested && !isCompletedStatus(t.status) && t.status !== "overdue")
+    .map(t => ({ ...t, __risk: riskOf(t) }))
+    .filter(x => x.__risk.level === "high" || x.__risk.level === "medium")
+    .sort((a, b) => b.__risk.score - a.__risk.score), [computed, today, empReliability]);
 
   // ── #7 BẢN TIN TUẦN (7 ngày qua) theo phạm vi quyền xem ──
   const weeklyDigest = useMemo(() => {
@@ -458,6 +515,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList, dataHealth,
+    empReliability, execNarrative,
     calcMonthPerf, managerPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (nhân viên theo calcMonthPerf, quản lý theo managerPerf)
   };
 }
