@@ -18,10 +18,13 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // Yêu cầu hoàn thành: CHỈ người chủ trì (t.eid) + quản lý — KHÔNG tính người phối hợp, vì hoàn thành là
   // chốt kết quả của cả nhiệm vụ, phải do người chịu trách nhiệm chính quyết định (đồng bộ với canProposeExtension).
   const canRequestCompletion = useMemo(() => (t) => canEditTask(t) || currentUser?.employee_id === t.eid, [canEditTask, currentUser]);
-  const canRate = (t) => { const st = t.status || getStatus(t); if (st === "completed_late") return false; if (!t.completed && st !== "completed") return false; if (t.created_by_id) { if (currentUser.id === t.created_by_id) return true; if (t.forwarded_by && t.forwarded_by === currentUser.full_name) return true; return FULL_ACCESS.includes(currentUser.role) && false; } return canCreate; };
+  const canRate = (t) => { const st = t.status || getStatus(t); if (st === "completed_late") return false; if (!t.completed && st !== "completed") return false;
+    // Việc nhân viên TỰ TẠO: người tạo (nhân viên) KHÔNG được tự chấm điểm mình — chỉ Trưởng/Phó phòng (hoặc BGĐ) chấm.
+    if (t.self_created) return isDeptManagerOf(t) || ["admin", "director"].includes(currentUser.role);
+    if (t.created_by_id) { if (currentUser.id === t.created_by_id) return true; if (t.forwarded_by && t.forwarded_by === currentUser.full_name) return true; return FULL_ACCESS.includes(currentUser.role) && false; } return canCreate; };
   // Đúng người đã giao việc (hoặc người đã chuyển tiếp gần nhất) — dùng để quyết định AI ĐƯỢC CHỦ ĐỘNG BÁO,
   // không tính Admin/BGĐ vào đây để tránh mọi BGĐ đều nhận thông báo của tất cả nhiệm vụ trong hệ thống.
-  const isAssigner = (t) => { if (!currentUser) return false; if (t.created_by_id === currentUser.id) return true; if (t.forwarded_by && t.forwarded_by === currentUser.full_name) return true; return false; };
+  const isAssigner = (t) => { if (!currentUser) return false; if (t.self_created) return false; /* việc tự tạo do TP/PP duyệt, không phải người tạo */ if (t.created_by_id === currentUser.id) return true; if (t.forwarded_by && t.forwarded_by === currentUser.full_name) return true; return false; };
   // Ủy quyền duyệt: Trưởng phòng vắng mặt có thể ủy quyền cho Phó phòng duyệt thay trong 1 khoảng ngày cụ thể.
   // Chỉ áp dụng theo created_by_id (người giao gốc) — không tính chuyển tiếp (forwarded_by) vì đó lưu dạng tên,
   // không có id để đối chiếu ủy quyền một cách chắc chắn.
@@ -32,7 +35,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // Riêng nhiệm vụ tự sinh từ mẫu định kỳ (t.template_id): TP/PTP của PHÒNG NGƯỜI THỰC HIỆN luôn duyệt được,
   // bất kể ai đứng tên tạo mẫu — vì đây là việc thường quy của phòng, TP/PTP quản lý người đó phải chốt được.
   const isDeptManagerOf = (t) => !!currentUser && ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role) && t.dept === userDept;
-  const canApprove = (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (isAssigner(t)) return true; if (t.template_id && isDeptManagerOf(t)) return true; return isDelegatedApprover(t); };
+  const canApprove = (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (isAssigner(t)) return true; if ((t.template_id || t.self_created) && isDeptManagerOf(t)) return true; return isDelegatedApprover(t); };
   const canForward = (t) => { if (!currentUser) return false; if (t.completed || isCompletedStatus(t.status)) return false; return ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role) && t.dept === userDept; };
   const canSetLateReason = (t) => isLateStatus(t.status) && (currentUser?.employee_id === t.eid || parseJSON(t.collab_eids, []).includes(currentUser?.employee_id) || canCreate);
   // Đề xuất gia hạn deadline: chỉ đúng người được giao chính (không tính người phối hợp) mới đề xuất được,
@@ -40,7 +43,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const canProposeExtension = (t) => !!currentUser && currentUser.employee_id === t.eid && !t.completed && !t.completion_requested && !t.ext_proposed;
 
   // ── CRUD ──
-  const addTask = async data => { setSaving(true); const h = [{ action: "Tạo nhiệm vụ", by: currentUser.full_name, at: nowStr() }]; const t = { ...data, id: `t${Date.now()}`, completed: data.progress === 100, created: todayStr, created_by_id: currentUser.id, created_by_name: currentUser.full_name, forwarded_by: "", deleted: false, history: JSON.stringify(h), rating: "", rating_note: "", rated_by: "", rated_at: "", late_reason: "", late_note: "" }; const { error } = await supabase.from("tasks").insert(t); if (!error) { setTasks(p => [t, ...p]); showToast("Đã tạo nhiệm vụ"); } else { console.error("Lỗi tạo nhiệm vụ:", error); showToast("Lỗi: " + (error.message || "không tạo được"), "error"); } setSaving(false); return error ? null : t; };
+  const addTask = async data => { setSaving(true); const selfCreated = !canCreate; const h = [{ action: selfCreated ? "Nhân viên tự tạo việc" : "Tạo nhiệm vụ", by: currentUser.full_name, at: nowStr() }]; const t = { ...data, id: `t${Date.now()}`, completed: data.progress === 100, created: todayStr, created_by_id: currentUser.id, created_by_name: currentUser.full_name, self_created: selfCreated, forwarded_by: "", deleted: false, history: JSON.stringify(h), rating: "", rating_note: "", rated_by: "", rated_at: "", late_reason: "", late_note: "" }; const { error } = await supabase.from("tasks").insert(t); if (!error) { setTasks(p => [t, ...p]); showToast("Đã tạo nhiệm vụ"); } else { console.error("Lỗi tạo nhiệm vụ:", error); showToast("Lỗi: " + (error.message || "không tạo được"), "error"); } setSaving(false); return error ? null : t; };
   // LƯU Ý: progress===100 KHÔNG còn tự động suy ra completed:true — hoàn thành chỉ được đặt tường minh
   // qua confirmApproveCompletion (sau khi TP/PP/BGĐ duyệt), tránh việc "Yêu cầu hoàn thành" (cũng set progress:100)
   // vô tình bỏ qua bước duyệt.
@@ -238,11 +241,13 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
 
   // ── Thông báo phái sinh từ nhiệm vụ (luôn dựa trên TOÀN BỘ việc, không bị ảnh hưởng bởi bộ lọc thời gian) ──
   const notifications = useMemo(() => computedAll.filter(t => t.status === "overdue" || t.status === "nearly_due").sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)), [computedAll]);
-  const unratedTasks = useMemo(() => computedAll.filter(t => t.status === "completed" && !t.rating && t.created_by_id === currentUser?.id), [computedAll, currentUser]);
+  // Việc chờ chấm điểm: người giao (created_by_id) với việc thường; TP/PP với việc nhân viên tự tạo (self_created)
+  const unratedTasks = useMemo(() => computedAll.filter(t => t.status === "completed" && !t.rating && (t.self_created ? isDeptManagerOf(t) : t.created_by_id === currentUser?.id)), [computedAll, currentUser, userDept]);
   const suspiciousTasks = useMemo(() => canCreate ? computedAll.filter(t => t.suspicious_completion && !t.rating) : [], [computedAll, canCreate]);
   // Nhiệm vụ thường đang chờ CHÍNH người xem duyệt (để hiện trong 🔔 thông báo, khác với "myPendingApprovals" của Nhiệm vụ khác)
-  const myPendingTaskApprovals = useMemo(() => computedAll.filter(t => t.status === "pending_approval" && (isAssigner(t) || isDelegatedApprover(t))), [computedAll, currentUser, delegations]);
-  const myPendingExtRequests = useMemo(() => computedAll.filter(t => t.ext_proposed && (isAssigner(t) || isDelegatedApprover(t))), [computedAll, currentUser, delegations]);
+  // Việc nhân viên tự tạo → định tuyến sang Trưởng/Phó phòng duyệt (isDeptManagerOf), không phải người tạo.
+  const myPendingTaskApprovals = useMemo(() => computedAll.filter(t => t.status === "pending_approval" && (isAssigner(t) || (t.self_created && isDeptManagerOf(t)) || isDelegatedApprover(t))), [computedAll, currentUser, delegations, userDept]);
+  const myPendingExtRequests = useMemo(() => computedAll.filter(t => t.ext_proposed && (isAssigner(t) || (t.self_created && isDeptManagerOf(t)) || isDelegatedApprover(t))), [computedAll, currentUser, delegations, userDept]);
 
   const seenKey = currentUser ? `qlcv_seen_${currentUser.username}` : null;
   const markSeen = () => {}; // giữ để tương thích chữ ký gọi cũ; trạng thái xem nay lưu ở viewed_at trên server
