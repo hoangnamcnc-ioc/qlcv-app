@@ -55,7 +55,9 @@ export default function App() {
   const [calEmpFilter,setCalEmpFilter]=useState("all"); // lọc lịch deadline theo 1 nhân viên, để cân tải trước khi giao thêm việc
   const [overloadThreshold,setOverloadThreshold]=useState(()=>parseInt(localStorage.getItem("qlcv_overload")||"5"));
   // Chỉ tiêu (KPI) tỷ lệ hoàn thành của phòng — tô màu Đạt/Chưa đạt trong báo cáo điều hành. BGĐ đặt.
+  // Lưu DÙNG CHUNG toàn cơ quan ở app_config (key="kpi_ontime"); localStorage chỉ là cache hiển thị nhanh khi mở.
   const [kpiOnTime,setKpiOnTime]=useState(()=>parseInt(localStorage.getItem("qlcv_kpi_ontime")||"85"));
+  const saveKpiOnTime=async v=>{setKpiOnTime(v);localStorage.setItem("qlcv_kpi_ontime",v);try{const{data}=await supabase.from("app_config").select("key").eq("key","kpi_ontime");if(data&&data.length)await supabase.from("app_config").update({value:String(v)}).eq("key","kpi_ontime");else await supabase.from("app_config").insert({key:"kpi_ontime",value:String(v)});}catch(e){showToast("Đã lưu tạm trên máy này, nhưng chưa đồng bộ được lên hệ thống","error");}};
   const [showNotif,setShowNotif]=useState(false);
   const [showZoom,setShowZoom]=useState(false);
   const [quickRate,setQuickRate]=useState(null);
@@ -221,6 +223,7 @@ export default function App() {
         const[{data:ed},{data:td},{data:ud},{data:rtd},{data:otd},{data:pjd},{data:scd},{data:cmd},{data:dgd},{data:msd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false}),supabase.from("projects").select("id,name,dept,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time,deadline,ext_proposed,ext_reason,ext_requested_by,ext_requested_at"),supabase.from("support_cases").select("id,eid,collab_eids,difficulty,created,content,category").eq("deleted",false),supabase.from("comments").select("task_id,user_name,created_at"),supabase.from("approval_delegations").select("*").order("start_date",{ascending:false}),supabase.from("monthly_scores").select("*")]);
         if(!ed||ed.length===0){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}else setEmployees(ed);
         setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);setProjectsForScoring(pjd||[]);setSupportCasesForScoring(scd||[]);setAllComments(cmd||[]);setDelegations(dgd||[]);setMonthlyScores(msd||[]);
+        try{const{data:acd}=await supabase.from("app_config").select("key,value");const kpi=(acd||[]).find(r=>r.key==="kpi_ontime");if(kpi&&kpi.value!=null&&!isNaN(parseInt(kpi.value))){setKpiOnTime(parseInt(kpi.value));localStorage.setItem("qlcv_kpi_ontime",parseInt(kpi.value));}}catch{}
       }catch{showToast("Lỗi kết nối database","error");setEmployees(DEFAULT_EMPLOYEES);setTasks([]);}
       setLoading(false);
     })();
@@ -688,7 +691,7 @@ export default function App() {
               computed={computed} overloadedEmps={overloadedEmps}
               dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo}
               overloadThreshold={overloadThreshold} setOverloadThreshold={setOverloadThreshold}
-              kpiOnTime={kpiOnTime} setKpiOnTime={setKpiOnTime}
+              kpiOnTime={kpiOnTime} setKpiOnTime={saveKpiOnTime}
               overloadPopup={overloadPopup} setOverloadPopup={setOverloadPopup}
               recurringTemplates={recurringTemplates} setShowRecurring={setShowRecurring}
               statFilter={statFilter} setStatFilter={setStatFilter}
