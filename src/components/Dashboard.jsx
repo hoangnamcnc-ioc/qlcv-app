@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { DEPTS, DEPT_COLOR, ROLE_COLORS, FULL_ACCESS, STATUS, STATUS_ORDER, FREQUENCIES, RATING, PRIO } from "../constants";
+import { DEPTS, DEPT_COLOR, ROLE_COLORS, FULL_ACCESS, STATUS, STATUS_ORDER, FREQUENCIES, RATING, PRIO, VI_MONTHS } from "../constants";
 import { isCompletedStatus, fmtDate } from "../helpers";
 import { RoleBadge, OverloadPopup } from "./ui";
 
 export default function Dashboard({
   currentUser, isMobile, userDept,
-  execDeptSummary, staffingAdvice, empProfile, employees,
+  execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, employees,
   stats, statsW, deptChart, myTasks, myWorkList, myWorkloadCompare, myDoneList, myTrend,
   computed, overloadedEmps, overloadThreshold, setOverloadThreshold, kpiOnTime, setKpiOnTime,
   dateFrom, setDateFrom, dateTo, setDateTo,
@@ -50,13 +50,17 @@ export default function Dashboard({
           <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 16 }}>📊</span><span style={{ fontWeight: 700, fontSize: 14 }}>Tổng hợp điều hành theo phòng ban</span>
             <span title="Chỉ tiêu tỷ lệ hoàn thành — phòng đạt ≥ mức này hiện xanh, dưới hiện đỏ trong cột Tỷ lệ HT" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#6b7280", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "3px 8px" }}>🎯 Chỉ tiêu tỷ lệ HT: <input type="number" min={0} max={100} value={kpiOnTime} onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 0 && v <= 100) { setKpiOnTime(v); localStorage.setItem("qlcv_kpi_ontime", v); } }} style={{ width: 46, padding: "2px 6px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12, textAlign: "center" }} />%</span>
+            <span title="Chọn kỳ thống kê cho bảng này (mặc định tháng hiện hành). Cột Quá tải luôn theo hiện tại." style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#6b7280", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "3px 8px" }}>📅 Kỳ:
+              <select value={execMonth} onChange={e => setExecMonth(Number(e.target.value))} style={{ padding: "2px 6px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12 }}><option value={-1}>Toàn bộ</option>{VI_MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
+              {execMonth >= 0 && <select value={execYear} onChange={e => setExecYear(Number(e.target.value))} style={{ padding: "2px 6px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12 }}>{[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>}
+            </span>
             <span style={{ marginLeft: isMobile ? 0 : "auto", fontSize: 11.5, color: "#6b7280", lineHeight: 1.6, flex: isMobile ? "1 1 100%" : "0 1 auto" }}>
               💡 <b style={{ color: "#4338ca" }}>Quy đổi</b> = khối lượng thực sau khi nhân trọng số nhiệm vụ định kỳ:
               hàng ngày <b>0.25</b> · tuần <b>1</b> · 2 tuần <b>1.5</b> · tháng <b>2.5</b> · quý/6 tháng/năm <b>3</b> · nhiệm vụ thường <b>1</b>.
               Cột <b>Tổng việc</b> chỉ đếm số đầu việc nên phòng nhiều việc hàng ngày dễ trông "nhiều" hơn thực tế —
               hãy dùng cột <b>Quy đổi</b> khi so sánh tải giữa các phòng, và <b>Quy đổi/người</b> khi các phòng chênh lệch nhân sự.
-              <br />⚠️ Bảng này chỉ tính <b>nhiệm vụ</b> (không gồm Hỗ trợ ND/Xử lý lỗi TTDL và dự án ngân sách), gom theo phòng của nhiệm vụ và trên <b>toàn bộ thời gian</b> —
-              nên <b>không trùng</b> với cột "Tổng" ở bảng Hiệu suất nhân viên (bảng đó tính theo tháng và có cộng thêm việc phối hợp ½).
+              <br />⚠️ Bảng này chỉ tính <b>nhiệm vụ</b> (không gồm Hỗ trợ ND/Xử lý lỗi TTDL và dự án ngân sách), gom theo phòng của nhiệm vụ, kỳ thống kê <b>{execMonth < 0 ? "toàn bộ thời gian" : `${VI_MONTHS[execMonth]}/${execYear}`}</b> (đổi ở ô 📅 Kỳ) —
+              nên <b>không trùng</b> với cột "Tổng" ở bảng Hiệu suất nhân viên (bảng đó có cộng thêm việc phối hợp ½). Cột <b>Quá tải</b> luôn theo thực tế hiện tại.
             </span>
           </div>
           {isMobile ? (

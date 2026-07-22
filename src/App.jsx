@@ -304,7 +304,7 @@ export default function App() {
   // ── Hiệu suất/Báo cáo (tổng hợp phòng ban, điểm hiệu suất tháng, bảng xếp hạng, thống kê trễ hạn/quá tải) ──
   const {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
-    execDeptSummary, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
+    execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList,
     calcMonthPerf, managerPerf,
   } = useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks });
@@ -704,7 +704,7 @@ export default function App() {
           {view==="dashboard"&&(
             <Dashboard
               currentUser={currentUser} isMobile={isMobile} userDept={userDept}
-              execDeptSummary={execDeptSummary} staffingAdvice={staffingAdvice} empProfile={empProfile} employees={employees}
+              execDeptSummary={execDeptSummary} execMonth={execMonth} setExecMonth={setExecMonth} execYear={execYear} setExecYear={setExecYear} staffingAdvice={staffingAdvice} empProfile={empProfile} employees={employees}
               stats={stats} statsW={statsW} deptChart={deptChart}
               myTasks={myTasks} myWorkList={myWorkList} myWorkloadCompare={myWorkloadCompare} myDoneList={myDoneList} myTrend={myTrend}
               computed={computed} overloadedEmps={overloadedEmps}

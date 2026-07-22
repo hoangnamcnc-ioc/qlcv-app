@@ -63,12 +63,17 @@ export default function useReports({ computed, computedGlobal, employees, curren
   const [repYear, setRepYear] = useState(today.getFullYear());
   const [repTab, setRepTab] = useState("monthly");
   const [rankYear, setRankYear] = useState(today.getFullYear());
+  // Kỳ thống kê cho bảng "Tổng hợp điều hành" — mặc định THÁNG HIỆN HÀNH. execMonth = -1 nghĩa là "Toàn bộ thời gian".
+  const [execMonth, setExecMonth] = useState(today.getMonth());
+  const [execYear, setExecYear] = useState(today.getFullYear());
 
   // w / sumW (trọng số quy đổi) và các công thức điểm dùng chung từ scoring.js (đã import ở đầu file).
 
   // ── Tổng hợp điều hành theo phòng ban (cho BGĐ) ──
   const execDeptSummary = useMemo(() => DEPTS.map(d => {
-    const dt = computed.filter(t => t.dept === d);
+    const dtAll = computed.filter(t => t.dept === d);
+    // Cột thống kê (Tổng/Quy đổi/HT/Quá hạn/Tỷ lệ) theo KỲ đã chọn; cột "Quá tải" & tải đang mở giữ theo HIỆN TẠI.
+    const dt = execMonth < 0 ? dtAll : dtAll.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === execYear && td.getMonth() === execMonth; });
     const overdue = dt.filter(t => t.status === "overdue").length;
     const completedLate = dt.filter(t => t.status === "completed_late").length;
     const over = overdue + completedLate;
@@ -84,13 +89,13 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const doneW = sumW(dt.filter(t => isCompletedStatus(t.status)));
     // Tải bình quân đầu người (theo quy đổi) — phòng ít nhân sự mà nhiều việc sẽ lộ ra ở cột này
     const perHead = deptEmpsList.length ? Math.round(totalW / deptEmpsList.length * 100) / 100 : 0;
-    // Tải ĐANG MỞ (chưa hoàn thành) quy đổi & bình quân đầu người — phản ánh áp lực hiện tại,
+    // Tải ĐANG MỞ (chưa hoàn thành) quy đổi & bình quân đầu người — phản ánh áp lực HIỆN TẠI (không lọc theo kỳ),
     // dùng để phát hiện phòng cần thêm người (quá tải) hay có thể dư người (dưới tải).
-    const activeList = dt.filter(t => !isCompletedStatus(t.status));
+    const activeList = dtAll.filter(t => !isCompletedStatus(t.status));
     const activeW = sumW(activeList);
     const activePerHead = deptEmpsList.length ? Math.round(activeW / deptEmpsList.length * 100) / 100 : 0;
     return { dept: d, total: dt.length, totalW, doneW, perHead, activeW, activePerHead, over, overdue, completedLate, nd, done, rate, empCount: deptEmpsList.length, overloaded, lead: lead?.name || "—" };
-  }), [computed, employees, overloadThreshold]);
+  }), [computed, employees, overloadThreshold, execMonth, execYear]);
 
   // ── Gợi ý nhân sự: so tải ĐANG MỞ quy đổi/người của từng phòng với mặt bằng chung để chỉ ra phòng nào
   // có dấu hiệu THIẾU người (tải cao hơn hẳn + có người quá tải) hay THỪA người (tải thấp hơn hẳn).
@@ -393,7 +398,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
 
   return {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
-    execDeptSummary, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
+    execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList,
     calcMonthPerf, managerPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (nhân viên theo calcMonthPerf, quản lý theo managerPerf)
   };
