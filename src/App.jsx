@@ -25,6 +25,7 @@ import TaskList from "./components/TaskList";
 const Reports = lazy(()=>import("./components/Reports"));
 import Employees from "./components/Employees";
 import TaskModal from "./components/TaskModal";
+const ActivityLog = lazy(()=>import("./components/ActivityLog"));
 
 
 const DEFAULT_EMPLOYEES = [
@@ -453,11 +454,17 @@ export default function App() {
     setLoginNotifShown(true);
   },[currentUser,loading,loginNotifShown,myNewTasks.length,myOverdueTasks.length,myPendingApprovals.length,myPendingTaskApprovals.length,myPendingExtRequests.length,myPendingDocForwards.length]);
   const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length+suspiciousTasks.length+myPendingApprovals.length+myPendingTaskApprovals.length+myPendingExtRequests.length+unreadCommentTasks.length+myPendingDocForwards.length;
-  // Nhật ký = gộp lịch sử (history) của MỌI nhiệm vụ, sắp theo mốc thời gian THẬT rồi lấy 200 thao tác mới nhất
-  // (chỉ giới hạn HIỂN THỊ, không hề xóa dữ liệu — history vẫn lưu đầy đủ trong DB).
-  // LƯU Ý: phải sort theo timestamp thật (parseNowStr) — cách cũ ghép chuỗi ngày/tháng KHÔNG có số 0 đầu nên
-  // "9/7" bị xếp trên "21/7", đẩy thao tác mới ra ngoài top-200 (nhìn như nhật ký dừng ở ngày mùng 9).
-  const activityLog=useMemo(()=>{if(!canSeeAll)return[];const logs=[];(tasks||[]).forEach(t=>{parseJSON(t.history,[]).forEach((h,i)=>{logs.push({id:t.id+"_"+i,task:t.title,action:h.action,by:h.by,at:h.at});});});return logs.sort((a,b)=>{const da=parseNowStr(a.at),db=parseNowStr(b.at);return (db?db.getTime():0)-(da?da.getTime():0);}).slice(0,200);},[tasks,canSeeAll]);
+  // Nhật ký TOÀN DIỆN = gộp sự kiện từ Nhiệm vụ (history) + Hỗ trợ ND (ghi nhận) + Ngân sách & Nhiệm vụ khác
+  // (duyệt bước/nghiệm thu). Sắp theo mốc thời gian THẬT (parseAnyTime xử lý nhiều định dạng), KHÔNG cắt bớt —
+  // component tự lọc/phân trang. Không hề xóa dữ liệu, chỉ tổng hợp để hiển thị.
+  const parseAnyTime=s=>{if(!s||typeof s!=="string")return null;if(s.includes(":")&&s.includes(" ")){const d=parseNowStr(s);if(d)return d;}if(s.includes("/")){const[d,m,y]=s.split("/").map(Number);if(d&&m&&y)return new Date(y,m-1,d);return null;}const dt=new Date(s);return isNaN(dt)?null:dt;};
+  const activityLog=useMemo(()=>{if(!canSeeAll)return[];const out=[];
+    (tasks||[]).forEach(t=>{parseJSON(t.history,[]).forEach((h,i)=>{out.push({id:`t_${t.id}_${i}`,module:"task",title:t.title,action:h.action,by:h.by,at:h.at,ts:parseAnyTime(h.at)});});});
+    (supportCasesForScoring||[]).forEach(c=>{out.push({id:`s_${c.id}`,module:"support",title:c.content||"Trường hợp hỗ trợ",action:"Ghi nhận xử lý hỗ trợ/PAHT",by:getEmp(c.eid)?.name||"—",at:c.created,ts:parseAnyTime(c.created)});});
+    (projectsForScoring||[]).forEach(p=>{parseJSON(p.steps,[]).forEach(s=>{if(s.status==="done"&&s.approved_at)out.push({id:`p_${p.id}_${s.id}`,module:"project",title:p.name,action:`Duyệt bước "${s.content||""}"`,by:s.approved_by||"—",at:s.approved_at,ts:parseAnyTime(s.approved_at)});});if(p.quality_rating&&p.quality_rated_at)out.push({id:`pq_${p.id}`,module:"project",title:p.name,action:`Nghiệm thu dự án (${p.quality_rating}★)`,by:p.quality_rated_by||"Ban Giám đốc",at:p.quality_rated_at,ts:parseAnyTime(p.quality_rated_at)});});
+    (otherTasks||[]).forEach(t=>{parseJSON(t.steps,[]).forEach(s=>{if(s.status==="done"&&s.approved_at)out.push({id:`o_${t.id}_${s.id}`,module:"other",title:t.name||t.content||"Nhiệm vụ khác",action:`Duyệt bước "${s.content||""}"`,by:s.approved_by||"—",at:s.approved_at,ts:parseAnyTime(s.approved_at)});});});
+    return out.sort((a,b)=>(b.ts?b.ts.getTime():0)-(a.ts?a.ts.getTime():0));
+  },[tasks,supportCasesForScoring,projectsForScoring,otherTasks,canSeeAll,getEmp]);
   useEffect(()=>{setPage(1);},[fStatus,fDept,fEid,fAssignedByMe,search,fSort]);
   const emptyTaskData=()=>{const dept=canSelfCreate?userDept:availableDepts[0];const first=(employees||[]).find(e=>e.dept===dept);return{title:"",description:"",dept,eid:canSelfCreate?currentUser.employee_id:(first?.id||""),prio:"medium",deadline:addDays(today,7),attachments:"[]",progress:0,collab_eids:"[]",collab_note:""};};
   // Khối lượng ĐANG MỞ của mỗi nhân viên (đếm trên toàn bộ nhiệm vụ chưa hoàn thành, không phụ thuộc bộ lọc
@@ -785,12 +792,9 @@ export default function App() {
             />
           )}
           {view==="activity"&&canSeeAll&&(
-            <div style={{display:"flex",flexDirection:"column",gap:14}}>
-              <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 16px",fontSize:13,color:"#6b7280"}}>📜 Nhật ký hoạt động — 200 thao tác gần nhất trên toàn hệ thống</div>
-              <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",overflow:"hidden"}}>
-                {activityLog.length===0?<div style={{padding:24,textAlign:"center",color:"#9ca3af",fontSize:13}}>Chưa có hoạt động</div>:activityLog.map(l=>(<div key={l.id} style={{padding:"10px 16px",borderBottom:"1px solid #f3f4f6",display:"flex",gap:12,alignItems:"flex-start"}}><div style={{width:32,height:32,borderRadius:"50%",background:"#eef2ff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:14}}>{l.by==="Hệ thống"?"⚙️":"👤"}</div><div style={{flex:1,minWidth:0}}><div style={{fontSize:13}}><span style={{fontWeight:600,color:"#4338ca"}}>{l.by}</span> <span style={{color:"#374151"}}>{l.action}</span></div><div style={{fontSize:11,color:"#9ca3af",marginTop:2,whiteSpace:"normal",wordBreak:"break-word"}}>📋 {l.task} · {l.at}</div></div></div>))}
-              </div>
-            </div>
+            <Suspense fallback={<div style={{padding:24,textAlign:"center",color:"#9ca3af"}}>Đang tải nhật ký…</div>}>
+              <ActivityLog log={activityLog} isMobile={isMobile}/>
+            </Suspense>
           )}
           {view==="investment"&&(
             <Investment currentUser={currentUser} employees={employees} users={users} getEmp={getEmp} isMobile={isMobile} inp={inp} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} showToast={showToast} onScoringChange={refreshScoringData} openProjectId={pendingOpenProjectId} onProjectOpened={()=>setPendingOpenProjectId(null)}/>
