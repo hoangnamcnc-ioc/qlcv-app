@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 
 // Nhật ký hoạt động TOÀN DIỆN: gộp sự kiện từ Nhiệm vụ + Hỗ trợ ND + Ngân sách + Nhiệm vụ khác,
 // có tìm kiếm, lọc theo người/loại/khoảng ngày, phân trang và xuất CSV.
-const MODULES = { task: { label: "Nhiệm vụ", icon: "📋", col: "#4338ca" }, support: { label: "Hỗ trợ ND", icon: "🎧", col: "#0369a1" }, project: { label: "Ngân sách", icon: "💰", col: "#92400e" }, other: { label: "Nhiệm vụ khác", icon: "📌", col: "#7c3aed" } };
+const MODULES = { task: { label: "Nhiệm vụ", icon: "📋", col: "#4338ca" }, support: { label: "Hỗ trợ ND", icon: "🎧", col: "#0369a1" }, project: { label: "Ngân sách", icon: "💰", col: "#92400e" }, other: { label: "Nhiệm vụ khác", icon: "📌", col: "#7c3aed" }, document: { label: "Văn bản", icon: "📁", col: "#0f766e" } };
 const PAGE = 50;
 
 export default function ActivityLog({ log, isMobile }) {
@@ -58,7 +58,7 @@ export default function ActivityLog({ log, isMobile }) {
 
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "8px 16px", fontSize: 12, color: "#6b7280", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
         <span>Tìm thấy <b style={{ color: "#374151" }}>{filtered.length}</b> thao tác{filtered.length !== (log || []).length ? ` (trên tổng ${(log || []).length})` : ""}</span>
-        <span>Gộp từ: Nhiệm vụ · Hỗ trợ ND · Ngân sách · Nhiệm vụ khác</span>
+        <span>Gộp từ: Nhiệm vụ · Hỗ trợ ND · Ngân sách · Nhiệm vụ khác · Văn bản</span>
       </div>
 
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>

@@ -76,6 +76,7 @@ export default function App() {
   const [recurringTemplates,setRecurringTemplates]=useState([]);
   const [projectsForScoring,setProjectsForScoring]=useState([]); // chỉ để tính điểm hiệu suất từ nhiệm vụ ngân sách đã nghiệm thu, không phải state đầy đủ của trang Investment
   const [supportCasesForScoring,setSupportCasesForScoring]=useState([]); // chỉ để tính điểm hiệu suất từ hỗ trợ người dùng, không phải state đầy đủ của trang Hỗ trợ ND
+  const [docsForLog,setDocsForLog]=useState([]); // văn bản (rút gọn) chỉ để gộp vào Nhật ký toàn diện — chỉ nạp cho BGĐ/Admin
   const [allComments,setAllComments]=useState([]); // bản nhẹ (task_id, user_name, created_at) toàn bộ bình luận, để tính "bình luận mới chưa đọc" không cần mở từng nhiệm vụ
   const [delegations,setDelegations]=useState([]); // ủy quyền duyệt: Trưởng phòng vắng mặt ủy quyền cho Phó phòng trong 1 khoảng ngày cụ thể
   const [monthlyScores,setMonthlyScores]=useState([]); // sổ điểm đã chốt theo tháng — snapshot cố định, không đổi khi dữ liệu sống bị sửa
@@ -224,6 +225,7 @@ export default function App() {
         if(!ed||ed.length===0){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}else setEmployees(ed);
         setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);setProjectsForScoring(pjd||[]);setSupportCasesForScoring(scd||[]);setAllComments(cmd||[]);setDelegations(dgd||[]);setMonthlyScores(msd||[]);
         try{const{data:acd}=await supabase.from("app_config").select("key,value");const kpi=(acd||[]).find(r=>r.key==="kpi_ontime");if(kpi&&kpi.value!=null&&!isNaN(parseInt(kpi.value))){setKpiOnTime(parseInt(kpi.value));localStorage.setItem("qlcv_kpi_ontime",parseInt(kpi.value));}}catch{}
+        if(canSeeAll){try{const{data:docd}=await supabase.from("documents").select("id,type,doc_number,title,created,created_by,forwards");setDocsForLog(docd||[]);}catch{}}
       }catch{showToast("Lỗi kết nối database","error");setEmployees(DEFAULT_EMPLOYEES);setTasks([]);}
       setLoading(false);
     })();
@@ -487,8 +489,9 @@ export default function App() {
     (supportCasesForScoring||[]).forEach(c=>{out.push({id:`s_${c.id}`,module:"support",title:c.content||"Trường hợp hỗ trợ",action:"Ghi nhận xử lý hỗ trợ/PAHT",by:getEmp(c.eid)?.name||"—",at:c.created,ts:parseAnyTime(c.created)});});
     (projectsForScoring||[]).forEach(p=>{parseJSON(p.steps,[]).forEach(s=>{if(s.status==="done"&&s.approved_at)out.push({id:`p_${p.id}_${s.id}`,module:"project",title:p.name,action:`Duyệt bước "${s.content||""}"`,by:s.approved_by||"—",at:s.approved_at,ts:parseAnyTime(s.approved_at)});});if(p.quality_rating&&p.quality_rated_at)out.push({id:`pq_${p.id}`,module:"project",title:p.name,action:`Nghiệm thu dự án (${p.quality_rating}★)`,by:p.quality_rated_by||"Ban Giám đốc",at:p.quality_rated_at,ts:parseAnyTime(p.quality_rated_at)});});
     (otherTasks||[]).forEach(t=>{parseJSON(t.steps,[]).forEach(s=>{if(s.status==="done"&&s.approved_at)out.push({id:`o_${t.id}_${s.id}`,module:"other",title:t.name||t.content||"Nhiệm vụ khác",action:`Duyệt bước "${s.content||""}"`,by:s.approved_by||"—",at:s.approved_at,ts:parseAnyTime(s.approved_at)});});});
+    (docsForLog||[]).forEach(d=>{out.push({id:`doc_${d.id}`,module:"document",title:`[${d.doc_number}] ${d.title||""}`,action:d.type==="di"?"Thêm văn bản đi":"Thêm văn bản đến",by:d.created_by||"—",at:d.created,ts:parseAnyTime(d.created)});(parseJSON(d.forwards,[])||[]).forEach((f,i)=>{if(f&&(f.at||f.by))out.push({id:`docf_${d.id}_${i}`,module:"document",title:`[${d.doc_number}] ${d.title||""}`,action:`Chuyển văn bản cho ${f.to_name||"—"}`,by:f.by||"—",at:f.at,ts:parseAnyTime(f.at)});});});
     return out.sort((a,b)=>(b.ts?b.ts.getTime():0)-(a.ts?a.ts.getTime():0));
-  },[tasks,supportCasesForScoring,projectsForScoring,otherTasks,canSeeAll,getEmp]);
+  },[tasks,supportCasesForScoring,projectsForScoring,otherTasks,docsForLog,canSeeAll,getEmp]);
   useEffect(()=>{setPage(1);},[fStatus,fDept,fEid,fAssignedByMe,search,fSort]);
   const emptyTaskData=()=>{const dept=canSelfCreate?userDept:availableDepts[0];const first=(employees||[]).find(e=>e.dept===dept);return{title:"",description:"",dept,eid:canSelfCreate?currentUser.employee_id:(first?.id||""),prio:"medium",deadline:addDays(today,7),attachments:"[]",progress:0,collab_eids:"[]",collab_note:""};};
   // Khối lượng ĐANG MỞ của mỗi nhân viên (đếm trên toàn bộ nhiệm vụ chưa hoàn thành, không phụ thuộc bộ lọc
