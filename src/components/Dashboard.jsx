@@ -472,7 +472,7 @@ export default function Dashboard({
 // ── Hồ sơ đánh giá 1 nhân viên (mở từ bảng "Nhân sự") ──
 function EmpProfileModal({ profile, isMobile, overloadThreshold, onClose, onOpenTask }) {
   if (!profile) return null;
-  const { emp, cur, trend, open, openCount, openW, lateReasons, lateTotal, onTimeRate } = profile;
+  const { emp, cur, trend, open, openCount, openW, lateReasons, lateTotal, onTimeRate, proactive } = profile;
   const over = openW >= overloadThreshold;
   const scoreTrend = trend.filter(t => t.score != null);
   const box = { background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 12px", textAlign: "center" };
@@ -503,6 +503,15 @@ function EmpProfileModal({ profile, isMobile, overloadThreshold, onClose, onOpen
               </div>
             )}
           </div>
+          {/* Chỉ số chủ động (tham khảo, không vào điểm) */}
+          {proactive && (
+            <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6d28d9", marginBottom: 4 }}>⚡ Tính chủ động <span style={{ color: "#9ca3af", fontWeight: 400 }}>(tham khảo, không tính vào điểm)</span></div>
+              <div style={{ fontSize: 12.5, color: "#374151", lineHeight: 1.6 }}>
+                Hoàn thành SỚM hạn: <b style={{ color: proactive.earlyRate >= 50 ? "#15803d" : "#6d28d9" }}>{proactive.earlyRate}%</b> ({proactive.early}/{proactive.doneOnTime} việc đúng hạn xong trước hạn ≥1 ngày) · Khối lượng phối hợp tháng: <b>{proactive.collabW}</b>
+              </div>
+            </div>
+          )}
           {/* Xu hướng 6 tháng */}
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8 }}>📈 Xu hướng điểm 6 tháng</div>

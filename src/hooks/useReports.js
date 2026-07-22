@@ -225,7 +225,13 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const myLate = cg.filter(t => t.eid === empId && t.late_reason);
     const lateReasons = LATE_REASONS.map(r => ({ ...r, count: myLate.filter(t => t.late_reason === r.value).length })).filter(r => r.count > 0).sort((a, b) => b.count - a.count);
     const onTimeRate = cur.resolved > 0 ? Math.round(cur.onTime / cur.resolved * 100) : 0;
-    return { emp, cur, trend, open, openCount: open.length, openW, lateReasons, lateTotal: myLate.length, onTimeRate };
+    // ── #5 Chỉ số CHỦ ĐỘNG (thông tin tham khảo, KHÔNG tính vào điểm 0–100) ──
+    // Đo mức chủ động qua tỷ lệ việc hoàn thành SỚM hạn (xong trước hạn ≥1 ngày) và mức tham gia phối hợp.
+    const myDone = cg.filter(t => t.eid === empId && t.status === "completed" && t.completed_at && t.deadline);
+    let early = 0;
+    for (const t of myDone) { const cd = new Date(t.completed_at); const dl = new Date(t.deadline); dl.setHours(23, 59, 59, 999); if (!isNaN(cd) && !isNaN(dl) && (dl - cd) / 86400000 >= 1) early++; }
+    const proactive = { doneOnTime: myDone.length, early, earlyRate: myDone.length ? Math.round(early / myDone.length * 100) : 0, collabW: cur.collabTotal || 0 };
+    return { emp, cur, trend, open, openCount: open.length, openW, lateReasons, lateTotal: myLate.length, onTimeRate, proactive };
   };
 
   // ── ĐIỂM ĐIỀU HÀNH cho Trưởng/Phó phòng (kết hợp: hiệu quả điều hành phòng + khối lượng điều hành) ──
