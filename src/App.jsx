@@ -77,6 +77,7 @@ export default function App() {
   const [projectsForScoring,setProjectsForScoring]=useState([]); // chỉ để tính điểm hiệu suất từ nhiệm vụ ngân sách đã nghiệm thu, không phải state đầy đủ của trang Investment
   const [supportCasesForScoring,setSupportCasesForScoring]=useState([]); // chỉ để tính điểm hiệu suất từ hỗ trợ người dùng, không phải state đầy đủ của trang Hỗ trợ ND
   const [docsForLog,setDocsForLog]=useState([]); // văn bản (rút gọn) chỉ để gộp vào Nhật ký toàn diện — chỉ nạp cho BGĐ/Admin
+  const [holidays,setHolidays]=useState([]); // danh sách ngày lễ (app_config key="holidays") — để nhiệm vụ hàng ngày né ngày nghỉ lễ
   const [allComments,setAllComments]=useState([]); // bản nhẹ (task_id, user_name, created_at) toàn bộ bình luận, để tính "bình luận mới chưa đọc" không cần mở từng nhiệm vụ
   const [delegations,setDelegations]=useState([]); // ủy quyền duyệt: Trưởng phòng vắng mặt ủy quyền cho Phó phòng trong 1 khoảng ngày cụ thể
   const [monthlyScores,setMonthlyScores]=useState([]); // sổ điểm đã chốt theo tháng — snapshot cố định, không đổi khi dữ liệu sống bị sửa
@@ -224,7 +225,7 @@ export default function App() {
         const[{data:ed},{data:td},{data:ud},{data:rtd},{data:otd},{data:pjd},{data:scd},{data:cmd},{data:dgd},{data:msd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false}),supabase.from("projects").select("id,name,dept,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time,deadline,ext_proposed,ext_reason,ext_requested_by,ext_requested_at"),supabase.from("support_cases").select("id,eid,collab_eids,difficulty,created,content,category").eq("deleted",false),supabase.from("comments").select("task_id,user_name,created_at"),supabase.from("approval_delegations").select("*").order("start_date",{ascending:false}),supabase.from("monthly_scores").select("*")]);
         if(!ed||ed.length===0){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}else setEmployees(ed);
         setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);setProjectsForScoring(pjd||[]);setSupportCasesForScoring(scd||[]);setAllComments(cmd||[]);setDelegations(dgd||[]);setMonthlyScores(msd||[]);
-        try{const{data:acd}=await supabase.from("app_config").select("key,value");const kpi=(acd||[]).find(r=>r.key==="kpi_ontime");if(kpi&&kpi.value!=null&&!isNaN(parseInt(kpi.value))){setKpiOnTime(parseInt(kpi.value));localStorage.setItem("qlcv_kpi_ontime",parseInt(kpi.value));}}catch{}
+        try{const{data:acd}=await supabase.from("app_config").select("key,value");const kpi=(acd||[]).find(r=>r.key==="kpi_ontime");if(kpi&&kpi.value!=null&&!isNaN(parseInt(kpi.value))){setKpiOnTime(parseInt(kpi.value));localStorage.setItem("qlcv_kpi_ontime",parseInt(kpi.value));}const hol=(acd||[]).find(r=>r.key==="holidays");if(hol)setHolidays(parseJSON(hol.value,[]));}catch{}
         if(canSeeAll){try{const{data:docd}=await supabase.from("documents").select("id,type,doc_number,title,created,created_by,forwards");setDocsForLog(docd||[]);}catch{}}
       }catch{showToast("Lỗi kết nối database","error");setEmployees(DEFAULT_EMPLOYEES);setTasks([]);}
       setLoading(false);
@@ -238,11 +239,14 @@ export default function App() {
       const due=recurringTemplates.filter(t=>t.active&&t.next_date<=todayStr&&t.last_created!==todayStr);
       if(!due.length)return;
       let created=0;
-      const isWeekend=[0,6].includes(today.getDay()); // Chủ nhật=0, Thứ 7=6
+      // Ngày nghỉ = Thứ 7/Chủ nhật HOẶC ngày lễ (theo cấu hình holidays). Nhiệm vụ hàng ngày né các ngày này.
+      const holSet=new Set(holidays||[]);
+      const isNonWork=ymd=>{const dd=new Date(ymd);return [0,6].includes(dd.getDay())||holSet.has(ymd);};
+      const isNonWorkToday=isNonWork(todayStr);
       for(const tpl of due){
-        // Nhiệm vụ hàng ngày không tạo vào Thứ 7/Chủ nhật (cơ quan không làm việc) — vẫn phải đẩy next_date
+        // Nhiệm vụ hàng ngày không tạo vào ngày nghỉ (T7/CN/lễ) — vẫn phải đẩy next_date
         // sang ngày kế tiếp để không bị "dí" tạo bù dồn dập khi qua ngày làm việc lại.
-        if(tpl.frequency==="daily"&&isWeekend){
+        if(tpl.frequency==="daily"&&isNonWorkToday){
           const nextDate=getNextDate(tpl.next_date,tpl.frequency);
           await supabase.from("recurring_templates").update({next_date:nextDate,last_created:todayStr}).eq("id",tpl.id);
           setRecurringTemplates(p=>p.map(r=>r.id===tpl.id?{...r,next_date:nextDate,last_created:todayStr}:r));
@@ -251,7 +255,7 @@ export default function App() {
         // Hàng ngày luôn khóa hạn = ngày làm việc tiếp theo (không dùng deadline_days) — bỏ qua Thứ 7/CN
         // vì cơ quan không làm việc, tránh giao hạn rơi đúng ngày nghỉ; các tần suất khác vẫn tự do chọn số ngày
         let dailyDeadline=addDays(today,1);
-        while([0,6].includes(new Date(dailyDeadline).getDay()))dailyDeadline=addDays(dailyDeadline,1);
+        while(isNonWork(dailyDeadline))dailyDeadline=addDays(dailyDeadline,1);
         const deadline=tpl.frequency==="daily"?dailyDeadline:addDays(today,tpl.deadline_days||7);
         // created_by_id/created_by_name copy từ người tạo mẫu, để chính người đó (thường là TP/PP) duyệt được
         // hoàn thành nhiệm vụ tự sinh — nếu không, canApprove() sẽ chỉ còn đúng Admin/BGĐ được duyệt.

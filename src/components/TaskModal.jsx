@@ -29,6 +29,9 @@ export default function TaskModal({
   const [previewImg, setPreviewImg] = useState(null);
   const [chkText, setChkText] = useState("");
   if (!modal) return null;
+  // Nhiệm vụ định kỳ HÀNG NGÀY (trọng số 0.25): việc nhanh, nhị phân (làm/chưa làm) → bỏ thanh tiến độ % và checklist,
+  // chỉ cần đánh dấu hoàn thành. Nhận diện qua template_id + weight 0.25 (chỉ tần suất hàng ngày mới có weight này).
+  const isDaily = !!modal.template_id && modal.weight === 0.25;
 
 
   return (
@@ -108,11 +111,19 @@ export default function TaskModal({
           )}
 
           <div style={{ marginBottom: 14 }}>
-            <ProgressBar value={modal.progress || 0} editable={!modal.completed && !modal.completion_requested && !!(canCreate || currentUser.employee_id === modal.eid || parseJSON(modal.collab_eids, []).includes(currentUser.employee_id))} onChange={async v => { if (v === 100) { toggleDone(modal); return; } await updateTask(modal.id, { progress: v }, `Cập nhật tiến độ: ${v}%`); setModal(t => ({ ...t, progress: v })); }} />
+            {isDaily ? (
+              (!modal.completed && !modal.completion_requested && canRequestCompletion(modal)) ? (
+                <button onClick={() => toggleDone(modal)} style={{ width: "100%", padding: "10px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>✅ Đánh dấu đã làm</button>
+              ) : (!modal.completed && !modal.completion_requested) ? (
+                <div style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic" }}>🔄 Nhiệm vụ hàng ngày — chỉ người thực hiện/quản lý đánh dấu hoàn thành.</div>
+              ) : null
+            ) : (
+              <ProgressBar value={modal.progress || 0} editable={!modal.completed && !modal.completion_requested && !!(canCreate || currentUser.employee_id === modal.eid || parseJSON(modal.collab_eids, []).includes(currentUser.employee_id))} onChange={async v => { if (v === 100) { toggleDone(modal); return; } await updateTask(modal.id, { progress: v }, `Cập nhật tiến độ: ${v}%`); setModal(t => ({ ...t, progress: v })); }} />
+            )}
           </div>
 
-          {/* Checklist con — tick mục sẽ tự cập nhật % tiến độ */}
-          {updateChecklist && (() => {
+          {/* Checklist con — tick mục sẽ tự cập nhật % tiến độ (không dùng cho nhiệm vụ hàng ngày) */}
+          {updateChecklist && !isDaily && (() => {
             const list = parseJSON(modal.checklist, []);
             const canChk = canUpdateProgress(modal) && !modal.completed && !modal.completion_requested;
             if (list.length === 0 && !canChk) return null;

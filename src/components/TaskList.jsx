@@ -90,10 +90,14 @@ export default function TaskList({
                     ? <span title={`Đã xem lúc ${t.viewed_at}`} style={{ fontSize: 11, background: "#dcfce7", color: "#15803d", padding: "2px 7px", borderRadius: 8 }}>👁️ Đã xem</span>
                     : <span style={{ fontSize: 11, background: "#fef2f2", color: "#b91c1c", padding: "2px 7px", borderRadius: 8 }}>🔴 Chưa xem</span>)}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ flex: 1, height: 5, background: "#e5e7eb", borderRadius: 5, overflow: "hidden" }}><div style={{ height: "100%", width: (t.progress || 0) + "%", background: t.progress === 100 ? "#16a34a" : t.progress >= 50 ? "#f59e0b" : "#6366f1", borderRadius: 5 }} /></div>
-                  <span style={{ fontSize: 11, color: "#6b7280", flexShrink: 0 }}>{t.progress || 0}%</span>
-                </div>
+                {(t.template_id && t.weight === 0.25) ? (
+                  (!t.completed && !t.completion_requested && canUpdateProgress(t)) ? <button onClick={() => onCompleteRequest(t)} style={{ padding: "6px 12px", background: "#059669", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>✅ Đánh dấu đã làm</button> : null
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ flex: 1, height: 5, background: "#e5e7eb", borderRadius: 5, overflow: "hidden" }}><div style={{ height: "100%", width: (t.progress || 0) + "%", background: t.progress === 100 ? "#16a34a" : t.progress >= 50 ? "#f59e0b" : "#6366f1", borderRadius: 5 }} /></div>
+                    <span style={{ fontSize: 11, color: "#6b7280", flexShrink: 0 }}>{t.progress || 0}%</span>
+                  </div>
+                )}
               </div>
               {/* Action bar */}
               <div style={{ borderTop: "1px solid #f3f4f6", padding: "6px 10px", display: "flex", gap: 6, background: "#fafafa", flexWrap: "wrap" }}>
@@ -170,7 +174,9 @@ export default function TaskList({
                       : <div style={{ fontSize: 10, color: "#b91c1c", marginTop: 2 }}>🔴 Chưa xem</div>)}
                   </td>
                   <td style={{ padding: "9px 12px", position: "relative" }}>
-                    {quickProgress === t.id ? (
+                    {(t.template_id && t.weight === 0.25) ? (
+                      (!t.completed && !t.completion_requested && canUpdateProgress(t)) ? <button onClick={() => onCompleteRequest(t)} style={{ padding: "5px 10px", background: "#059669", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap" }}>✅ Đã làm</button> : <span style={{ fontSize: 11, color: "#9ca3af" }}>{t.completed ? "Hoàn thành" : t.completion_requested ? "Chờ duyệt" : "—"}</span>
+                    ) : quickProgress === t.id ? (
                       <div style={{ position: "absolute", top: 4, left: 0, zIndex: 20, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", display: "flex", flexWrap: "wrap", gap: 4, width: 200 }}>
                         {[0,10,20,30,40,50,60,70,80,90,100].map(v => {
                           const a = (t.progress || 0) === v;
