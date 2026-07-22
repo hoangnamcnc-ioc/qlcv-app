@@ -311,7 +311,7 @@ export default function App() {
   const {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
-    lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList,
+    lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList, dataHealth,
     calcMonthPerf, managerPerf,
   } = useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks });
 
@@ -714,7 +714,7 @@ export default function App() {
               execDeptSummary={execDeptSummary} execMonth={execMonth} setExecMonth={setExecMonth} execYear={execYear} setExecYear={setExecYear} staffingAdvice={staffingAdvice} empProfile={empProfile} employees={employees}
               stats={stats} statsW={statsW} deptChart={deptChart}
               myTasks={myTasks} myWorkList={myWorkList} myWorkloadCompare={myWorkloadCompare} myDoneList={myDoneList} myTrend={myTrend}
-              atRiskTasks={atRiskTasks} weeklyDigest={weeklyDigest} watchList={watchList}
+              atRiskTasks={atRiskTasks} weeklyDigest={weeklyDigest} watchList={watchList} dataHealth={dataHealth}
               computed={computed} overloadedEmps={overloadedEmps}
               dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo}
               overloadThreshold={overloadThreshold} setOverloadThreshold={setOverloadThreshold}

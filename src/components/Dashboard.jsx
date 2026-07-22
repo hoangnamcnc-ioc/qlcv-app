@@ -8,7 +8,7 @@ export default function Dashboard({
   currentUser, isMobile, userDept,
   execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, employees,
   stats, statsW, deptChart, myTasks, myWorkList, myWorkloadCompare, myDoneList, myTrend,
-  atRiskTasks, weeklyDigest, watchList,
+  atRiskTasks, weeklyDigest, watchList, dataHealth,
   computed, overloadedEmps, overloadThreshold, setOverloadThreshold, kpiOnTime, setKpiOnTime,
   dateFrom, setDateFrom, dateTo, setDateTo,
   overloadPopup, setOverloadPopup,
@@ -24,6 +24,7 @@ export default function Dashboard({
   // Phân trang cho danh sách "Công việc của tôi"
   const [wlPage, setWlPage] = useState(1);
   const [doneOpen, setDoneOpen] = useState(false); // mục "Đã hoàn thành tháng này"
+  const [healthCat, setHealthCat] = useState(null); // nhóm Sức khỏe dữ liệu đang mở danh sách
   const [profileId, setProfileId] = useState(null); // hồ sơ nhân viên đang mở
   const [rosterPage, setRosterPage] = useState(1); // phân trang bảng nhân sự
   // Danh sách nhân sự trong tầm quản lý để lập "bảng nhân sự": TP/PP xem phòng mình, BGĐ xem tất cả
@@ -175,6 +176,42 @@ export default function Dashboard({
           ))}
         </div>
       )}
+
+      {isManagerView && dataHealth && dataHealth.total > 0 && (() => {
+        const cats = [
+          { key: "overdueNoReason", label: "Quá hạn chưa nêu lý do", list: dataHealth.overdueNoReason, c: "#b91c1c", bg: "#fee2e2", hint: "Nhân viên cần khai báo nguyên nhân trễ" },
+          { key: "pendingLong", label: "Chờ duyệt/chấm ≥2 ngày", list: dataHealth.pendingLong, c: "#92400e", bg: "#fef3c7", hint: "Quản lý cần duyệt & đánh giá kịp thời" },
+          { key: "stale", label: "Bỏ hoang (0% >7 ngày)", list: dataHealth.stale, c: "#6b7280", bg: "#f3f4f6", hint: "Việc đã giao nhưng chưa ai động tới" },
+        ].filter(c => c.list.length > 0);
+        const open = healthCat && cats.find(c => c.key === healthCat);
+        return (
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+            <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 16 }}>🩺</span><span style={{ fontWeight: 700, fontSize: 14 }}>Sức khỏe dữ liệu</span>
+              <span style={{ marginLeft: "auto", fontSize: 11, color: "#9ca3af" }}>Dữ liệu sạch thì điểm & báo cáo mới đáng tin</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : `repeat(${cats.length},1fr)`, gap: 0 }}>
+              {cats.map(c => (
+                <div key={c.key} onClick={() => setHealthCat(healthCat === c.key ? null : c.key)} style={{ padding: "12px 16px", borderRight: isMobile ? "none" : "1px solid #f3f4f6", borderBottom: "1px solid #f3f4f6", cursor: "pointer", background: healthCat === c.key ? c.bg : "#fff" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: c.c }}>{c.list.length}</div>
+                  <div style={{ fontSize: 12, color: "#374151", fontWeight: 500, marginTop: 2 }}>{c.label}</div>
+                  <div style={{ fontSize: 10.5, color: "#9ca3af", marginTop: 2 }}>{c.hint} · bấm xem</div>
+                </div>
+              ))}
+            </div>
+            {open && (
+              <div style={{ maxHeight: 240, overflowY: "auto", borderTop: "1px solid #e5e7eb" }}>
+                {open.list.map(t => (
+                  <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "9px 16px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 8 }} onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <div style={{ minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div><div style={{ fontSize: 11, color: "#6b7280" }}>{t.dept} · {getEmp(t.eid)?.name || "–"} · Hạn {fmtDate(t.deadline)}</div></div>
+                    <span style={{ background: open.bg, color: open.c, fontSize: 11, padding: "2px 8px", borderRadius: 8, flexShrink: 0, height: "fit-content" }}>{STATUS[t.status]?.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {atRiskTasks && atRiskTasks.length > 0 && (
         <div style={{ background: "#fff", borderRadius: 12, border: "2px solid #fed7aa", overflow: "hidden" }}>

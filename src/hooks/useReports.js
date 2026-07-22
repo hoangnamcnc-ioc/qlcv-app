@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { DEPTS, LATE_REASONS, STATUS_ORDER } from "../constants";
-import { isCompletedStatus, parseJSON } from "../helpers";
+import { isCompletedStatus, parseJSON, pendingApprovalDays } from "../helpers";
 import { w, sumW, staffScore, managerScore } from "../scoring";
 
 // Toàn bộ logic tính hiệu suất/báo cáo: tổng hợp theo phòng ban, công thức điểm hiệu suất tháng,
@@ -409,6 +409,16 @@ export default function useReports({ computed, computedGlobal, employees, curren
 
   const dleft = (d) => { if (!d) return 99999; const dd = new Date(d); if (isNaN(dd)) return 99999; dd.setHours(0, 0, 0, 0); return Math.ceil((dd - today) / 86400000); };
 
+  // ── GY1 SỨC KHỎE DỮ LIỆU: điểm/báo cáo chỉ đáng tin khi dữ liệu được nhập đầy đủ, kịp thời ──
+  // Theo phạm vi quyền xem (TP thấy phòng, BGĐ thấy toàn đơn vị). 3 nhóm cần chấn chỉnh:
+  const dataHealth = useMemo(() => {
+    const daysSince = d => { if (!d) return 0; const dd = new Date(d); if (isNaN(dd)) return 0; dd.setHours(0, 0, 0, 0); return Math.floor((today - dd) / 86400000); };
+    const overdueNoReason = computed.filter(t => t.status === "overdue" && !t.late_reason && !t.late_excused);       // quá hạn chưa nêu lý do
+    const pendingLong = computed.filter(t => t.status === "pending_approval" && pendingApprovalDays(t) >= 2);        // chờ duyệt/chấm ≥2 ngày (quản lý chậm)
+    const stale = computed.filter(t => !t.completed && !t.completion_requested && !isCompletedStatus(t.status) && (t.progress || 0) === 0 && daysSince(t.created) >= 7); // mở >7 ngày, tiến độ 0%
+    return { overdueNoReason, pendingLong, stale, total: overdueNoReason.length + pendingLong.length + stale.length };
+  }, [computed, today]);
+
   // ── #1 VIỆC NGUY CƠ TRỄ: chưa quá hạn nhưng khả năng trễ cao (hạn ≤3 ngày & tiến độ <50% & chưa gửi duyệt) ──
   // Nổi lên TRƯỚC khi thành quá hạn để can thiệp kịp. Theo phạm vi quyền xem (TP thấy phòng, nhân viên thấy việc mình).
   const atRiskTasks = useMemo(() => computed
@@ -447,7 +457,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
   return {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
-    lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList,
+    lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList, dataHealth,
     calcMonthPerf, managerPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (nhân viên theo calcMonthPerf, quản lý theo managerPerf)
   };
 }
