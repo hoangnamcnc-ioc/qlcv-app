@@ -192,6 +192,8 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const [lateNote, setLateNote] = useState("");
   const rateTask = async (id, rating) => { if (["tb", "kem"].includes(rating) && ratingNote.trim().length < 10) { showToast("Đánh giá Trung bình/Kém cần ghi rõ nhận xét (ít nhất 10 ký tự) để nhân viên biết cần cải thiện gì", "error"); return; } const up = { rating, rating_note: ratingNote, rated_by: currentUser.full_name, rated_at: nowStr() }; await updateTask(id, up, `Đánh giá: ${RATING[rating]?.label}`); setModal(m => m ? { ...m, ...up } : m); setRatingNote(""); };
   const setLateReasonFn = async (id, reason) => { const up = { late_reason: reason, late_note: lateNote }; await updateTask(id, up, `Nguyên nhân trễ: ${LATE_REASONS.find(r => r.value === reason)?.label || reason}`); setModal(m => m ? { ...m, ...up } : m); setLateNote(""); };
+  // Miễn phạt trễ khách quan (TP/PP/BGĐ): việc trễ vì lý do ngoài tầm kiểm soát → không trừ điểm phạt khi chấm.
+  const toggleLateExcused = async (t) => { const next = !t.late_excused; const up = { late_excused: next }; const ok = await updateTask(t.id, up, next ? "Miễn phạt trễ (lý do khách quan)" : "Bỏ miễn phạt trễ"); if (ok) { setModal(m => (m && m.id === t.id) ? { ...m, ...up } : m); showToast(next ? "Đã miễn phạt trễ — việc này coi như đúng hạn khi tính điểm" : "Đã bỏ miễn phạt trễ"); } };
 
   // ── Danh sách phái sinh: hiển thị, lọc, phân trang ──
   const visibleTasks = useMemo(() => (tasks || []).filter(t => !t.deleted && canSeeTask(t)), [tasks, canSeeTask]);
@@ -271,7 +273,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     rejectCompletionRequest, remindApproval, nudgeTask, canEditOwnSelfTask,
     extRequestModal, setExtRequestModal, extProposedDate, setExtProposedDate, extReason, setExtReason, openExtRequestModal, submitExtRequest,
     extDecideModal, setExtDecideModal, extDecideDate, setExtDecideDate, extDecideNote, setExtDecideNote, openExtApprove, openExtReject, confirmExtDecision,
-    ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,
+    ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn, toggleLateExcused,
     visibleTasks, trashedTasks, computed, computedGlobal, stats, statsW, deptChart,
     dateFrom, setDateFrom, dateTo, setDateTo,
     fStatus, setFStatus, fDept, setFDept, fEid, setFEid, fAssignedByMe, setFAssignedByMe, search, setSearch, fSort, setFSort, page, setPage,

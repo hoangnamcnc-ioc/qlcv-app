@@ -20,7 +20,7 @@ export default function TaskModal({
   openApproveModal, rejectCompletionRequest, remindApproval, nudgeTask,
   openExtRequestModal, openExtApprove, openExtReject,
   rateTask, ratingNote, setRatingNote,
-  setLateReasonFn, lateNote, setLateNote,
+  setLateReasonFn, lateNote, setLateNote, toggleLateExcused,
   openEditTask, canEditOwnSelfTask,
   setDeleteConfirm,
   setForwardModal, setForwardEid,
@@ -169,7 +169,7 @@ export default function TaskModal({
             </div>
           )}
 
-          {(modal.status === "overdue" || (modal.late_reason && modal.late_reason !== "")) && (
+          {(modal.status === "overdue" || modal.status === "completed_late" || (modal.late_reason && modal.late_reason !== "")) && (
             <div style={{ marginBottom: 14, padding: "12px 14px", background: "#fff5f5", borderRadius: 10, border: "1px solid #fca5a5" }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#b91c1c", marginBottom: 8 }}>🔴 Nguyên nhân trễ hạn</div>
               {modal.late_reason ? (
@@ -189,6 +189,12 @@ export default function TaskModal({
                 )
               )}
               {!canSetLateReason(modal) && !modal.late_reason && <div style={{ fontSize: 12, color: "#9ca3af" }}>Nhân viên chưa khai báo</div>}
+              {canEditTask(modal) && toggleLateExcused && (
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px dashed #fca5a5", fontSize: 12.5, color: "#374151", cursor: "pointer" }}>
+                  <input type="checkbox" checked={!!modal.late_excused} onChange={() => toggleLateExcused(modal)} style={{ width: 15, height: 15, marginTop: 1, flexShrink: 0 }} />
+                  <span>✅ Trễ khách quan — <b>miễn phạt</b> khi tính điểm {modal.late_excused ? <span style={{ color: "#15803d", fontWeight: 600 }}>(đang áp dụng: coi như đúng hạn, không trừ điểm)</span> : <span style={{ color: "#9ca3af" }}>(dành cho lý do ngoài tầm kiểm soát của người thực hiện)</span>}</span>
+                </label>
+              )}
             </div>
           )}
 

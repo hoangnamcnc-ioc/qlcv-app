@@ -172,9 +172,14 @@ export default function useReports({ computed, computedGlobal, employees, curren
 
   // ── Công thức tính điểm hiệu suất 1 THÁNG (dùng chung cho bảng "Hiệu suất tháng" và "Xếp hạng năm") ──
   // (w / sumW đã khai báo ở trên, dùng chung cho cả tổng hợp điều hành lẫn chấm điểm)
+  // Miễn phạt trễ khách quan: việc completed_late được đánh dấu → coi như ĐÚNG HẠN (completed); việc overdue
+  // được đánh dấu → LOẠI khỏi mẫu số (không tính là quá hạn, cũng không tính là hoàn thành). Áp cho cả điểm
+  // cá nhân lẫn điểm điều hành. Pseudo-task (hỗ trợ/dự án/phối hợp) không có cờ này nên không ảnh hưởng.
+  const applyExcuse = arr => arr.map(t => t.late_excused ? (t.status === "completed_late" ? { ...t, status: "completed" } : { ...t, status: "__excused" }) : t).filter(t => t.status !== "__excused");
+
   const calcMonthPerf = (empId, year, month) => {
     const ym = `${year}|${month}`;
-    const et = perfIndex.byEid.get(`${empId}|${ym}`) || [];
+    const et = applyExcuse(perfIndex.byEid.get(`${empId}|${ym}`) || []);
     // Điểm cá nhân tính bằng công thức thuần trong scoring.js (nguồn duy nhất, có test). Đủ ĐK: resolved ≥ 5.
     // Người <5 việc đến hạn vẫn ra điểm để làm "điểm tham khảo", nhưng cờ eligible=false → không xếp hạng/chốt sổ.
     const s = staffScore(et);
@@ -234,7 +239,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const emp = (employees || []).find(e => e.id === empId);
     if (!emp) return { dept: null, resolvedW: 0, doneW: 0, onTimeW: 0, lateW: 0, overW: 0, onTimeRate: 0, empCount: 0, perHead: 0, perfScore: 0, eligible: false, breakdown: null };
     const dept = emp.dept;
-    const dt = cg.filter(t => { if (t.dept !== dept) return false; const d = new Date(t.deadline); return d.getFullYear() === year && d.getMonth() === month; });
+    const dt = applyExcuse(cg.filter(t => { if (t.dept !== dept) return false; const d = new Date(t.deadline); return d.getFullYear() === year && d.getMonth() === month; }));
     const empCount = (employees || []).filter(e => e.dept === dept && !e.no_kpi).length || 1;
     // Điểm điều hành tính bằng công thức thuần managerScore (nguồn duy nhất, có test): kết quả cả phòng + khối lượng/người.
     const m = managerScore(dt, empCount);

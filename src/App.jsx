@@ -294,7 +294,7 @@ export default function App() {
     rejectCompletionRequest, remindApproval, nudgeTask, canEditOwnSelfTask,
     extRequestModal, setExtRequestModal, extProposedDate, setExtProposedDate, extReason, setExtReason, openExtRequestModal, submitExtRequest,
     extDecideModal, setExtDecideModal, extDecideDate, setExtDecideDate, extDecideNote, setExtDecideNote, openExtApprove, openExtReject, confirmExtDecision,
-    ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,
+    ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn, toggleLateExcused,
     visibleTasks, trashedTasks, computed, computedGlobal, stats, statsW, deptChart,
     dateFrom, setDateFrom, dateTo, setDateTo,
     fStatus, setFStatus, fDept, setFDept, fEid, setFEid, fAssignedByMe, setFAssignedByMe, search, setSearch, fSort, setFSort, page, setPage,
@@ -1169,7 +1169,7 @@ export default function App() {
         openApproveModal={openApproveModal} rejectCompletionRequest={rejectCompletionRequest} remindApproval={remindApproval} nudgeTask={nudgeTask}
         openExtRequestModal={openExtRequestModal} openExtApprove={openExtApprove} openExtReject={openExtReject}
         rateTask={rateTask} ratingNote={ratingNote} setRatingNote={setRatingNote}
-        setLateReasonFn={setLateReasonFn} lateNote={lateNote} setLateNote={setLateNote}
+        setLateReasonFn={setLateReasonFn} lateNote={lateNote} setLateNote={setLateNote} toggleLateExcused={toggleLateExcused}
         openEditTask={openEditTask} canEditOwnSelfTask={canEditOwnSelfTask}
         setDeleteConfirm={setDeleteConfirm}
         setForwardModal={setForwardModal} setForwardEid={setForwardEid}
