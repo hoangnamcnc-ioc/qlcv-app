@@ -33,6 +33,29 @@ export default function Dashboard({
   const rosterTotalPages = Math.max(1, Math.ceil(rosterEmps.length / ROSTER_SIZE));
   const rosterPageSafe = Math.min(rosterPage, rosterTotalPages);
   const rosterPaged = rosterEmps.slice((rosterPageSafe - 1) * ROSTER_SIZE, rosterPageSafe * ROSTER_SIZE);
+  // GY4 — Bản tự đánh giá cá nhân (in ra giấy / PDF): một trang tóm tắt điểm, cấu thành, chủ động, xu hướng, trễ.
+  const printSelfReview = () => {
+    if (!empProfile || !currentUser.employee_id) return;
+    const p = empProfile(currentUser.employee_id); if (!p) return;
+    const now = new Date();
+    const esc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const b = p.cur.breakdown;
+    const trendHead = p.trend.map(t => `<th>${t.name}</th>`).join("");
+    const trendRow = p.trend.map(t => `<td style="text-align:center">${t.score == null ? "—" : t.score}</td>`).join("");
+    const lateRows = p.lateReasons.length ? p.lateReasons.map(r => `<li>${esc(r.label)}: ${r.count} lần</li>`).join("") : "<li>Không có việc bị ghi nhận trễ</li>";
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Ban tu danh gia</title><style>body{font-family:Arial,sans-serif;padding:26px;color:#111}h1{font-size:18px;margin:0 0 4px}h3{font-size:14px;margin:14px 0 4px}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ccc;padding:6px 8px;font-size:13px}.big{font-size:32px;font-weight:800;color:#1e3a8a}.sign td{border:none;text-align:center;padding-top:30px}</style></head><body>
+      <h1>BẢN TỰ ĐÁNH GIÁ CÔNG VIỆC</h1>
+      <div style="font-size:13px;color:#444">${esc(p.emp.name)} — Phòng ${esc(p.emp.dept)} · ${esc(p.emp.role)} · Kỳ: tháng ${now.getMonth() + 1}/${now.getFullYear()}</div>
+      <p>Điểm hiệu suất tháng: <span class="big">${p.cur.resolved > 0 ? p.cur.perfScore : "—"}</span>${p.cur.resolved > 0 && !p.cur.eligible ? " (tham khảo — chưa đủ 5 việc đến hạn)" : ""} &nbsp;·&nbsp; Tỷ lệ đúng hạn: <b>${p.onTimeRate}%</b></div>
+      ${b ? `<div style="font-size:13px">Cấu thành: Thời hạn ${b.timeliness} + Chất lượng ${b.quality}${b.penalty > 0 ? ` − Phạt ${b.penalty}` : ""}${b.workloadBonus > 0 ? ` + Thưởng KL ${b.workloadBonus}` : ""}${b.prioBonus > 0 ? ` + Thưởng ưu tiên ${b.prioBonus}` : ""}</div>` : ""}
+      <div style="font-size:13px;margin-top:6px">Tính chủ động: hoàn thành sớm hạn <b>${p.proactive.earlyRate}%</b> (${p.proactive.early}/${p.proactive.doneOnTime} việc) · Khối lượng phối hợp: ${p.proactive.collabW}</div>
+      <h3>Xu hướng điểm 6 tháng</h3><table><tr>${trendHead}</tr><tr>${trendRow}</tr></table>
+      <h3>Nguyên nhân trễ (mọi thời gian)</h3><ul style="font-size:13px">${lateRows}</ul>
+      <div style="font-size:13px">Việc đang mở: ${p.openCount} (≈${p.openW} quy đổi)</div>
+      <table class="sign" style="margin-top:40px"><tr><td>Người tự đánh giá<br><br><br><b>${esc(p.emp.name)}</b></td><td>Trưởng phòng nhận xét & ký</td></tr></table>
+      <script>window.onload=function(){window.print()}</script></body></html>`;
+    const w = window.open("", "_blank"); if (w) { w.document.write(html); w.document.close(); }
+  };
   const WL_SIZE = 8;
   const wlTotalPages = Math.max(1, Math.ceil((myWorkList?.length || 0) / WL_SIZE));
   const wlPageSafe = Math.min(wlPage, wlTotalPages);
@@ -236,7 +259,7 @@ export default function Dashboard({
       {myTasks && !FULL_ACCESS.includes(currentUser.role) && (
         <div style={{ background: "linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)", borderRadius: 12, padding: 16, color: "#fff" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <div><div style={{ fontWeight: 700, fontSize: 15 }}>👤 {currentUser.full_name}</div><div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{userDept ? `Phòng ${userDept}` : ""}</div></div>
+            <div><div style={{ fontWeight: 700, fontSize: 15 }}>👤 {currentUser.full_name}</div><div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{userDept ? `Phòng ${userDept}` : ""}{currentUser.role === "staff" && empProfile && <button onClick={printSelfReview} style={{ marginLeft: 10, background: "rgba(255,255,255,0.18)", color: "#fff", border: "1px solid rgba(255,255,255,0.35)", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontSize: 11 }}>🖨 Tự đánh giá</button>}</div></div>
             <div style={{ textAlign: "right" }}><div style={{ fontSize: 28, fontWeight: 800, color: "#a5b4fc" }}>{myTasks.rate}%</div><div style={{ fontSize: 11, opacity: 0.7 }}>Tỷ lệ HT</div></div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 8 }}>
