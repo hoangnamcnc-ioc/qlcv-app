@@ -50,6 +50,19 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
   const [stepDraft,setStepDraft]=React.useState(null);
   const doneCount=steps.filter(s=>s.status==="done").length;
   const pct=steps.length?Math.round(doneCount/steps.length*100):0;
+  // TV2 — Dự báo cán đích: từ NHỊP hoàn thành các bước đã xong (ngày duyệt approved_at), ước tính ngày về đích.
+  const projForecast=(()=>{
+    const parseVN=s=>{const p=String(s||"").split("/").map(Number);return (p[0]&&p[1]&&p[2])?new Date(p[2],p[1]-1,p[0]):null;};
+    const doneDated=steps.filter(s=>s.status==="done"&&s.approved_at).map(s=>parseVN(s.approved_at)).filter(Boolean).sort((a,b)=>a-b);
+    const remaining=steps.length-steps.filter(s=>s.status==="done"||s.status==="skipped").length;
+    if(doneDated.length<2||remaining<=0)return null;
+    const perStep=(doneDated[doneDated.length-1]-doneDated[0])/86400000/(doneDated.length-1);
+    if(!(perStep>0))return null;
+    const eta=new Date();eta.setHours(0,0,0,0);eta.setDate(eta.getDate()+Math.round(remaining*perStep));
+    const dl=proj.deadline?new Date(proj.deadline):null;
+    const lateDays=dl&&!isNaN(dl)?Math.round((eta-new Date(dl.setHours(0,0,0,0)))/86400000):null;
+    return {etaStr:`${eta.getDate()}/${eta.getMonth()+1}/${eta.getFullYear()}`,perStep:Math.round(perStep*10)/10,remaining,lateDays};
+  })();
   const remain=(Number(proj.total_budget)||0)-(Number(proj.spent)||0);
   const lead=getEmp(proj.lead_eid);
   // ── Phân quyền chi tiết ──
@@ -185,7 +198,8 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
           <div style={{fontWeight:600,fontSize:14}}>📋 Quy trình thực hiện ({doneCount}/{steps.length}){countOverdueSteps(steps)>0&&<span style={{marginLeft:8,fontSize:11,background:"#fee2e2",color:"#b91c1c",padding:"2px 8px",borderRadius:8,fontWeight:600}}>⚠ {countOverdueSteps(steps)} bước trễ hạn</span>}</div>
           {canEditProject&&<button onClick={addStep} style={{padding:"5px 12px",border:"1px solid #86efac",borderRadius:7,background:"#f0fdf4",cursor:"pointer",fontSize:12,color:"#15803d"}}>+ Thêm bước</button>}
         </div>
-        <div style={{height:6,background:"#e5e7eb",borderRadius:6,overflow:"hidden",marginBottom:16}}><div style={{height:"100%",width:pct+"%",background:pct===100?"#16a34a":"#3b82f6",borderRadius:6}}/></div>
+        <div style={{height:6,background:"#e5e7eb",borderRadius:6,overflow:"hidden",marginBottom:projForecast?8:16}}><div style={{height:"100%",width:pct+"%",background:pct===100?"#16a34a":"#3b82f6",borderRadius:6}}/></div>
+        {projForecast&&<div style={{marginBottom:16,padding:"8px 12px",borderRadius:8,fontSize:12.5,lineHeight:1.6,background:projForecast.lateDays>0?"#fff7ed":"#f0f9ff",border:"1px solid "+(projForecast.lateDays>0?"#fed7aa":"#bae6fd"),color:projForecast.lateDays>0?"#9a3412":"#075985"}}>🔮 <b>Dự báo cán đích:</b> với nhịp ~{projForecast.perStep} ngày/bước, còn {projForecast.remaining} bước → dự kiến xong ~<b>{projForecast.etaStr}</b>.{projForecast.lateDays>0?` ⚠ Có thể TRỄ hạn ~${projForecast.lateDays} ngày.`:projForecast.lateDays!=null?" ✓ Nhịp này kịp hạn.":""}</div>}
         {phases.map(phase=>(<div key={phase} style={{marginBottom:16}}>
           {phase&&<div style={{fontSize:12,fontWeight:700,color:"#1e3a8a",background:"#eff6ff",padding:"6px 12px",borderRadius:6,marginBottom:8}}>{phase}</div>}
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
