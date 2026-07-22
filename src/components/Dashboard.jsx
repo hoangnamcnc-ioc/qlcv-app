@@ -15,7 +15,7 @@ export default function Dashboard({
   statFilter, setStatFilter,
   setView, setFDept,
   setModal, loadComments,
-  getEmp, todayStr,
+  getEmp, todayStr, onReassign,
 }) {
   // Nhân viên (staff) chỉ thấy việc của mình → ẩn các khối mang tính điều hành/toàn phòng
   // (thống kê tổng, biểu đồ phòng ban, cảnh báo quá tải, quản lý nhiệm vụ định kỳ) cho gọn và tránh trùng lặp.
@@ -361,7 +361,7 @@ export default function Dashboard({
               </div>
             ))}
           </div>
-          <OverloadPopup emp={overloadedEmps.find(e => e.id === overloadPopup)} computed={computed} onClose={() => setOverloadPopup(null)} onOpen={t => { setModal(t); loadComments(t.id); }} isMobile={isMobile} />
+          <OverloadPopup emp={overloadedEmps.find(e => e.id === overloadPopup)} computed={computed} employees={employees} onReassign={onReassign} onClose={() => setOverloadPopup(null)} onOpen={t => { setModal(t); loadComments(t.id); }} isMobile={isMobile} />
         </div>
       )}
 

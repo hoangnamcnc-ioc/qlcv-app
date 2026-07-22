@@ -35,26 +35,35 @@ export const RoleBadge = ({ role }) => {
 export const RatingBadge = ({ r }) =>
   r && RATING[r] ? <span style={{ background: RATING[r].bg, color: RATING[r].col, fontSize: 12, padding: "2px 8px", borderRadius: 12 }}>{RATING[r].icon} {RATING[r].label}</span> : null;
 
-export function OverloadPopup({ emp, computed, onClose, onOpen, isMobile }) {
+export function OverloadPopup({ emp, computed, employees, onReassign, onClose, onOpen, isMobile }) {
   if (!emp) return null;
   const tasks = computed.filter(t => t.eid === emp.id && !isCompletedStatus(t.status)).sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
+  // Gợi ý điều việc: tìm người CÙNG PHÒNG đang rảnh nhất (khối lượng quy đổi mở thấp nhất) để chuyển bớt sang.
+  const loadOf = id => Math.round(computed.filter(t => t.eid === id && !isCompletedStatus(t.status)).reduce((s, t) => s + (t.weight ?? 1), 0) * 100) / 100;
+  const empW = loadOf(emp.id);
+  const cand = (employees || []).filter(e => e.dept === emp.dept && e.id !== emp.id).map(e => ({ id: e.id, name: e.name, w: loadOf(e.id) })).sort((a, b) => a.w - b.w)[0];
+  const showReassign = !!onReassign && cand && cand.w < empW;
   return (
     <div style={{ background: "#fff", borderTop: "1px solid #fca5a5", overflow: "hidden" }}>
       <div style={{ padding: "8px 14px", borderBottom: "1px solid #fca5a5", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff5f5" }}>
         <span style={{ fontWeight: 600, fontSize: 12, color: "#b91c1c" }}>📋 Nhiệm vụ của {emp.name} ({tasks.length})</span>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#9ca3af" }}>✕</button>
       </div>
+      {showReassign && <div style={{ padding: "7px 14px", background: "#f0fdf4", borderBottom: "1px solid #bbf7d0", fontSize: 11.5, color: "#166534" }}>🔀 Gợi ý điều việc: chuyển bớt cho <b>{cand.name}</b> (đang rảnh hơn — {cand.w} quy đổi vs {empW}). Bấm nút <b>→ Chuyển</b> ở mỗi việc.</div>}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)", maxHeight: 260, overflowY: "auto" }}>
         {tasks.map(t => {
           const sc = STATUS[t.status];
           return (
-            <div key={t.id} onClick={() => onOpen(t)} style={{ padding: "9px 12px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}
+            <div key={t.id} style={{ padding: "9px 12px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}
               onMouseEnter={e => e.currentTarget.style.background = "#fff5f5"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div onClick={() => onOpen(t)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
                 <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: "normal", wordBreak: "break-word" }}>{t.title}</div>
                 <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>Hạn: {fmtDate(t.deadline)}</div>
               </div>
-              <span style={{ background: sc.bg, color: sc.col, fontSize: 10, padding: "2px 6px", borderRadius: 6, flexShrink: 0 }}>{sc.label}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <span style={{ background: sc.bg, color: sc.col, fontSize: 10, padding: "2px 6px", borderRadius: 6 }}>{sc.label}</span>
+                {showReassign && <button title={`Chuyển việc này cho ${cand.name}`} onClick={e => { e.stopPropagation(); onReassign(t, cand.id); }} style={{ background: "#dcfce7", color: "#15803d", border: "1px solid #86efac", borderRadius: 6, padding: "2px 7px", fontSize: 10.5, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>→ Chuyển</button>}
+              </div>
             </div>
           );
         })}

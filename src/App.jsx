@@ -692,6 +692,7 @@ export default function App() {
               setView={setView} setFDept={setFDept}
               setModal={setModal} loadComments={loadComments}
               getEmp={getEmp} todayStr={todayStr}
+              onReassign={(t,eid)=>{setForwardModal(t);setForwardEid(eid);}}
             />
           )}
 
