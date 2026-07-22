@@ -26,7 +26,7 @@ export default function Dashboard({
   const [profileId, setProfileId] = useState(null); // hồ sơ nhân viên đang mở
   const [rosterPage, setRosterPage] = useState(1); // phân trang bảng nhân sự
   // Danh sách nhân sự trong tầm quản lý để lập "bảng nhân sự": TP/PP xem phòng mình, BGĐ xem tất cả
-  const rosterEmps = isManagerView ? (employees || []).filter(e => FULL_ACCESS.includes(currentUser.role) || e.dept === userDept).slice().sort((a, b) => a.dept === b.dept ? a.name.localeCompare(b.name) : a.dept.localeCompare(b.dept)) : [];
+  const rosterEmps = isManagerView ? (employees || []).filter(e => (FULL_ACCESS.includes(currentUser.role) || e.dept === userDept) && !e.no_kpi).slice().sort((a, b) => a.dept === b.dept ? a.name.localeCompare(b.name) : a.dept.localeCompare(b.dept)) : [];
   const ROSTER_SIZE = 8;
   const rosterTotalPages = Math.max(1, Math.ceil(rosterEmps.length / ROSTER_SIZE));
   const rosterPageSafe = Math.min(rosterPage, rosterTotalPages);

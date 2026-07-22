@@ -41,7 +41,7 @@ export function OverloadPopup({ emp, computed, employees, onReassign, onClose, o
   // Gợi ý điều việc: tìm người CÙNG PHÒNG đang rảnh nhất (khối lượng quy đổi mở thấp nhất) để chuyển bớt sang.
   const loadOf = id => Math.round(computed.filter(t => t.eid === id && !isCompletedStatus(t.status)).reduce((s, t) => s + (t.weight ?? 1), 0) * 100) / 100;
   const empW = loadOf(emp.id);
-  const cand = (employees || []).filter(e => e.dept === emp.dept && e.id !== emp.id).map(e => ({ id: e.id, name: e.name, w: loadOf(e.id) })).sort((a, b) => a.w - b.w)[0];
+  const cand = (employees || []).filter(e => e.dept === emp.dept && e.id !== emp.id && !e.no_kpi).map(e => ({ id: e.id, name: e.name, w: loadOf(e.id) })).sort((a, b) => a.w - b.w)[0];
   const showReassign = !!onReassign && cand && cand.w < empW;
   return (
     <div style={{ background: "#fff", borderTop: "1px solid #fca5a5", overflow: "hidden" }}>

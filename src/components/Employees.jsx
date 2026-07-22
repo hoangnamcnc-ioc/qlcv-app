@@ -49,7 +49,7 @@ export default function Employees({
                 <div key={emp.id} style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center", background: isOverload ? "#fff5f5" : "#fff" }}>
                   <div>
                     <div style={{ fontWeight: 500, fontSize: 13 }}>{emp.name}{isOverload && <span style={{ marginLeft: 6, fontSize: 10, background: "#fee2e2", color: "#b91c1c", padding: "1px 6px", borderRadius: 8 }}>⚠️</span>}</div>
-                    <div style={{ fontSize: 11, color: "#6b7280" }}>{emp.role}</div>
+                    <div style={{ fontSize: 11, color: "#6b7280" }}>{emp.role}{emp.no_kpi && <span title="Không giao việc / không tính KPI" style={{ marginLeft: 6, background: "#f1f5f9", color: "#64748b", padding: "1px 6px", borderRadius: 6, fontSize: 10, fontWeight: 600 }}>🚫 KPI</span>}</div>
                   </div>
                   <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                     {ac > 0 && <span style={{ background: isOverload ? "#fee2e2" : "#e0e7ff", color: isOverload ? "#b91c1c" : "#4338ca", fontSize: 11, padding: "2px 6px", borderRadius: 8, fontWeight: isOverload ? 700 : 400 }}>{ac}</span>}
@@ -86,7 +86,7 @@ export default function Employees({
                       <div style={{ fontWeight: 500 }}>{emp.name}</div>
                       {isOverload && <span style={{ fontSize: 10, background: "#fee2e2", color: "#b91c1c", padding: "1px 6px", borderRadius: 8 }}>⚠️ Quá tải</span>}
                     </td>
-                    <td style={{ padding: "10px 14px", color: "#6b7280" }}>{emp.role}</td>
+                    <td style={{ padding: "10px 14px", color: "#6b7280" }}>{emp.role}{emp.no_kpi && <span title="Không giao việc / không tính KPI" style={{ marginLeft: 6, background: "#f1f5f9", color: "#64748b", padding: "1px 6px", borderRadius: 6, fontSize: 10, fontWeight: 600 }}>🚫 KPI</span>}</td>
                     <td style={{ padding: "10px 14px" }}>{ac > 0 ? <span style={{ background: isOverload ? "#fee2e2" : "#e0e7ff", color: isOverload ? "#b91c1c" : "#4338ca", fontSize: 12, padding: "2px 8px", borderRadius: 8, fontWeight: isOverload ? 700 : 400 }}>{ac}{isOverload ? " ⚠" : ""}</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>0</span>}</td>
                     <td style={{ padding: "10px 14px" }}>{nd > 0 ? <span style={{ background: "#fef9c3", color: "#92400e", fontSize: 12, padding: "2px 8px", borderRadius: 8 }}>⚠ {nd}</span> : "–"}</td>
                     <td style={{ padding: "10px 14px" }}>{ov > 0 ? <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 12, padding: "2px 8px", borderRadius: 8 }}>! {ov}</span> : "–"}</td>
