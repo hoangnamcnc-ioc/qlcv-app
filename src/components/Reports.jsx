@@ -12,7 +12,7 @@ export default function Reports({
   repTab, setRepTab,
   repMonth, setRepMonth, repYear, setRepYear,
   rankYear, setRankYear,
-  repStats, repTasks, repDeptData, repEmpData, repMonthTrend,
+  repStats, repStatsPrev, repTasks, repDeptData, repEmpData, repMonthTrend,
   leaderboard, managerBoard, managerLeaderboard,
   lateReasonStats,
   getEmp, setModal, loadComments,
@@ -43,14 +43,22 @@ export default function Reports({
           <span style={{ fontSize: 13, color: "#6b7280" }}>{repTasks.length} nhiệm vụ</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(5,1fr)", gap: 12 }}>
-          {[{label:"Tổng",val:repStats.total,sub:repStats.totalW,bg:"#eef2ff",col:"#4338ca",icon:"📋"},{label:"Hoàn thành",val:repStats.done,sub:repStats.doneW,bg:"#dcfce7",col:"#15803d",icon:"✅"},{label:"Quá hạn",val:repStats.over,sub:repStats.overW,bg:"#fee2e2",col:"#b91c1c",icon:"❌"},{label:"HT quá hạn",val:repStats.completedLate,sub:repStats.completedLateW,bg:"#fff1f2",col:"#991b1b",icon:"⏰"},{label:"Tỷ lệ HT",val:repStats.rate+"%",sub:repStats.rateW+"%",bg:"#fef9c3",col:"#92400e",icon:"⭐"}].map(c => (
+          {[{label:"Tổng",val:repStats.total,sub:repStats.totalW,prev:repStatsPrev?.total,bg:"#eef2ff",col:"#4338ca",icon:"📋",goodUp:null},{label:"Hoàn thành",val:repStats.done,sub:repStats.doneW,prev:repStatsPrev?.done,bg:"#dcfce7",col:"#15803d",icon:"✅",goodUp:true},{label:"Quá hạn",val:repStats.over,sub:repStats.overW,prev:repStatsPrev?.over,bg:"#fee2e2",col:"#b91c1c",icon:"❌",goodUp:false},{label:"HT quá hạn",val:repStats.completedLate,sub:repStats.completedLateW,prev:repStatsPrev?.completedLate,bg:"#fff1f2",col:"#991b1b",icon:"⏰",goodUp:false},{label:"Tỷ lệ HT",val:repStats.rate+"%",sub:repStats.rateW+"%",prev:repStatsPrev?.rate,cur:repStats.rate,pct:true,bg:"#fef9c3",col:"#92400e",icon:"⭐",goodUp:true}].map(c => {
+            const curN = c.pct ? c.cur : c.val;
+            const hasPrev = repStatsPrev && c.prev != null;
+            const diff = hasPrev ? curN - c.prev : 0;
+            const diffPct = hasPrev && c.prev !== 0 ? Math.round(diff / c.prev * 100) : (hasPrev && diff !== 0 ? 100 : 0);
+            const good = c.goodUp == null ? null : (diff === 0 ? null : (diff > 0) === c.goodUp);
+            const arrowCol = good == null ? "#9ca3af" : good ? "#15803d" : "#b91c1c";
+            return (
             <div key={c.label} style={{ background: c.bg, borderRadius: 10, padding: 14 }}>
               <div style={{ fontSize: 20, marginBottom: 4 }}>{c.icon}</div>
               <div style={{ fontSize: 24, fontWeight: 700, color: c.col }}>{c.val}</div>
               <div title="Đã quy đổi theo trọng số nhiệm vụ định kỳ (ngày 0.25 · tuần 1 · 2 tuần 1.5 · tháng 2.5 · quý/6 tháng/năm 3)" style={{ fontSize: 10.5, color: c.col, opacity: 0.65, marginTop: 2 }}>≈ {c.sub} quy đổi</div>
               <div style={{ fontSize: 12, color: c.col, opacity: 0.8, marginTop: 2 }}>{c.label}</div>
+              {hasPrev && <div title={`Tháng trước (${repStatsPrev.label}): ${c.prev}${c.pct?"%":""}`} style={{ fontSize: 11, marginTop: 4, color: arrowCol, fontWeight: 600 }}>{diff === 0 ? "→ 0" : `${diff > 0 ? "▲" : "▼"} ${Math.abs(c.pct ? diff : diffPct)}${c.pct ? " điểm%" : "%"}`} <span style={{ color: c.col, opacity: 0.55, fontWeight: 400 }}>vs kỳ trước</span></div>}
             </div>
-          ))}
+          );})}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>

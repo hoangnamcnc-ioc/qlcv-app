@@ -299,7 +299,7 @@ export default function App() {
   // ── Hiệu suất/Báo cáo (tổng hợp phòng ban, điểm hiệu suất tháng, bảng xếp hạng, thống kê trễ hạn/quá tải) ──
   const {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
-    execDeptSummary, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
+    execDeptSummary, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList,
     calcMonthPerf, managerPerf,
   } = useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks });
@@ -768,7 +768,7 @@ export default function App() {
               repTab={repTab} setRepTab={setRepTab}
               repMonth={repMonth} setRepMonth={setRepMonth} repYear={repYear} setRepYear={setRepYear}
               rankYear={rankYear} setRankYear={setRankYear}
-              repStats={repStats} repTasks={repTasks} repDeptData={repDeptData} repEmpData={repEmpData} repMonthTrend={repMonthTrend}
+              repStats={repStats} repStatsPrev={repStatsPrev} repTasks={repTasks} repDeptData={repDeptData} repEmpData={repEmpData} repMonthTrend={repMonthTrend}
               leaderboard={leaderboard} managerBoard={managerBoard} managerLeaderboard={managerLeaderboard}
               lateReasonStats={lateReasonStats}
               getEmp={getEmp} setModal={setModal} loadComments={loadComments}

@@ -117,6 +117,13 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const totalW = sumW(repTasks), doneW = sumW(repTasks.filter(t => isCompletedStatus(t.status))), overW = sumW(repTasks.filter(t => t.status === "overdue")), completedLateW = sumW(repTasks.filter(t => t.status === "completed_late"));
     return { total, done, over, completedLate, rate: total ? Math.round(done / total * 100) : 0, totalW, doneW, overW, completedLateW, rateW: totalW ? Math.round(doneW / totalW * 100) : 0 };
   }, [repTasks]);
+  // Thống kê THÁNG TRƯỚC (cùng cách tính) để so sánh kỳ — hiện mũi tên ▲▼ % thay đổi trên các thẻ chỉ số.
+  const repStatsPrev = useMemo(() => {
+    const d = new Date(repYear, repMonth - 1, 1); const y = d.getFullYear(), m = d.getMonth();
+    const pt = cg.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === y && td.getMonth() === m; });
+    const total = pt.length, done = pt.filter(t => isCompletedStatus(t.status)).length, over = pt.filter(t => t.status === "overdue").length, completedLate = pt.filter(t => t.status === "completed_late").length;
+    return { total, done, over, completedLate, rate: total ? Math.round(done / total * 100) : 0, totalW: sumW(pt), doneW: sumW(pt.filter(t => isCompletedStatus(t.status))), label: `T${m + 1}/${y}` };
+  }, [cg, repYear, repMonth]);
   const repDeptData = useMemo(() => DEPTS.map(d => { const dt = repTasks.filter(t => t.dept === d); const done = dt.filter(t => isCompletedStatus(t.status)).length; const over = dt.filter(t => t.status === "overdue").length; const completedLate = dt.filter(t => t.status === "completed_late").length; return { name: d, total: dt.length, done, over, completedLate, rate: dt.length ? Math.round(done / dt.length * 100) : 0, totalW: sumW(dt), doneW: sumW(dt.filter(t => isCompletedStatus(t.status))), overW: sumW(dt.filter(t => t.status === "overdue")), completedLateW: sumW(dt.filter(t => t.status === "completed_late")) }; }), [repTasks]);
 
   // ── Vai trò phối hợp (collab_eids) trên việc ĐÃ HOÀN THÀNH được tính = 1/2 trọng số của việc chính
@@ -436,7 +443,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
 
   return {
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
-    execDeptSummary, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repDeptData, repEmpData, repMonthTrend, leaderboard,
+    execDeptSummary, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList,
     calcMonthPerf, managerPerf, // dùng cho "chốt sổ" điểm tháng vào bảng monthly_scores (nhân viên theo calcMonthPerf, quản lý theo managerPerf)
   };
