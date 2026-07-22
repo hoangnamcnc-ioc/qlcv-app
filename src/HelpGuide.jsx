@@ -103,10 +103,16 @@ const SECTIONS = [
       ]},
       { h: "🧭 Gợi ý điều phối nhân sự (Ban Giám đốc)" },
       { p: "Khi tải giữa các phòng chênh lệch rõ, hệ thống gợi ý: phòng 🔴 có dấu hiệu thiếu người (tải cao hơn hẳn mặt bằng và có người quá tải) hoặc 🟢 có thể đang dư người — dựa trên khối lượng đang mở quy đổi/người. Chỉ mang tính tham khảo điều phối." },
+      { h: "🚨 Cảnh báo chủ động (phát hiện sớm)" },
+      { ul: [
+        "⚠️ Nguy cơ trễ: danh sách việc hạn còn ≤3 ngày mà tiến độ <50% và chưa gửi duyệt — nổi lên TRƯỚC khi thành quá hạn để can thiệp kịp. Bấm vào để mở việc.",
+        "🚩 Cần chú ý (BGĐ): tự chỉ ra phòng có tỷ lệ hoàn thành giảm 3 tháng liên tiếp, và nhân viên rớt điểm mạnh (≥15đ) so với tháng trước.",
+        "📊 Bản tin tuần (quản lý): 4 số nhanh — việc mới giao / đã hoàn thành trong 7 ngày qua / sắp hết hạn / đang quá hạn.",
+      ]},
       { h: "👥 Bảng \"Nhân sự\" & Hồ sơ nhân viên (Trưởng phòng / BGĐ)" },
       { ul: [
         "Trưởng/Phó phòng thấy danh sách nhân sự phòng mình (BGĐ thấy toàn cơ quan): việc đang mở, điểm tháng, tỷ lệ đúng hạn — phân trang 8 người/trang.",
-        "Bấm một người để mở HỒ SƠ đánh giá chi tiết: điểm & cấu thành điểm tháng, xu hướng điểm 6 tháng, nguyên nhân trễ riêng của người đó, và danh sách việc đang mở (bấm mở thẳng nhiệm vụ).",
+        "Bấm một người để mở HỒ SƠ đánh giá chi tiết: điểm & cấu thành điểm tháng, ⚡ chỉ số Chủ động (tỷ lệ hoàn thành sớm hạn + khối lượng phối hợp — tham khảo, không tính vào điểm), xu hướng điểm 6 tháng, nguyên nhân trễ riêng, và danh sách việc đang mở (bấm mở thẳng nhiệm vụ).",
       ]},
       { h: "🔀 Gợi ý điều việc (Trưởng phòng)" },
       { p: "Ở cảnh báo quá tải, bấm vào một người quá tải để xem việc của họ. Nếu trong phòng có đồng nghiệp đang rảnh hơn, hệ thống gợi ý chuyển bớt — mỗi việc có nút \"→ Chuyển\" mở sẵn hộp chuyển tiếp đã chọn người nhận, Trưởng phòng chỉ cần xác nhận." },
@@ -133,6 +139,8 @@ const SECTIONS = [
       { p: "Mỗi thẻ/dòng nhiệm vụ hiện thêm 📤 tên người giao việc (người tạo hoặc người chuyển tiếp gần nhất), giúp biết ngay ai là người cần liên hệ khi cần duyệt/hỏi thêm." },
       { h: "Cập nhật tiến độ" },
       { p: "Bấm vào thanh % tiến độ (hoặc nút % TĐ) để chọn nhanh mức 0–100%." },
+      { h: "✅ Checklist con (chia nhỏ nhiệm vụ)" },
+      { p: "Với việc nhiều đầu mục, mở chi tiết nhiệm vụ và thêm các Mục con (gõ nội dung rồi Enter). Tick/bỏ tick từng mục, phần trăm tiến độ TỰ cập nhật theo số mục đã xong. Người chủ trì, người phối hợp và quản lý đều thao tác được. Hoàn thành nhiệm vụ vẫn qua nút Yêu cầu hoàn thành như thường." },
       { h: "⭐ Quy trình hoàn thành — Yêu cầu duyệt" },
       { note: "Nhân viên KHÔNG tự đánh dấu hoàn thành được nữa. Mọi việc hoàn thành phải qua bước duyệt của cấp quản lý.", color: "1D4ED8", bg: "#EFF6FF" },
       { ol: [
@@ -152,6 +160,13 @@ const SECTIONS = [
       { p: "Nếu 1 yêu cầu duyệt hoàn thành bị treo từ 2 ngày trở lên chưa được xử lý, danh sách hiển thị badge ⏳ Chờ duyệt N ngày để BGĐ/Trưởng phòng biết ai đang duyệt chậm." },
       { h: "🔔 Nhắc việc (đôn đốc nhân viên)" },
       { p: "Trong chi tiết một nhiệm vụ chưa hoàn thành, Trưởng/Phó phòng (hoặc người giao) có nút 🔔 Nhắc việc để đôn đốc người thực hiện. Mỗi lần nhắc được ĐẾM và ghi vào lịch sử nhiệm vụ (làm bằng chứng đã đôn đốc), nhân viên thấy dòng \"đã được nhắc N lần\". Giới hạn 1 lần/4 giờ để tránh làm phiền." },
+      { h: "✅ Miễn phạt trễ khách quan" },
+      { p: "Ở khối Nguyên nhân trễ hạn của một việc, Trưởng/Phó phòng/BGĐ có ô tích \"Trễ khách quan — miễn phạt\". Dùng cho việc trễ vì lý do NGOÀI TẦM KIỂM SOÁT của người thực hiện (chờ ý kiến cấp trên, phụ thuộc đơn vị khác…):" },
+      { ul: [
+        "Việc hoàn thành trễ được đánh dấu → khi tính điểm coi như ĐÚNG HẠN, không trừ điểm phạt.",
+        "Việc còn quá hạn được đánh dấu → loại khỏi mẫu số tính điểm (không tính là quá hạn).",
+        "Mỗi lần đánh dấu/bỏ đánh dấu đều ghi vào lịch sử nhiệm vụ.",
+      ]},
       { h: "📅 Đề xuất & duyệt gia hạn deadline" },
       { note: "Chỉ người giao việc (người tạo/chuyển tiếp gần nhất) hoặc Admin/BGĐ mới đổi Hạn chót trực tiếp được. Trưởng/Phó phòng khác trong phòng ban KHÔNG còn tự ý đổi hạn của nhiệm vụ không phải do mình giao." },
       { ol: [
@@ -409,10 +424,10 @@ const SECTIONS = [
   {
     icon: "📜", title: "16. Nhật ký",
     body: [
-      { p: "Chỉ hiển thị với Ban Giám đốc/Quản trị viên. Nhật ký TOÀN DIỆN gộp lịch sử thao tác từ nhiều module: Nhiệm vụ, Hỗ trợ ND/PAHT (ghi nhận), Ngân sách và Nhiệm vụ khác (duyệt bước, nghiệm thu)." },
+      { p: "Chỉ hiển thị với Ban Giám đốc/Quản trị viên. Nhật ký TOÀN DIỆN gộp lịch sử thao tác từ 5 module: Nhiệm vụ, Hỗ trợ ND/PAHT (ghi nhận), Ngân sách và Nhiệm vụ khác (duyệt bước, nghiệm thu), và Văn bản (thêm/chuyển văn bản)." },
       { ul: [
         "Ô tìm kiếm theo người / hành động / đối tượng.",
-        "Bộ lọc: theo Người, theo Loại (Nhiệm vụ/Hỗ trợ/Ngân sách/NV khác), theo khoảng ngày (Từ – Đến).",
+        "Bộ lọc: theo Người, theo Loại (Nhiệm vụ/Hỗ trợ/Ngân sách/NV khác/Văn bản), theo khoảng ngày (Từ – Đến).",
         "Phân trang 50 dòng/trang; nút ⬇ CSV để xuất ra Excel phục vụ tra cứu/kiểm tra.",
       ]},
       { note: "Nhật ký sắp theo mốc thời gian thật (mới nhất trên cùng) và KHÔNG tự xóa dữ liệu — toàn bộ lịch sử vẫn lưu đầy đủ trong hệ thống, phần hiển thị chỉ lọc/phân trang." },
@@ -449,6 +464,7 @@ const SECTIONS = [
         ["Tự tạo việc cho chính mình (TP duyệt/chấm)", "✅", "✅", "✅"],
         ["Tạo/giao nhiệm vụ cho người khác", "❌", "✅ (phòng mình)", "✅"],
         ["🔔 Nhắc việc / điều việc / hồ sơ nhân viên", "❌", "✅ (phòng mình)", "✅"],
+        ["Miễn phạt trễ khách quan", "❌", "✅ (phòng mình)", "✅"],
         ["Yêu cầu hoàn thành việc", "✅ (người chủ trì)", "✅", "✅"],
         ["Cập nhật tiến độ (gồm người phối hợp)", "✅", "✅", "✅"],
         ["Duyệt hoàn thành & đánh giá", "❌", "✅ (phòng mình)", "✅"],
@@ -477,6 +493,7 @@ const SECTIONS = [
         "Nếu chỉ làm ít nhiệm vụ thường, hãy để ý các bước bạn chủ trì trong Nhiệm vụ ngân sách đã được duyệt+chấm chất lượng hay chưa — mỗi bước cũng tính là 1 việc, giúp bạn dễ đạt mốc 5 việc/tháng hơn.",
         "Các trường hợp đã ghi nhận ở mục Hỗ trợ người dùng/PAHT và vận hành DC cũng cộng điểm theo độ khó (Khó=1, Trung bình=1/2, Nhanh=1/4 việc) — điểm cập nhật ngay, không cần tải lại trang.",
         "Nếu chưa đủ 5 việc đến hạn, bảng vẫn hiện \"~Nđ (tham khảo)\" để bạn biết mình đang ở mức nào — điểm này KHÔNG dùng để xếp hạng/chốt sổ.",
+        "Nếu bị trễ vì lý do khách quan (ngoài tầm kiểm soát), báo Trưởng/Phó phòng đánh dấu \"Trễ khách quan — miễn phạt\" trong việc đó; khi được duyệt, việc sẽ không bị trừ điểm phạt.",
       ]},
       { h: "Cần hỗ trợ thêm?" },
       { p: "Liên hệ Quản trị viên hệ thống hoặc gửi phản hồi qua mục Góp ý." },
