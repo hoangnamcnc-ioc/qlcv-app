@@ -50,7 +50,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // LƯU Ý: progress===100 KHÔNG còn tự động suy ra completed:true — hoàn thành chỉ được đặt tường minh
   // qua confirmApproveCompletion (sau khi TP/PP/BGĐ duyệt), tránh việc "Yêu cầu hoàn thành" (cũng set progress:100)
   // vô tình bỏ qua bước duyệt.
-  const updateTask = async (id, updates, note, opts = {}) => { const task = tasks.find(t => t.id === id); if (updates.progress === 100 && task && getStatus(task) === "overdue" && !task.late_reason) { showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi hoàn thành.", "error"); setModal(m => (m && m.id === id) ? { ...m, status: "overdue" } : { ...task, status: "overdue" }); return false; } if (!opts.silent) setSaving(true); if (note && task) { const h = parseJSON(task.history, []); h.push({ action: note, by: currentUser.full_name, at: nowStr() }); updates.history = JSON.stringify(h); } if (updates.completed === false) updates.completed_at = null; const { error } = await supabase.from("tasks").update(updates).eq("id", id); if (!error) { setTasks(p => p.map(t => t.id === id ? { ...t, ...updates } : t)); if (!opts.silent) showToast("Đã cập nhật"); } else if (!opts.silent) showToast("Lỗi: " + (error.message || ""), "error"); if (!opts.silent) setSaving(false); return !error; };
+  const updateTask = async (id, updates, note, opts = {}) => { const task = tasks.find(t => t.id === id); if (!opts.skipGuard && updates.progress === 100 && task && getStatus(task) === "overdue" && !task.late_reason) { showToast("Nhiệm vụ đã quá hạn. Vui lòng nhập nguyên nhân trễ hạn trước khi hoàn thành.", "error"); setModal(m => (m && m.id === id) ? { ...m, status: "overdue" } : { ...task, status: "overdue" }); return false; } if (!opts.silent) setSaving(true); if (note && task) { const h = parseJSON(task.history, []); h.push({ action: note, by: currentUser.full_name, at: nowStr() }); updates.history = JSON.stringify(h); } if (updates.completed === false) updates.completed_at = null; const { error } = await supabase.from("tasks").update(updates).eq("id", id); if (!error) { setTasks(p => p.map(t => t.id === id ? { ...t, ...updates } : t)); if (!opts.silent) showToast("Đã cập nhật"); } else if (!opts.silent) showToast("Lỗi: " + (error.message || ""), "error"); if (!opts.silent) setSaving(false); return !error; };
 
   const [forwardModal, setForwardModal] = useState(null);
   const [forwardEid, setForwardEid] = useState("");
@@ -192,6 +192,16 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const [lateNote, setLateNote] = useState("");
   const rateTask = async (id, rating) => { if (["tb", "kem"].includes(rating) && ratingNote.trim().length < 10) { showToast("Đánh giá Trung bình/Kém cần ghi rõ nhận xét (ít nhất 10 ký tự) để nhân viên biết cần cải thiện gì", "error"); return; } const up = { rating, rating_note: ratingNote, rated_by: currentUser.full_name, rated_at: nowStr() }; await updateTask(id, up, `Đánh giá: ${RATING[rating]?.label}`); setModal(m => m ? { ...m, ...up } : m); setRatingNote(""); };
   const setLateReasonFn = async (id, reason) => { const up = { late_reason: reason, late_note: lateNote }; await updateTask(id, up, `Nguyên nhân trễ: ${LATE_REASONS.find(r => r.value === reason)?.label || reason}`); setModal(m => m ? { ...m, ...up } : m); setLateNote(""); };
+  // Checklist con trong 1 nhiệm vụ: mỗi mục { text, done }. Tick/bỏ tick tự cập nhật % tiến độ = done/total.
+  // Người chủ trì, người phối hợp và quản lý đều sửa được (như cập nhật tiến độ). Không tự chuyển "hoàn thành".
+  const updateChecklist = async (task, list) => {
+    const total = list.length, doneN = list.filter(i => i.done).length;
+    const up = { checklist: JSON.stringify(list) };
+    if (total > 0) up.progress = Math.round(doneN / total * 100);
+    const ok = await updateTask(task.id, up, null, { silent: true, skipGuard: true });
+    if (ok) setModal(m => (m && m.id === task.id) ? { ...m, ...up } : m);
+  };
+
   // Miễn phạt trễ khách quan (TP/PP/BGĐ): việc trễ vì lý do ngoài tầm kiểm soát → không trừ điểm phạt khi chấm.
   const toggleLateExcused = async (t) => { const next = !t.late_excused; const up = { late_excused: next }; const ok = await updateTask(t.id, up, next ? "Miễn phạt trễ (lý do khách quan)" : "Bỏ miễn phạt trễ"); if (ok) { setModal(m => (m && m.id === t.id) ? { ...m, ...up } : m); showToast(next ? "Đã miễn phạt trễ — việc này coi như đúng hạn khi tính điểm" : "Đã bỏ miễn phạt trễ"); } };
 
@@ -270,7 +280,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     isSuspiciousCompletion, toggleDone, confirmCompletion,
     completionNoteModal, setCompletionNoteModal, completionNote, setCompletionNote, completionFiles, setCompletionFiles,
     approveModal, setApproveModal, approveRating, setApproveRating, approveNote, setApproveNote, openApproveModal, confirmApproveCompletion,
-    rejectCompletionRequest, remindApproval, nudgeTask, canEditOwnSelfTask,
+    rejectCompletionRequest, remindApproval, nudgeTask, canEditOwnSelfTask, updateChecklist,
     extRequestModal, setExtRequestModal, extProposedDate, setExtProposedDate, extReason, setExtReason, openExtRequestModal, submitExtRequest,
     extDecideModal, setExtDecideModal, extDecideDate, setExtDecideDate, extDecideNote, setExtDecideNote, openExtApprove, openExtReject, confirmExtDecision,
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn, toggleLateExcused,

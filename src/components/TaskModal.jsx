@@ -21,12 +21,13 @@ export default function TaskModal({
   openExtRequestModal, openExtApprove, openExtReject,
   rateTask, ratingNote, setRatingNote,
   setLateReasonFn, lateNote, setLateNote, toggleLateExcused,
-  openEditTask, canEditOwnSelfTask,
+  openEditTask, canEditOwnSelfTask, updateChecklist,
   setDeleteConfirm,
   setForwardModal, setForwardEid,
   loadComments,
 }) {
   const [previewImg, setPreviewImg] = useState(null);
+  const [chkText, setChkText] = useState("");
   if (!modal) return null;
 
 
@@ -109,6 +110,37 @@ export default function TaskModal({
           <div style={{ marginBottom: 14 }}>
             <ProgressBar value={modal.progress || 0} editable={!modal.completed && !modal.completion_requested && !!(canCreate || currentUser.employee_id === modal.eid || parseJSON(modal.collab_eids, []).includes(currentUser.employee_id))} onChange={async v => { if (v === 100) { toggleDone(modal); return; } await updateTask(modal.id, { progress: v }, `Cập nhật tiến độ: ${v}%`); setModal(t => ({ ...t, progress: v })); }} />
           </div>
+
+          {/* Checklist con — tick mục sẽ tự cập nhật % tiến độ */}
+          {updateChecklist && (() => {
+            const list = parseJSON(modal.checklist, []);
+            const canChk = canUpdateProgress(modal) && !modal.completed && !modal.completion_requested;
+            if (list.length === 0 && !canChk) return null;
+            const doneN = list.filter(i => i.done).length;
+            const setList = nl => updateChecklist(modal, nl);
+            return (
+              <div style={{ marginBottom: 14, border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ padding: "8px 12px", background: "#f8fafc", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600 }}>✅ Mục con {list.length > 0 && <span style={{ color: "#6b7280", fontWeight: 400 }}>({doneN}/{list.length})</span>}</div>
+                <div style={{ padding: 8 }}>
+                  {list.map((it, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px" }}>
+                      <input type="checkbox" checked={!!it.done} disabled={!canChk} onChange={() => setList(list.map((x, xi) => xi === i ? { ...x, done: !x.done } : x))} style={{ width: 15, height: 15, flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: 13, textDecoration: it.done ? "line-through" : "none", color: it.done ? "#9ca3af" : "#374151", wordBreak: "break-word" }}>{it.text}</span>
+                      {canChk && <button onClick={() => setList(list.filter((_, xi) => xi !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 13, flexShrink: 0 }}>✕</button>}
+                    </div>
+                  ))}
+                  {list.length === 0 && <div style={{ fontSize: 12, color: "#9ca3af", padding: "2px 6px" }}>Chưa có mục con nào — thêm để chia nhỏ nhiệm vụ.</div>}
+                  {canChk && (
+                    <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                      <input value={chkText} onChange={e => setChkText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && chkText.trim()) { setList([...list, { text: chkText.trim(), done: false }]); setChkText(""); } }} placeholder="Thêm mục con rồi Enter…" style={{ ...inp, flex: 1 }} />
+                      <button onClick={() => { if (chkText.trim()) { setList([...list, { text: chkText.trim(), done: false }]); setChkText(""); } }} style={{ padding: "6px 12px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontSize: 12, flexShrink: 0 }}>+ Thêm</button>
+                    </div>
+                  )}
+                  {list.length > 0 && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>💡 Tiến độ % tự cập nhật theo số mục đã tick.</div>}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Nhắc việc: trưởng phòng/người giao đôn đốc người thực hiện; mọi người thấy số lần đã nhắc */}
           {!modal.completed && (modal.nudge_count > 0 || (canEditTask(modal) && modal.status !== "pending_approval" && modal.eid && modal.eid !== currentUser.employee_id)) && (
