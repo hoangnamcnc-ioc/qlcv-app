@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
-import { DEPTS, RATING, LATE_REASONS, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "../constants";
+import { DEPTS, LATE_REASONS, STATUS_ORDER } from "../constants";
 import { isCompletedStatus, parseJSON } from "../helpers";
+import { w, sumW, staffScore, managerScore } from "../scoring";
 
 // Toàn bộ logic tính hiệu suất/báo cáo: tổng hợp theo phòng ban, công thức điểm hiệu suất tháng,
 // bảng xếp hạng năm, thống kê nguyên nhân trễ, cảnh báo quá tải, tiến bộ cá nhân.
@@ -63,10 +64,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
   const [repTab, setRepTab] = useState("monthly");
   const [rankYear, setRankYear] = useState(today.getFullYear());
 
-  // Mỗi "việc" có trọng số (weight, mặc định 1): nhiệm vụ sinh từ mẫu định kỳ (ngày 0.25 … năm 3)
-  // và trường hợp hỗ trợ (Khó 1 / TB 0.5 / Nhanh 0.25). Dùng sumW khi cần "việc quy đổi".
-  const w = t => t.weight ?? 1;
-  const sumW = arr => Math.round(arr.reduce((s, t) => s + w(t), 0) * 100) / 100;
+  // w / sumW (trọng số quy đổi) và các công thức điểm dùng chung từ scoring.js (đã import ở đầu file).
 
   // ── Tổng hợp điều hành theo phòng ban (cho BGĐ) ──
   const execDeptSummary = useMemo(() => DEPTS.map(d => {
@@ -172,44 +170,16 @@ export default function useReports({ computed, computedGlobal, employees, curren
   const calcMonthPerf = (empId, year, month) => {
     const ym = `${year}|${month}`;
     const et = perfIndex.byEid.get(`${empId}|${ym}`) || [];
-    // Phân loại theo trạng thái
-    const onTimeTasks = et.filter(t => t.status === "completed");   // HT đúng hạn (Đ)
-    const onTime = sumW(onTimeTasks);
-    const completedLate = sumW(et.filter(t => t.status === "completed_late")); // HT trễ (T)
-    const over = sumW(et.filter(t => t.status === "overdue"));                 // Quá hạn chưa xong (Q)
-    const done = Math.round((onTime + completedLate) * 100) / 100;
-    const resolved = Math.round((onTime + completedLate + over) * 100) / 100; // Mẫu số N = việc đã đến hạn
+    // Điểm cá nhân tính bằng công thức thuần trong scoring.js (nguồn duy nhất, có test). Đủ ĐK: resolved ≥ 5.
+    // Người <5 việc đến hạn vẫn ra điểm để làm "điểm tham khảo", nhưng cờ eligible=false → không xếp hạng/chốt sổ.
+    const s = staffScore(et);
     const etWeight = sumW(et);
-    const completionRate = etWeight ? Math.round(done / etWeight * 100) : 0;
-    // Đủ điều kiện chấm điểm khi có ≥5 việc ĐÃ ĐẾN HẠN (resolved), không phải ≥5 tổng việc — vì toàn bộ
-    // điểm (thời hạn/chất lượng/phạt/thưởng) chỉ tính trên việc đã đến hạn; nếu xét theo tổng việc thì
-    // người mới có 5 việc nhưng chỉ 2 việc đến hạn vẫn bị chấm điểm trên 2 việc (mẫu quá nhỏ, thiếu tin cậy).
-    // Khớp đúng chú thích "≥5 việc đến hạn" hiển thị khắp báo cáo. Cuối tháng (lúc chốt sổ) mọi việc đều
-    // đã đến hạn nên resolved = tổng việc, hai cách cho kết quả như nhau — chỉ khác khi xem giữa tháng.
-    const eligible = resolved >= 5;
-    // Task phối hợp trong tháng
+    const completionRate = etWeight ? Math.round(s.done / etWeight * 100) : 0;
+    // Task phối hợp trong tháng (đã cộng ½ trọng số vào et qua collabPseudoTasks; đây chỉ để hiển thị thống kê riêng)
     const collabTasks = perfIndex.byCollab.get(`${empId}|${ym}`) || [];
     const collabDone = sumW(collabTasks.filter(t => isCompletedStatus(t.status)));
     const collabTotal = sumW(collabTasks);
-    let perfScore = 0, breakdown = null;
-    // Tính điểm cho MỌI người có ≥1 việc đến hạn (kể cả <5) — người <5 chỉ dùng làm "điểm tham khảo",
-    // KHÔNG được xếp hạng/chốt sổ (vẫn dựa vào cờ eligible = resolved>=5).
-    if (resolved > 0) {
-      // ① Điểm thời hạn (tối đa 60) — chưa có việc nào đến hạn xử lý xong thì tạm tính 0, tránh chia cho 0
-      const timeliness = resolved > 0 ? (onTime * 60 + completedLate * 30) / resolved : 0;
-      // ② Điểm chất lượng (tối đa 40)
-      const qualitySum = onTimeTasks.reduce((s, t) => s + (RATING[t.rating] ? RATING[t.rating].score : 2) * w(t), 0);
-      const quality = resolved > 0 ? qualitySum / (resolved * 4) * 40 : 0;
-      // ③ Phạt trễ/quá hạn
-      const penalty = (over + completedLate) * LATE_COMPLETION_PENALTY;
-      // ④ Thưởng khối lượng — chỉ tính khi việc đã đến hạn (resolved) vượt quá 15, tránh thưởng
-      // cho khối lượng còn thấp (trước đây bắt đầu tính từ việc thứ 6, dễ thưởng quá sớm)
-      const workloadBonus = Math.max(0, Math.min((resolved - 15) * 1, 10));
-      perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + workloadBonus)));
-      // Lưu chi tiết để hiển thị "Vì sao điểm này?"
-      breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, workloadBonus };
-    }
-    return { total: etWeight, done, onTime, completedLate, over, resolved, completionRate, collabTotal, collabDone, perfScore, eligible, breakdown };
+    return { total: etWeight, done: s.done, onTime: s.onTime, completedLate: s.completedLate, over: s.over, resolved: s.resolved, completionRate, collabTotal, collabDone, perfScore: s.perfScore, eligible: s.eligible, breakdown: s.breakdown };
   };
 
   const repEmpData = useMemo(() => (employees || []).filter(e => !MANAGER_EMP_ROLES.includes(e.role)).map(emp => {
@@ -257,33 +227,13 @@ export default function useReports({ computed, computedGlobal, employees, curren
   // Tất cả tính theo QUY ĐỔI (trọng số định kỳ). Đủ điều kiện khi phòng có ≥5 việc quy đổi đã đến hạn trong tháng.
   const managerPerf = (empId, year, month) => {
     const emp = (employees || []).find(e => e.id === empId);
-    if (!emp) return { dept: null, resolvedW: 0, doneW: 0, onTimeW: 0, overW: 0, onTimeRate: 0, perfScore: 0, eligible: false, breakdown: null };
+    if (!emp) return { dept: null, resolvedW: 0, doneW: 0, onTimeW: 0, lateW: 0, overW: 0, onTimeRate: 0, empCount: 0, perHead: 0, perfScore: 0, eligible: false, breakdown: null };
     const dept = emp.dept;
     const dt = cg.filter(t => { if (t.dept !== dept) return false; const d = new Date(t.deadline); return d.getFullYear() === year && d.getMonth() === month; });
-    const onTimeTasks = dt.filter(t => t.status === "completed");
-    const onTimeW = sumW(onTimeTasks);
-    const lateW = sumW(dt.filter(t => t.status === "completed_late"));
-    const overW = sumW(dt.filter(t => t.status === "overdue"));
-    const doneW = Math.round((onTimeW + lateW) * 100) / 100;
-    const resolvedW = Math.round((onTimeW + lateW + overW) * 100) / 100;
-    const eligible = resolvedW >= 5;
-    const onTimeRate = resolvedW > 0 ? Math.round(onTimeW / resolvedW * 100) : 0;
-    // Khối lượng điều hành tính theo BÌNH QUÂN ĐẦU NGƯỜI của phòng (không dùng mốc 15 vốn dành cho 1 cá nhân —
-    // resolvedW của quản lý là khối lượng CẢ PHÒNG nên sẽ luôn kịch trần). Kỳ vọng nền ~10 việc quy đổi/người/tháng:
-    // bình quân >10/người mới bắt đầu thưởng, đạt tối đa +10 khi ≥20/người — công bằng với phòng ít/nhiều nhân sự.
     const empCount = (employees || []).filter(e => e.dept === dept).length || 1;
-    const perHead = resolvedW / empCount;
-    let perfScore = 0, breakdown = null;
-    if (resolvedW > 0) {
-      const timeliness = (onTimeW * 60 + lateW * 30) / resolvedW;                         // ① 0..60
-      const qualitySum = onTimeTasks.reduce((s, t) => s + (RATING[t.rating] ? RATING[t.rating].score : 2) * w(t), 0);
-      const quality = qualitySum / (resolvedW * 4) * 40;                                   // ② 0..40
-      const penalty = Math.round(overW / resolvedW * 10 * 10) / 10;                        // ③ 0..10 (tỷ lệ tồn đọng)
-      const mgmtBonus = Math.max(0, Math.min(perHead - 10, 10));                           // ④ 0..10 (khối lượng bình quân/người)
-      perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + mgmtBonus)));
-      breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, mgmtBonus: Math.round(mgmtBonus * 10) / 10 };
-    }
-    return { dept, resolvedW, doneW, onTimeW, lateW, overW, onTimeRate, empCount, perHead: Math.round(perHead * 10) / 10, perfScore, eligible, breakdown };
+    // Điểm điều hành tính bằng công thức thuần managerScore (nguồn duy nhất, có test): kết quả cả phòng + khối lượng/người.
+    const m = managerScore(dt, empCount);
+    return { dept, empCount, ...m };
   };
 
   // Bảng điểm điều hành THÁNG (xếp hạng riêng cho cấp quản lý)

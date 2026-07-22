@@ -15,13 +15,15 @@ const GRADES = [
 const gradeOf = (score) => GRADES.find(g => score >= g.min);
 
 // ═════════ TAB "XẾP LOẠI" — sổ điểm đã chốt theo tháng + phiếu xếp loại quý/năm ═════════
-export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, currentUser }) {
+export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, syncManagerSnapshots, currentUser }) {
   const now = new Date();
   const [gYear, setGYear] = useState(now.getFullYear());
   const [gPeriod, setGPeriod] = useState("year"); // "q1".."q4" | "year"
   const [snapMonth, setSnapMonth] = useState(now.getMonth() === 0 ? 12 : now.getMonth()); // mặc định: tháng trước (1-12)
   const [snapYear, setSnapYear] = useState(now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear());
   const [snapping, setSnapping] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const doSyncMgr = async () => { if (!syncManagerSnapshots) return; if (!window.confirm("Cập nhật lại điểm ĐIỀU HÀNH (Trưởng/Phó phòng) cho tất cả các tháng đã chốt theo công thức mới?\n\nĐiểm nhân viên đã chốt được GIỮ NGUYÊN.")) return; setSyncing(true); await syncManagerSnapshots(); setSyncing(false); };
   // Chốt sổ điểm (ghi dữ liệu) chỉ dành cho BGĐ/Admin — mọi vai trò xem được bảng nhưng không tự chốt.
   const canFinalize = ["admin", "director"].includes(currentUser?.role);
 
@@ -79,7 +81,8 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, curren
         <select value={snapMonth} onChange={e => setSnapMonth(Number(e.target.value))} style={{ ...inp, width: "auto", padding: "5px 8px", fontSize: 12 }}>{VI_MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}</select>
         <select value={snapYear} onChange={e => setSnapYear(Number(e.target.value))} style={{ ...inp, width: 84, padding: "5px 8px", fontSize: 12 }}>{[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
         <button onClick={doSnapshot} disabled={snapping} style={{ padding: "5px 14px", border: "none", borderRadius: 7, background: snapping ? "#d1d5db" : "#4f46e5", color: "#fff", cursor: snapping ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600 }}>{snapping ? "Đang chốt…" : "📌 Chốt sổ"}</button>
-        <span style={{ fontSize: 11, color: "#9ca3af" }}>Tháng vừa kết thúc được tự chốt khi BGĐ/Admin đăng nhập; chốt lại sẽ ghi đè theo dữ liệu hiện tại.</span>
+        <button onClick={doSyncMgr} disabled={syncing} title="Cập nhật điểm điều hành (Trưởng/Phó phòng) cho MỌI tháng đã chốt theo công thức mới — giữ nguyên điểm nhân viên" style={{ padding: "5px 14px", border: "1px solid #0ea5e9", borderRadius: 7, background: syncing ? "#e5e7eb" : "#f0f9ff", color: "#075985", cursor: syncing ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600 }}>{syncing ? "Đang đồng bộ…" : "🏛️ Đồng bộ điểm điều hành"}</button>
+        <span style={{ fontSize: 11, color: "#9ca3af" }}>Tháng vừa kết thúc được tự chốt khi BGĐ/Admin đăng nhập; chốt lại sẽ ghi đè theo dữ liệu hiện tại. Nút <b>Đồng bộ điểm điều hành</b> chỉ cập nhật dòng TP/PP cho các tháng đã chốt trước khi có công thức điều hành.</span>
       </div>
       ) : (
       <div style={{ borderTop: "1px dashed #e5e7eb", paddingTop: 10, fontSize: 11, color: "#9ca3af" }}>Sổ điểm do Ban Giám đốc/Quản trị viên chốt hàng tháng. Bạn xem được kết quả đã chốt bên dưới.</div>

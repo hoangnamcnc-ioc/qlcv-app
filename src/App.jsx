@@ -334,6 +334,25 @@ export default function App() {
     if(!opts.silent)showToast(`Đã chốt sổ điểm tháng ${mJs+1}/${y} (${rows.length} nhân viên)`);
     return true;
   };
+  // ── Đồng bộ điểm ĐIỀU HÀNH cho các tháng ĐÃ CHỐT trước đây (trước khi có công thức điểm điều hành) ──
+  // Chỉ thay các dòng của Trưởng/Phó phòng bằng điểm điều hành mới; GIỮ NGUYÊN điểm nhân viên đã chốt.
+  const syncManagerSnapshots=async()=>{
+    const months=[...new Set((monthlyScores||[]).map(r=>`${r.year}|${r.month}`))].map(k=>k.split("|").map(Number));
+    if(months.length===0){showToast("Chưa có tháng nào được chốt sổ để đồng bộ","error");return;}
+    const managers=(employees||[]).filter(e=>MANAGER_EMP_ROLES.includes(e.role));
+    const managerIds=managers.map(e=>e.id);
+    const allNew=[];
+    for(const[y,mDb]of months){
+      const mJs=mDb-1;
+      const mrows=managers.map(emp=>{const m=managerPerf(emp.id,y,mJs);if((m.resolvedW||0)<=0)return null;return {id:`ms${y}_${mDb}_${emp.id}`,year:y,month:mDb,eid:emp.id,name:emp.name,dept:emp.dept,score:m.eligible?m.perfScore:null,eligible:m.eligible,total:m.resolvedW,done:m.doneW,on_time:m.onTimeW,completed_late:m.lateW,over:m.overW,is_manager:true,breakdown:m.breakdown?JSON.stringify(m.breakdown):null,snapshot_at:nowStr(),snapshot_by:currentUser.full_name};}).filter(Boolean);
+      const{error:delErr}=await supabase.from("monthly_scores").delete().eq("year",y).eq("month",mDb).in("eid",managerIds);
+      if(delErr){showToast("Lỗi khi đồng bộ: "+(delErr.message||""),"error");return;}
+      if(mrows.length){const{error}=await supabase.from("monthly_scores").insert(mrows);if(error){showToast("Lỗi khi ghi: "+(error.message||""),"error");return;}}
+      allNew.push(...mrows);
+    }
+    setMonthlyScores(p=>[...p.filter(r=>!managerIds.includes(r.eid)),...allNew]);
+    showToast(`Đã đồng bộ điểm điều hành cho ${months.length} tháng đã chốt (${allNew.length} lượt quản lý)`);
+  };
   // Tự chốt sổ THÁNG TRƯỚC nếu chưa chốt, khi người có quyền toàn đơn vị đăng nhập —
   // cùng cơ chế client-side với nhiệm vụ định kỳ (không có server chạy nền).
   const scoreSnapshotChecked=useRef(false);
@@ -779,7 +798,7 @@ export default function App() {
               leaderboard={leaderboard} managerBoard={managerBoard} managerLeaderboard={managerLeaderboard}
               lateReasonStats={lateReasonStats}
               getEmp={getEmp} setModal={setModal} loadComments={loadComments}
-              canExec={true} computed={computedGlobal} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} currentUser={currentUser} overloadThreshold={overloadThreshold} kpiOnTime={kpiOnTime}
+              canExec={true} computed={computedGlobal} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} syncManagerSnapshots={syncManagerSnapshots} currentUser={currentUser} overloadThreshold={overloadThreshold} kpiOnTime={kpiOnTime}
             />
           )}
 
