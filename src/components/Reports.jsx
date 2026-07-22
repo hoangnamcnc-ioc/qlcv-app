@@ -16,7 +16,7 @@ export default function Reports({
   leaderboard, managerBoard, managerLeaderboard,
   lateReasonStats,
   getEmp, setModal, loadComments,
-  canExec, computed, monthlyScores, snapshotMonth, currentUser, overloadThreshold,
+  canExec, computed, monthlyScores, snapshotMonth, currentUser, overloadThreshold, kpiOnTime,
 }) {
   const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm (tháng)
   const [whyYear, setWhyYear] = useState(null); // nhân viên đang xem giải thích điểm (năm/xếp hạng)
@@ -57,6 +57,7 @@ export default function Reports({
               <div title="Đã quy đổi theo trọng số nhiệm vụ định kỳ (ngày 0.25 · tuần 1 · 2 tuần 1.5 · tháng 2.5 · quý/6 tháng/năm 3)" style={{ fontSize: 10.5, color: c.col, opacity: 0.65, marginTop: 2 }}>≈ {c.sub} quy đổi</div>
               <div style={{ fontSize: 12, color: c.col, opacity: 0.8, marginTop: 2 }}>{c.label}</div>
               {hasPrev && <div title={`Tháng trước (${repStatsPrev.label}): ${c.prev}${c.pct?"%":""}`} style={{ fontSize: 11, marginTop: 4, color: arrowCol, fontWeight: 600 }}>{diff === 0 ? "→ 0" : `${diff > 0 ? "▲" : "▼"} ${Math.abs(c.pct ? diff : diffPct)}${c.pct ? " điểm%" : "%"}`} <span style={{ color: c.col, opacity: 0.55, fontWeight: 400 }}>vs kỳ trước</span></div>}
+              {c.pct && kpiOnTime != null && <div style={{ fontSize: 10.5, marginTop: 3, fontWeight: 700, color: repStats.rate >= kpiOnTime ? "#15803d" : "#b91c1c" }}>🎯 Chỉ tiêu {kpiOnTime}%: {repStats.rate >= kpiOnTime ? "Đạt" : "Chưa đạt"}</div>}
             </div>
           );})}
         </div>

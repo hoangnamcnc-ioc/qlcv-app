@@ -54,6 +54,8 @@ export default function App() {
   const [calYear,setCalYear]=useState(today.getFullYear()); const [calMonth,setCalMonth]=useState(today.getMonth()); const [calDay,setCalDay]=useState(null);
   const [calEmpFilter,setCalEmpFilter]=useState("all"); // lọc lịch deadline theo 1 nhân viên, để cân tải trước khi giao thêm việc
   const [overloadThreshold,setOverloadThreshold]=useState(()=>parseInt(localStorage.getItem("qlcv_overload")||"5"));
+  // Chỉ tiêu (KPI) tỷ lệ hoàn thành của phòng — tô màu Đạt/Chưa đạt trong báo cáo điều hành. BGĐ đặt.
+  const [kpiOnTime,setKpiOnTime]=useState(()=>parseInt(localStorage.getItem("qlcv_kpi_ontime")||"85"));
   const [showNotif,setShowNotif]=useState(false);
   const [showZoom,setShowZoom]=useState(false);
   const [quickRate,setQuickRate]=useState(null);
@@ -686,6 +688,7 @@ export default function App() {
               computed={computed} overloadedEmps={overloadedEmps}
               dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo}
               overloadThreshold={overloadThreshold} setOverloadThreshold={setOverloadThreshold}
+              kpiOnTime={kpiOnTime} setKpiOnTime={setKpiOnTime}
               overloadPopup={overloadPopup} setOverloadPopup={setOverloadPopup}
               recurringTemplates={recurringTemplates} setShowRecurring={setShowRecurring}
               statFilter={statFilter} setStatFilter={setStatFilter}
@@ -773,7 +776,7 @@ export default function App() {
               leaderboard={leaderboard} managerBoard={managerBoard} managerLeaderboard={managerLeaderboard}
               lateReasonStats={lateReasonStats}
               getEmp={getEmp} setModal={setModal} loadComments={loadComments}
-              canExec={true} computed={computedGlobal} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} currentUser={currentUser} overloadThreshold={overloadThreshold}
+              canExec={true} computed={computedGlobal} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} currentUser={currentUser} overloadThreshold={overloadThreshold} kpiOnTime={kpiOnTime}
             />
           )}
 

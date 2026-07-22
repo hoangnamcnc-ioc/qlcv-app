@@ -8,7 +8,7 @@ export default function Dashboard({
   currentUser, isMobile, userDept,
   execDeptSummary, staffingAdvice, empProfile, employees,
   stats, statsW, deptChart, myTasks, myWorkList, myWorkloadCompare, myDoneList, myTrend,
-  computed, overloadedEmps, overloadThreshold, setOverloadThreshold,
+  computed, overloadedEmps, overloadThreshold, setOverloadThreshold, kpiOnTime, setKpiOnTime,
   dateFrom, setDateFrom, dateTo, setDateTo,
   overloadPopup, setOverloadPopup,
   recurringTemplates, setShowRecurring,
@@ -49,6 +49,7 @@ export default function Dashboard({
         <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
           <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 16 }}>📊</span><span style={{ fontWeight: 700, fontSize: 14 }}>Tổng hợp điều hành theo phòng ban</span>
+            <span title="Chỉ tiêu tỷ lệ hoàn thành — phòng đạt ≥ mức này hiện xanh, dưới hiện đỏ trong cột Tỷ lệ HT" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#6b7280", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "3px 8px" }}>🎯 Chỉ tiêu tỷ lệ HT: <input type="number" min={0} max={100} value={kpiOnTime} onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 0 && v <= 100) { setKpiOnTime(v); localStorage.setItem("qlcv_kpi_ontime", v); } }} style={{ width: 46, padding: "2px 6px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12, textAlign: "center" }} />%</span>
             <span style={{ marginLeft: isMobile ? 0 : "auto", fontSize: 11.5, color: "#6b7280", lineHeight: 1.6, flex: isMobile ? "1 1 100%" : "0 1 auto" }}>
               💡 <b style={{ color: "#4338ca" }}>Quy đổi</b> = khối lượng thực sau khi nhân trọng số nhiệm vụ định kỳ:
               hàng ngày <b>0.25</b> · tuần <b>1</b> · 2 tuần <b>1.5</b> · tháng <b>2.5</b> · quý/6 tháng/năm <b>3</b> · nhiệm vụ thường <b>1</b>.
@@ -68,8 +69,8 @@ export default function Dashboard({
                       <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 8 }}>{d.lead} · {d.empCount} NV</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <div style={{ width: 40, height: 5, background: "#e5e7eb", borderRadius: 5, overflow: "hidden" }}><div style={{ height: "100%", width: d.rate + "%", background: d.rate >= 80 ? "#16a34a" : d.rate >= 50 ? "#f59e0b" : "#dc2626" }} /></div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: d.rate >= 80 ? "#15803d" : d.rate >= 50 ? "#92400e" : "#b91c1c" }}>{d.rate}%</span>
+                      <div style={{ width: 40, height: 5, background: "#e5e7eb", borderRadius: 5, overflow: "hidden" }}><div style={{ height: "100%", width: d.rate + "%", background: d.rate >= kpiOnTime ? "#16a34a" : d.rate >= kpiOnTime - 15 ? "#f59e0b" : "#dc2626" }} /></div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: d.rate >= kpiOnTime ? "#15803d" : d.rate >= kpiOnTime - 15 ? "#92400e" : "#b91c1c" }}>{d.rate}%</span>{d.total > 0 && <span style={{ fontSize: 9.5, fontWeight: 700, padding: "1px 5px", borderRadius: 5, background: d.rate >= kpiOnTime ? "#dcfce7" : "#fee2e2", color: d.rate >= kpiOnTime ? "#15803d" : "#b91c1c" }}>{d.rate >= kpiOnTime ? "🎯" : "Chưa"}</span>}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -100,7 +101,7 @@ export default function Dashboard({
                     <td style={{ padding: "10px 12px", color: d.overdue > 0 ? "#b91c1c" : "#9ca3af", fontWeight: d.overdue > 0 ? 700 : 400 }}>{d.overdue}</td>
                     <td style={{ padding: "10px 12px", color: d.completedLate > 0 ? "#991b1b" : "#9ca3af", fontWeight: d.completedLate > 0 ? 700 : 400 }}>{d.completedLate}</td>
                     <td style={{ padding: "10px 12px", color: d.nd > 0 ? "#a16207" : "#9ca3af", fontWeight: d.nd > 0 ? 600 : 400 }}>{d.nd}</td>
-                    <td style={{ padding: "10px 12px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 50, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: d.rate + "%", background: d.rate >= 80 ? "#16a34a" : d.rate >= 50 ? "#f59e0b" : "#dc2626" }} /></div><span style={{ fontSize: 12, fontWeight: 600 }}>{d.rate}%</span></div></td>
+                    <td style={{ padding: "10px 12px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 50, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: d.rate + "%", background: d.rate >= kpiOnTime ? "#16a34a" : d.rate >= kpiOnTime - 15 ? "#f59e0b" : "#dc2626" }} /></div><span style={{ fontSize: 12, fontWeight: 600, color: d.rate >= kpiOnTime ? "#15803d" : d.rate >= kpiOnTime - 15 ? "#92400e" : "#b91c1c" }}>{d.rate}%</span>{d.total > 0 && <span title={`Chỉ tiêu ${kpiOnTime}%`} style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 6, background: d.rate >= kpiOnTime ? "#dcfce7" : "#fee2e2", color: d.rate >= kpiOnTime ? "#15803d" : "#b91c1c" }}>{d.rate >= kpiOnTime ? "🎯 Đạt" : "Chưa"}</span>}</div></td>
                     <td style={{ padding: "10px 12px" }}>{d.overloaded > 0 ? <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 600 }}>⚠️ {d.overloaded} người</span> : <span style={{ color: "#9ca3af", fontSize: 12 }}>—</span>}</td>
                   </tr>
                 ))}</tbody>
