@@ -283,7 +283,7 @@ export default function App() {
     isSuspiciousCompletion, toggleDone, confirmCompletion,
     completionNoteModal, setCompletionNoteModal, completionNote, setCompletionNote, completionFiles, setCompletionFiles,
     approveModal, setApproveModal, approveRating, setApproveRating, approveNote, setApproveNote, openApproveModal, confirmApproveCompletion,
-    rejectCompletionRequest, remindApproval, nudgeTask,
+    rejectCompletionRequest, remindApproval, nudgeTask, canEditOwnSelfTask,
     extRequestModal, setExtRequestModal, extProposedDate, setExtProposedDate, extReason, setExtReason, openExtRequestModal, submitExtRequest,
     extDecideModal, setExtDecideModal, extDecideDate, setExtDecideDate, extDecideNote, setExtDecideNote, openExtApprove, openExtReject, confirmExtDecision,
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,
@@ -1136,7 +1136,7 @@ export default function App() {
         openExtRequestModal={openExtRequestModal} openExtApprove={openExtApprove} openExtReject={openExtReject}
         rateTask={rateTask} ratingNote={ratingNote} setRatingNote={setRatingNote}
         setLateReasonFn={setLateReasonFn} lateNote={lateNote} setLateNote={setLateNote}
-        openEditTask={openEditTask}
+        openEditTask={openEditTask} canEditOwnSelfTask={canEditOwnSelfTask}
         setDeleteConfirm={setDeleteConfirm}
         setForwardModal={setForwardModal} setForwardEid={setForwardEid}
         loadComments={loadComments}

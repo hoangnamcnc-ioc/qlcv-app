@@ -41,6 +41,9 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // Đề xuất gia hạn deadline: chỉ đúng người được giao chính (không tính người phối hợp) mới đề xuất được,
   // và chỉ khi chưa có đề xuất nào khác đang treo (mỗi lúc chỉ 1 đề xuất chờ xử lý).
   const canProposeExtension = (t) => !!currentUser && currentUser.employee_id === t.eid && !t.completed && !t.completion_requested && !t.ext_proposed;
+  // Nhân viên được sửa lại việc mình TỰ TẠO khi CHƯA hoàn thành & chưa gửi duyệt (sửa tiêu đề/mô tả/ưu tiên/đính kèm).
+  // Không đổi được người nhận/phòng (khóa = chính mình) và hạn chót (dùng "đề xuất gia hạn" như việc thường).
+  const canEditOwnSelfTask = (t) => !!currentUser && currentUser.role === "staff" && t.self_created && t.eid === currentUser.employee_id && !t.completed && !t.completion_requested;
 
   // ── CRUD ──
   const addTask = async data => { setSaving(true); const selfCreated = !canCreate; const h = [{ action: selfCreated ? "Nhân viên tự tạo việc" : "Tạo nhiệm vụ", by: currentUser.full_name, at: nowStr() }]; const t = { ...data, id: `t${Date.now()}`, completed: data.progress === 100, created: todayStr, created_by_id: currentUser.id, created_by_name: currentUser.full_name, self_created: selfCreated, forwarded_by: "", deleted: false, history: JSON.stringify(h), rating: "", rating_note: "", rated_by: "", rated_at: "", late_reason: "", late_note: "" }; const { error } = await supabase.from("tasks").insert(t); if (!error) { setTasks(p => [t, ...p]); showToast("Đã tạo nhiệm vụ"); } else { console.error("Lỗi tạo nhiệm vụ:", error); showToast("Lỗi: " + (error.message || "không tạo được"), "error"); } setSaving(false); return error ? null : t; };
@@ -265,7 +268,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     isSuspiciousCompletion, toggleDone, confirmCompletion,
     completionNoteModal, setCompletionNoteModal, completionNote, setCompletionNote, completionFiles, setCompletionFiles,
     approveModal, setApproveModal, approveRating, setApproveRating, approveNote, setApproveNote, openApproveModal, confirmApproveCompletion,
-    rejectCompletionRequest, remindApproval, nudgeTask,
+    rejectCompletionRequest, remindApproval, nudgeTask, canEditOwnSelfTask,
     extRequestModal, setExtRequestModal, extProposedDate, setExtProposedDate, extReason, setExtReason, openExtRequestModal, submitExtRequest,
     extDecideModal, setExtDecideModal, extDecideDate, setExtDecideDate, extDecideNote, setExtDecideNote, openExtApprove, openExtReject, confirmExtDecision,
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn,

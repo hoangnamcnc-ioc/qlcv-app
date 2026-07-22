@@ -21,7 +21,7 @@ export default function TaskModal({
   openExtRequestModal, openExtApprove, openExtReject,
   rateTask, ratingNote, setRatingNote,
   setLateReasonFn, lateNote, setLateNote,
-  openEditTask,
+  openEditTask, canEditOwnSelfTask,
   setDeleteConfirm,
   setForwardModal, setForwardEid,
   loadComments,
@@ -272,7 +272,7 @@ export default function TaskModal({
             {modal.completed && canEditTask(modal) && <button onClick={() => { if (toggleDone(modal)) setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>↩ Bỏ HT</button>}
             {!modal.completed && !modal.completion_requested && canRequestCompletion(modal) && <button onClick={() => { if (toggleDone(modal)) setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #fbbf24", borderRadius: 7, background: "#fffbeb", cursor: "pointer", fontSize: 12, color: "#92400e", fontWeight: 600 }}>📨 Yêu cầu hoàn thành</button>}
             {canForward(modal) && <button onClick={() => { setForwardModal(modal); setForwardEid(""); setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #93c5fd", borderRadius: 7, background: "#eff6ff", cursor: "pointer", fontSize: 12, color: "#1d4ed8" }}>↪ Chuyển tiếp</button>}
-            {canEditTask(modal) && <button onClick={() => { openEditTask(modal); setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12 }}>✏️</button>}
+            {(canEditTask(modal) || (canEditOwnSelfTask && canEditOwnSelfTask(modal))) && <button onClick={() => { openEditTask(modal); setModal(null); }} title={canEditTask(modal) ? "Chỉnh sửa" : "Sửa việc bạn tự tạo (khi chưa gửi duyệt)"} style={{ padding: "7px 14px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12 }}>✏️</button>}
           </div>
           {canDeleteTask(modal) && <button onClick={() => { setDeleteConfirm(modal.id); setModal(null); }} style={{ padding: "7px 14px", border: "1px solid #fca5a5", borderRadius: 7, background: "#fff0f0", cursor: "pointer", fontSize: 12, color: "#dc2626" }}>🗑️ Xóa</button>}
         </div>
