@@ -31,8 +31,11 @@ export function staffScore(items) {
     const quality = qualitySum / (resolved * 4) * 40;                                           // ② 0..40
     const penalty = (over + completedLate) * LATE_COMPLETION_PENALTY;                           // ③ phạt tuyệt đối
     const workloadBonus = Math.max(0, Math.min((resolved - 15) * 1, 10));                       // ④ thưởng khối lượng cá nhân
-    perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + workloadBonus)));
-    breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, workloadBonus };
+    // ⑤ Thưởng ưu tiên: +0.5đ mỗi việc ƯU TIÊN CAO hoàn thành ĐÚNG HẠN, tối đa +5. Chỉ CỘNG THÊM (không phạt mới)
+    // — ghi nhận người gánh việc khó/gấp. Việc không đánh dấu ưu tiên (mặc định Trung bình) không ảnh hưởng.
+    const prioBonus = Math.min(onTimeTasks.filter(t => t.prio === "high").length * 0.5, 5);
+    perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + workloadBonus + prioBonus)));
+    breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, workloadBonus, prioBonus };
   }
   return { onTime, completedLate, over, done, resolved, eligible, perfScore, breakdown };
 }

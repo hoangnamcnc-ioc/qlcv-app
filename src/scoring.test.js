@@ -75,6 +75,17 @@ test("staff: việc chưa đánh giá tính chất lượng = Trung bình (2/4)"
   assert.equal(s.breakdown.quality, 20); // (5*2)/(5*4)*40
 });
 
+test("staff: thưởng ưu tiên — việc Cao đúng hạn +0.5đ/việc, tối đa +5", () => {
+  const high = n => Array.from({ length: n }, () => ({ status: "completed", rating: "tot", weight: 1, prio: "high" }));
+  const s5 = staffScore(high(5)); // 5 việc Cao đúng hạn → +2.5
+  assert.equal(s5.breakdown.prioBonus, 2.5);
+  assert.equal(s5.perfScore, 93); // 90 (5 tot) + 2.5, làm tròn 92.5 → 93
+  const s20 = staffScore(high(20)); // 20 việc Cao → bonus min(10,5)=5 (kịch trần)
+  assert.equal(s20.breakdown.prioBonus, 5);
+  const noPrio = staffScore(mk(5, "completed", "tot")); // không đánh dấu ưu tiên → không thưởng
+  assert.equal(noPrio.breakdown.prioBonus, 0);
+});
+
 // ── Điểm điều hành (managerScore) ────────────────────────────────────────────
 test("manager: rỗng → 0, chưa đủ ĐK", () => {
   const m = managerScore([], 6);

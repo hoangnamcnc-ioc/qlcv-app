@@ -498,7 +498,7 @@ function EmpProfileModal({ profile, isMobile, overloadThreshold, onClose, onOpen
             </div>
             {cur.breakdown && (
               <div style={{ fontSize: 11.5, color: "#6b7280", marginTop: 8, lineHeight: 1.6 }}>
-                Cấu thành điểm: ⏱️ thời hạn <b>{cur.breakdown.timeliness}</b> + ⭐ chất lượng <b>{cur.breakdown.quality}</b>{cur.breakdown.penalty > 0 && <> − phạt trễ <b style={{ color: "#b91c1c" }}>{cur.breakdown.penalty}</b></>}{cur.breakdown.workloadBonus > 0 && <> + thưởng KL <b style={{ color: "#15803d" }}>{cur.breakdown.workloadBonus}</b></>}
+                Cấu thành điểm: ⏱️ thời hạn <b>{cur.breakdown.timeliness}</b> + ⭐ chất lượng <b>{cur.breakdown.quality}</b>{cur.breakdown.penalty > 0 && <> − phạt trễ <b style={{ color: "#b91c1c" }}>{cur.breakdown.penalty}</b></>}{cur.breakdown.workloadBonus > 0 && <> + thưởng KL <b style={{ color: "#15803d" }}>{cur.breakdown.workloadBonus}</b></>}{cur.breakdown.prioBonus > 0 && <> + thưởng ưu tiên <b style={{ color: "#15803d" }}>{cur.breakdown.prioBonus}</b></>}
                 {!cur.eligible && cur.resolved > 0 && <span style={{ fontStyle: "italic" }}> · chưa đủ 5 việc đến hạn nên chỉ là điểm tham khảo</span>}
               </div>
             )}

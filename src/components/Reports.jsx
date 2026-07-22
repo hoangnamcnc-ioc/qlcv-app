@@ -85,7 +85,7 @@ export default function Reports({
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
             <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
               <span style={{ fontWeight: 600, fontSize: 13 }}>Hiệu suất nhân viên</span>
-              {!isMobile && <span style={{ fontSize: 11, color: "#9ca3af" }}>Điểm = Thời hạn(60%) + Chất lượng(40%) − Phạt + Thưởng KL + Thưởng PH · Phạt 2đ/việc trễ & quá hạn · Thưởng KL: +1đ/việc vượt 5, tối đa +10đ · Chỉ tính trên việc ĐÃ ĐẾN HẠN (≥5) — việc chưa đến hạn không tính vào điểm, xem cột "Chưa đến hạn"</span>}
+              {!isMobile && <span style={{ fontSize: 11, color: "#9ca3af" }}>Điểm = Thời hạn(60%) + Chất lượng(40%) − Phạt + Thưởng KL + Thưởng ưu tiên + Thưởng PH · Phạt 2đ/việc trễ & quá hạn · Thưởng KL: +1đ/việc vượt 15, tối đa +10đ · Thưởng ưu tiên: +0.5đ/việc Cao đúng hạn, tối đa +5đ · Chỉ tính trên việc ĐÃ ĐẾN HẠN (≥5)</span>}
             </div>
             <div style={{ padding: "8px 16px", background: "#fffbeb", borderBottom: "1px solid #fde68a", fontSize: 11.5, color: "#92400e", lineHeight: 1.65 }}>
               ⚠️ Cột <b>Tổng</b> ở đây là <b>việc quy đổi của riêng tháng đang chọn</b>, đã cộng cả: việc <b>phối hợp</b> (mỗi việc = ½ trọng số),
@@ -294,6 +294,7 @@ export default function Reports({
                 <Row icon="②" label="Điểm chất lượng" sub={`Đánh giá kết quả ${e.onTime} việc đúng hạn (chưa ĐG = Trung bình) · tối đa 40`} val={b.quality} />
                 <Row icon="③" label="Phạt trễ & quá hạn" sub={`(${e.completedLate} HT trễ + ${e.over} quá hạn) × 2đ`} val={b.penalty} neg />
                 <Row icon="④" label="Thưởng khối lượng" sub={`Vượt ${Math.max(e.resolved - 15, 0)} việc so với mốc 15 · tối đa +10`} val={b.workloadBonus} />
+                {b.prioBonus > 0 && <Row icon="⑤" label="Thưởng ưu tiên" sub="Việc ưu tiên Cao hoàn thành đúng hạn · +0.5đ/việc, tối đa +5" val={b.prioBonus} />}
               </div>
               {e.collabTotal > 0 && <div style={{ margin: "0 18px 10px", fontSize: 11.5, color: "#7c3aed", background: "#f5f3ff", borderRadius: 8, padding: "8px 12px" }}>🤝 Đã gồm {e.collabDone}/{e.collabTotal} việc phối hợp hoàn thành, mỗi việc tính = 1/2 việc chủ trì trong điểm ① và ② ở trên.</div>}
               <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f8fafc", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
