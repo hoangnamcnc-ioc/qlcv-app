@@ -10,7 +10,7 @@ export default function TaskModal({
   modal, setModal,
   isMobile, inp,
   currentUser,
-  getEmp,
+  getEmp, getTask,
   canEditTask, canDeleteTask, canRate, canApprove, canForward, canSetLateReason, canUpdateProgress, canRequestCompletion, canProposeExtension,
   canCreate,
   comments, commentText, setCommentText, commentFiles, setCommentFiles, commentLoading,
@@ -62,6 +62,17 @@ export default function TaskModal({
               <div key={k}><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 3 }}>{k}</div><div>{v}</div></div>
             ))}
           </div>
+
+          {modal.depends_on && getTask && (() => {
+            const dep = getTask(modal.depends_on);
+            if (!dep || dep.deleted) return null;
+            return (
+              <div onClick={() => { setModal(dep); loadComments(dep.id); }} style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, cursor: "pointer", background: dep.completed ? "#f0fdf4" : "#fff7ed", border: "1px solid " + (dep.completed ? "#bbf7d0" : "#fed7aa") }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: dep.completed ? "#15803d" : "#9a3412" }}>⛓ Phụ thuộc — {dep.completed ? "việc chờ đã hoàn thành ✓" : "đang chờ việc này hoàn thành trước"}</div>
+                <div style={{ fontSize: 12.5, color: "#374151", marginTop: 3 }}>{dep.title} <span style={{ color: "#9ca3af" }}>(bấm để mở)</span></div>
+              </div>
+            );
+          })()}
 
           {!modal.completed && (modal.ext_proposed || canProposeExtension(modal)) && (
             <div style={{ marginBottom: 14, padding: "12px 14px", background: modal.ext_proposed ? "#eff6ff" : "#f8fafc", borderRadius: 10, border: "1px solid " + (modal.ext_proposed ? "#bfdbfe" : "#e5e7eb") }}>

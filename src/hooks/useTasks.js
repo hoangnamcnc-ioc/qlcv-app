@@ -83,6 +83,8 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
       return true;
     }
     if (t.completion_requested) { showToast("Nhiệm vụ đang chờ duyệt hoàn thành", "error"); return false; }
+    // Phụ thuộc: không cho hoàn thành nếu việc "chờ trước" chưa xong (tránh làm sai thứ tự phối hợp nhiều khâu).
+    if (t.depends_on) { const dep = tasks.find(x => x.id === t.depends_on); if (dep && !dep.deleted && !dep.completed) { showToast(`Chưa thể hoàn thành: đang chờ việc "${dep.title}" hoàn thành trước.`, "error"); return false; } }
     // Chốt chặn ở ĐÂY (điểm duy nhất xử lý yêu cầu hoàn thành) — bao cả trường hợp người phối hợp kéo
     // thanh tiến độ lên 100% (cũng gọi vào hàm này), không chỉ nút bấm.
     if (!canRequestCompletion(t)) { showToast("Chỉ người chủ trì hoặc quản lý mới được yêu cầu hoàn thành. Người phối hợp chỉ cập nhật tiến độ phần việc của mình.", "error"); return false; }
