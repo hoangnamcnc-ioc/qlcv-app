@@ -14,7 +14,7 @@ const SECTIONS = [
           ["TP. HCTH (manager_hcth)", "Như Trưởng phòng, chỉ trong phòng mình (HCTH)"],
           ["Trưởng phòng (manager)", "Giao việc, duyệt hoàn thành, đánh giá trong phòng mình"],
           ["Phó trưởng phòng (deputy_manager)", "Tương tự Trưởng phòng, trong phòng mình"],
-          ["Nhân viên (staff)", "Xem việc được giao, cập nhật tiến độ, yêu cầu duyệt hoàn thành"],
+          ["Nhân viên (staff)", "Xem việc được giao, tự tạo việc cá nhân, cập nhật tiến độ, yêu cầu duyệt hoàn thành"],
         ]}},
       { note: "Trưởng phòng/Phó trưởng phòng chỉ thao tác trong phạm vi phòng ban của mình. Ban Giám đốc và Quản trị viên thao tác trên toàn bộ 3 phòng." },
     ]
@@ -94,7 +94,29 @@ const SECTIONS = [
         "Quy đổi/người — lấy Quy đổi chia cho số nhân sự của phòng. Dùng khi các phòng chênh lệch quân số, để biết ai đang gánh nặng nhất trên đầu người.",
       ]},
       { p: "Mỗi thẻ thống kê nhanh cũng hiện thêm dòng \"≈ … quy đổi\" ngay dưới con số." },
-      { note: "Bảng Tổng hợp điều hành chỉ tính NHIỆM VỤ (không gồm Hỗ trợ ND/Xử lý lỗi TTDL và dự án ngân sách), gom theo phòng của nhiệm vụ và trên TOÀN BỘ thời gian. Vì vậy nó không trùng với cột \"Tổng\" ở bảng Hiệu suất nhân viên (bảng đó tính theo từng tháng và có cộng thêm việc phối hợp) — đừng cộng dồn hai bảng để đối chiếu." },
+      { note: "Bảng Tổng hợp điều hành chỉ tính NHIỆM VỤ (không gồm Hỗ trợ ND/Xử lý lỗi TTDL và dự án ngân sách), gom theo phòng của nhiệm vụ. Vì vậy nó không trùng với cột \"Tổng\" ở bảng Hiệu suất nhân viên (bảng đó có cộng thêm việc phối hợp) — đừng cộng dồn hai bảng để đối chiếu." },
+      { h: "📅 Chọn kỳ thống kê & 🎯 Chỉ tiêu KPI (Ban Giám đốc)" },
+      { ul: [
+        "Ô 📅 Kỳ ở đầu bảng: chọn tháng/năm muốn xem (mặc định THÁNG HIỆN HÀNH), hoặc \"Toàn bộ\" để tính mọi thời gian. Các cột Tổng/Quy đổi/Hoàn thành/Quá hạn/Tỷ lệ HT đổi theo kỳ đã chọn.",
+        "Ô 🎯 Chỉ tiêu tỷ lệ HT: BGĐ đặt mức KPI (mặc định 85%). Cột Tỷ lệ HT của phòng đạt ≥ mức này hiện màu xanh kèm chip \"🎯 Đạt\", dưới mức hiện đỏ \"Chưa\". Chỉ tiêu này lưu chung toàn cơ quan (ai cũng thấy giống nhau).",
+        "Cột Quá tải luôn theo thực tế HIỆN TẠI (không phụ thuộc kỳ đã chọn).",
+      ]},
+      { h: "🧭 Gợi ý điều phối nhân sự (Ban Giám đốc)" },
+      { p: "Khi tải giữa các phòng chênh lệch rõ, hệ thống gợi ý: phòng 🔴 có dấu hiệu thiếu người (tải cao hơn hẳn mặt bằng và có người quá tải) hoặc 🟢 có thể đang dư người — dựa trên khối lượng đang mở quy đổi/người. Chỉ mang tính tham khảo điều phối." },
+      { h: "👥 Bảng \"Nhân sự\" & Hồ sơ nhân viên (Trưởng phòng / BGĐ)" },
+      { ul: [
+        "Trưởng/Phó phòng thấy danh sách nhân sự phòng mình (BGĐ thấy toàn cơ quan): việc đang mở, điểm tháng, tỷ lệ đúng hạn — phân trang 8 người/trang.",
+        "Bấm một người để mở HỒ SƠ đánh giá chi tiết: điểm & cấu thành điểm tháng, xu hướng điểm 6 tháng, nguyên nhân trễ riêng của người đó, và danh sách việc đang mở (bấm mở thẳng nhiệm vụ).",
+      ]},
+      { h: "🔀 Gợi ý điều việc (Trưởng phòng)" },
+      { p: "Ở cảnh báo quá tải, bấm vào một người quá tải để xem việc của họ. Nếu trong phòng có đồng nghiệp đang rảnh hơn, hệ thống gợi ý chuyển bớt — mỗi việc có nút \"→ Chuyển\" mở sẵn hộp chuyển tiếp đã chọn người nhận, Trưởng phòng chỉ cần xác nhận." },
+      { note: "Cảnh báo quá tải nay tính theo KHỐI LƯỢNG QUY ĐỔI đang mở (không đếm thô đầu việc): người ôm nhiều việc hàng ngày 0.25 không bị coi ngang người ôm nhiều dự án. Ngưỡng chỉnh được ngay tại khối cảnh báo." },
+      { h: "👤 Khối cá nhân — \"Việc của tôi\" (nhân viên)" },
+      { ul: [
+        "Danh sách \"Công việc của tôi\" gộp MỌI loại (chủ trì + phối hợp), sắp xếp thông minh: việc quá hạn/gần hết hạn lên trước, việc ưu tiên Cao được kéo lên. Có phân trang.",
+        "Thẻ \"Việc của tôi\" so sánh khối lượng quy đổi của bạn với trung bình phòng (cao/thấp hơn bao nhiêu %).",
+        "Mục \"Đã hoàn thành tháng này\" (bấm mở) gộp mọi module để bạn tự soi lại trước kỳ đánh giá.",
+      ]},
     ]
   },
   {
@@ -102,6 +124,9 @@ const SECTIONS = [
     body: [
       { h: "Tạo nhiệm vụ mới" },
       { p: "Bấm + Tạo việc, điền: Tiêu đề/Mô tả, Phòng ban, Giao cho, Ưu tiên, Hạn chót, Phối hợp (người hỗ trợ), file đính kèm hoặc link tài liệu." },
+      { p: "Khi chọn người ở ô Giao cho, hệ thống hiện luôn khối lượng đang mở của từng người (\"— N việc\") và cảnh báo 🔥 nếu người đó đã quá tải — giúp Trưởng phòng không dồn việc vào một người." },
+      { h: "🙋 Nhân viên tự tạo việc của mình" },
+      { note: "Nhân viên có nút + Tự tạo việc để ghi nhận việc tự phát/sáng kiến. Việc này chỉ giao cho CHÍNH MÌNH, đúng phòng của mình. Người tạo KHÔNG tự duyệt/tự chấm điểm — Trưởng/Phó phòng là người duyệt hoàn thành và đánh giá (đảm bảo công bằng). Nhân viên sửa lại được việc mình tự tạo khi CHƯA gửi duyệt.", color: "1D4ED8", bg: "#EFF6FF" },
       { h: "Tìm kiếm & lọc" },
       { p: "Ô tìm kiếm theo tên việc/mô tả/người thực hiện/số văn bản, cùng bộ lọc Trạng thái, Phòng ban, Nhân viên, Sắp xếp." },
       { note: "Nút 👤 Tôi giao (Trưởng/Phó phòng, TP.HCTH, BGĐ, Admin mới thấy) lọc riêng những việc CHÍNH bạn đã giao (tạo hoặc chuyển tiếp) — giúp theo dõi riêng phần việc mình phải chịu trách nhiệm duyệt, không lẫn với việc của người khác trong phòng." },
@@ -125,6 +150,8 @@ const SECTIONS = [
       { p: "BGĐ, Trưởng phòng, Phó phòng thấy biểu tượng 👁️ Đã xem hoặc 🔴 Chưa xem cạnh tên người được giao — biết ngay nhân viên đã mở xem việc hay chưa, kể cả khi họ đăng nhập từ thiết bị khác." },
       { h: "Cảnh báo duyệt chậm" },
       { p: "Nếu 1 yêu cầu duyệt hoàn thành bị treo từ 2 ngày trở lên chưa được xử lý, danh sách hiển thị badge ⏳ Chờ duyệt N ngày để BGĐ/Trưởng phòng biết ai đang duyệt chậm." },
+      { h: "🔔 Nhắc việc (đôn đốc nhân viên)" },
+      { p: "Trong chi tiết một nhiệm vụ chưa hoàn thành, Trưởng/Phó phòng (hoặc người giao) có nút 🔔 Nhắc việc để đôn đốc người thực hiện. Mỗi lần nhắc được ĐẾM và ghi vào lịch sử nhiệm vụ (làm bằng chứng đã đôn đốc), nhân viên thấy dòng \"đã được nhắc N lần\". Giới hạn 1 lần/4 giờ để tránh làm phiền." },
       { h: "📅 Đề xuất & duyệt gia hạn deadline" },
       { note: "Chỉ người giao việc (người tạo/chuyển tiếp gần nhất) hoặc Admin/BGĐ mới đổi Hạn chót trực tiếp được. Trưởng/Phó phòng khác trong phòng ban KHÔNG còn tự ý đổi hạn của nhiệm vụ không phải do mình giao." },
       { ol: [
@@ -316,13 +343,23 @@ const SECTIONS = [
       { note: "Việc \"trễ hạn\" được tính theo lúc bạn bấm Yêu cầu hoàn thành, không phải lúc người duyệt bấm duyệt — nếu bạn yêu cầu duyệt đúng hạn thì dù người duyệt xử lý chậm bao lâu, bạn vẫn không bị tính trễ." },
       { p: "Nhiệm vụ ngân sách cũng được cộng vào điểm hiệu suất: mỗi bước dự án đã duyệt+chấm chất lượng tính là 1 việc cho người chủ trì bước; khi cả dự án được BGĐ nghiệm thu (1–5 sao), phụ trách chính được cộng thêm 1 việc riêng." },
       { note: "Bấm ℹ️ cạnh điểm số để xem chi tiết \"Vì sao điểm này?\"." },
+      { h: "🏛️ Điểm điều hành — Trưởng/Phó phòng (bảng xếp hạng RIÊNG)" },
+      { p: "Trưởng/Phó phòng KHÔNG chấm theo vài việc giao đích danh (vốn rất ít), mà theo KẾT QUẢ CẢ PHÒNG họ điều hành. Cấp quản lý được tách khỏi bảng Hiệu suất nhân viên và có bảng \"🏛️ Điểm điều hành\" riêng ở cả tab Tháng lẫn Xếp hạng năm — không so trực tiếp điểm với nhân viên." },
+      { ul: [
+        "① Đúng hạn phòng (tối đa 60đ): tỷ lệ việc phòng đúng hạn/trễ trong số việc đã đến hạn.",
+        "② Chất lượng phòng (tối đa 40đ): trung bình mức nghiệm thu việc của phòng.",
+        "③ − Tồn đọng quá hạn (tối đa −10đ): tỷ lệ việc phòng còn quá hạn chưa xong.",
+        "④ + Thưởng khối lượng điều hành (tối đa +10đ): tính theo BÌNH QUÂN ĐẦU NGƯỜI của phòng — vượt 10 việc quy đổi/người mới thưởng, đạt tối đa khi ≥20/người (công bằng với phòng ít/nhiều nhân sự).",
+      ]},
+      { note: "Đủ điều kiện khi phòng có ≥5 việc quy đổi đã đến hạn/tháng. Bấm ℹ️ ở bảng điểm điều hành để xem popup \"Vì sao điểm này?\" với đủ 4 cấu phần, giống điểm nhân viên." },
       { h: "Số quy đổi ở tab Tháng" },
       { ul: [
         "5 ô thống kê đầu trang (Tổng, Hoàn thành, Quá hạn, HT quá hạn, Tỷ lệ HT) đều hiện thêm dòng \"≈ … quy đổi\" — riêng Tỷ lệ HT có thêm tỷ lệ tính theo quy đổi, có thể lệch khá nhiều so với tỷ lệ đếm thô.",
+        "Mỗi ô còn hiện mũi tên ▲▼ % thay đổi so với THÁNG TRƯỚC (xanh = tốt lên, đỏ = xấu đi), và với ô Tỷ lệ HT còn hiện \"🎯 Chỉ tiêu N%: Đạt/Chưa đạt\" theo KPI đã đặt.",
         "Biểu đồ Hiệu suất phòng ban có nút chuyển [Đầu việc] / [Quy đổi] ở góc phải. Chuyển sang Quy đổi để so sánh phòng ban cho công bằng — phòng nhiều việc hàng ngày sẽ không còn bị vống lên.",
         "Nút này áp dụng chung cho cả biểu đồ Xu hướng 6 tháng (có nhãn cho biết đang xem chế độ nào).",
       ]},
-      { note: "Vì sao cột \"Tổng\" ở bảng Hiệu suất nhân viên KHÔNG khớp với cột \"Quy đổi\" ở bảng Tổng hợp điều hành? Vì (1) bảng nhân viên chỉ tính THÁNG đang chọn, còn bảng điều hành tính toàn bộ thời gian; (2) bảng nhân viên còn cộng thêm Hỗ trợ ND/Xử lý lỗi TTDL và dự án ngân sách; (3) quan trọng nhất — một nhiệm vụ được tính cho CẢ người chủ trì lẫn người phối hợp (phối hợp = 1/2 trọng số), nên cộng dồn theo người sẽ luôn lớn hơn tổng theo nhiệm vụ. Đây là cố ý để ghi nhận công phối hợp, không phải sai số." },
+      { note: "Vì sao cột \"Tổng\" ở bảng Hiệu suất nhân viên KHÔNG khớp với cột \"Quy đổi\" ở bảng Tổng hợp điều hành? Vì (1) hai bảng có thể đang xem kỳ khác nhau (bảng điều hành có ô 📅 Kỳ riêng); (2) bảng nhân viên còn cộng thêm Hỗ trợ ND/Xử lý lỗi TTDL và dự án ngân sách; (3) quan trọng nhất — một nhiệm vụ được tính cho CẢ người chủ trì lẫn người phối hợp (phối hợp = 1/2 trọng số), nên cộng dồn theo người sẽ luôn lớn hơn tổng theo nhiệm vụ. Đây là cố ý để ghi nhận công phối hợp, không phải sai số." },
       { p: "Xuất báo cáo ra PDF (để in) hoặc CSV (Excel)." },
       { h: "📑 Xếp loại (chốt sổ điểm) — mọi vai trò xem được; riêng nút Chốt sổ chỉ BGĐ/Admin" },
       { p: "Điểm hiệu suất được \"chốt sổ\" cố định vào đầu mỗi tháng cho tháng vừa kết thúc (tự động khi BGĐ/Admin đăng nhập, hoặc chốt thủ công). Điểm đã chốt KHÔNG thay đổi khi dữ liệu cũ bị sửa — dùng làm căn cứ bình xét." },
@@ -331,7 +368,9 @@ const SECTIONS = [
         "Ngưỡng xếp loại: ≥90 Hoàn thành xuất sắc · ≥75 Hoàn thành tốt · ≥50 Hoàn thành · dưới 50 Không hoàn thành.",
         "🖨 In phiếu xếp loại: xuất phiếu tổng hợp có chỗ ký, dùng cho họp bình xét thi đua.",
         "Có thể \"Chốt lại\" một tháng nếu dữ liệu tháng đó vừa được bổ sung/sửa — sổ sẽ ghi đè theo dữ liệu hiện tại.",
+        "Trưởng/Phó phòng được chốt bằng ĐIỂM ĐIỀU HÀNH (có nhãn 🏛️ ĐH trong phiếu); nhân viên chốt bằng điểm hiệu suất cá nhân như thường.",
       ]},
+      { note: "Nút 🏛️ Đồng bộ điểm điều hành: cập nhật lại điểm cho Trưởng/Phó phòng ở MỌI tháng đã chốt theo công thức điều hành mới, GIỮ NGUYÊN điểm nhân viên đã chốt. Dùng một lần cho các tháng chốt trước khi có điểm điều hành." },
       { h: "🏛️ Điều hành — mọi vai trò xem được" },
       { ul: [
         "Biểu đồ tỷ lệ hoàn thành của 3 phòng qua 6 tháng gần nhất — phát hiện phòng đang đi xuống.",
@@ -354,6 +393,13 @@ const SECTIONS = [
     icon: "👥", title: "14. Nhân viên",
     body: [
       { p: "Danh sách nhân viên theo phòng ban, số việc đang xử lý, số việc phối hợp. Thêm/sửa: họ tên, phòng ban, chức vụ." },
+      { h: "🚫 Không giao việc / không tính KPI (khoán lương)" },
+      { p: "Trong form thêm/sửa nhân viên có ô tích \"Không giao việc / không tính KPI (khoán lương, bảo vệ…)\". Tích ô này cho những người làm nhiệm vụ riêng, hưởng khoán lương (VD: bảo vệ)." },
+      { ul: [
+        "Họ sẽ KHÔNG xuất hiện trong danh sách Giao cho / Phối hợp / Chuyển tiếp / gợi ý điều việc.",
+        "KHÔNG bị tính vào bảng Hiệu suất, Xếp hạng, và KHÔNG tính vào đầu người của phòng (mẫu số điểm điều hành & tải bình quân) — nên không làm loãng chỉ số của Trưởng phòng.",
+        "Vẫn là nhân viên trong danh mục (hiện nhãn 🚫 KPI) và vẫn dùng được ở Lịch trực nếu có tham gia trực.",
+      ]},
     ]
   },
   {
@@ -362,7 +408,15 @@ const SECTIONS = [
   },
   {
     icon: "📜", title: "16. Nhật ký",
-    body: [{ p: "Chỉ hiển thị với Ban Giám đốc/Quản trị viên. Ghi lại lịch sử thao tác trên các nhiệm vụ." }]
+    body: [
+      { p: "Chỉ hiển thị với Ban Giám đốc/Quản trị viên. Nhật ký TOÀN DIỆN gộp lịch sử thao tác từ nhiều module: Nhiệm vụ, Hỗ trợ ND/PAHT (ghi nhận), Ngân sách và Nhiệm vụ khác (duyệt bước, nghiệm thu)." },
+      { ul: [
+        "Ô tìm kiếm theo người / hành động / đối tượng.",
+        "Bộ lọc: theo Người, theo Loại (Nhiệm vụ/Hỗ trợ/Ngân sách/NV khác), theo khoảng ngày (Từ – Đến).",
+        "Phân trang 50 dòng/trang; nút ⬇ CSV để xuất ra Excel phục vụ tra cứu/kiểm tra.",
+      ]},
+      { note: "Nhật ký sắp theo mốc thời gian thật (mới nhất trên cùng) và KHÔNG tự xóa dữ liệu — toàn bộ lịch sử vẫn lưu đầy đủ trong hệ thống, phần hiển thị chỉ lọc/phân trang." },
+    ]
   },
   {
     icon: "🔐", title: "17. Bảo mật",
@@ -392,14 +446,18 @@ const SECTIONS = [
       rows: [
         ["Xem việc của mình", "✅", "✅", "✅"],
         ["Xem việc cả phòng ban", "❌", "✅ (phòng mình)", "✅ (toàn đơn vị)"],
-        ["Tạo/giao nhiệm vụ", "❌", "✅ (phòng mình)", "✅"],
+        ["Tự tạo việc cho chính mình (TP duyệt/chấm)", "✅", "✅", "✅"],
+        ["Tạo/giao nhiệm vụ cho người khác", "❌", "✅ (phòng mình)", "✅"],
+        ["🔔 Nhắc việc / điều việc / hồ sơ nhân viên", "❌", "✅ (phòng mình)", "✅"],
         ["Yêu cầu hoàn thành việc", "✅ (người chủ trì)", "✅", "✅"],
         ["Cập nhật tiến độ (gồm người phối hợp)", "✅", "✅", "✅"],
         ["Duyệt hoàn thành & đánh giá", "❌", "✅ (phòng mình)", "✅"],
         ["Chuyển tiếp nhiệm vụ", "❌", "✅ (phòng mình)", "✅"],
         ["Xóa nhiệm vụ", "❌", "✅ (phòng mình)", "✅"],
         ["Xem Báo cáo (tất cả các tab)", "✅", "✅", "✅"],
-        ["Chốt sổ điểm (tab Xếp loại)", "❌", "❌", "✅"],
+        ["Đặt chỉ tiêu KPI & chọn kỳ (Tổng hợp điều hành)", "❌", "❌", "✅"],
+        ["Chốt sổ điểm / Đồng bộ điểm điều hành", "❌", "❌", "✅"],
+        ["Đánh dấu nhân sự không tính KPI (khoán lương)", "❌", "❌", "✅ (Admin)"],
         ["Quản lý tài khoản", "❌", "❌", "✅ (Admin)"],
         ["Xem Nhật ký / Bảo mật", "❌", "❌", "✅"],
       ]
@@ -418,6 +476,7 @@ const SECTIONS = [
         "Điểm chỉ tính trên việc đã đến hạn xử lý — việc đang chờ duyệt hoặc chưa tới hạn chưa được tính vào tháng đó.",
         "Nếu chỉ làm ít nhiệm vụ thường, hãy để ý các bước bạn chủ trì trong Nhiệm vụ ngân sách đã được duyệt+chấm chất lượng hay chưa — mỗi bước cũng tính là 1 việc, giúp bạn dễ đạt mốc 5 việc/tháng hơn.",
         "Các trường hợp đã ghi nhận ở mục Hỗ trợ người dùng/PAHT và vận hành DC cũng cộng điểm theo độ khó (Khó=1, Trung bình=1/2, Nhanh=1/4 việc) — điểm cập nhật ngay, không cần tải lại trang.",
+        "Nếu chưa đủ 5 việc đến hạn, bảng vẫn hiện \"~Nđ (tham khảo)\" để bạn biết mình đang ở mức nào — điểm này KHÔNG dùng để xếp hạng/chốt sổ.",
       ]},
       { h: "Cần hỗ trợ thêm?" },
       { p: "Liên hệ Quản trị viên hệ thống hoặc gửi phản hồi qua mục Góp ý." },
