@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { DEPTS, STATUS } from "../constants";
 import { fmtDate } from "../helpers";
+import { MANAGER_EMP_ROLES } from "../hooks/useReports";
 
 // Trợ lý tra cứu THUẦN THUẬT TOÁN (không dùng AI ngoài): nhớ ngữ cảnh hội thoại, chịu gõ sai (fuzzy),
 // gợi ý khi gõ, truy vấn ngưỡng/thống kê, biểu đồ mini, nút hành động, chào bằng điểm nóng, nhập giọng nói.
@@ -8,7 +9,7 @@ const strip = s => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, 
 const has = (qn, ...arr) => arr.some(w => qn.includes(w));
 const lev = (a, b) => { a = a || ""; b = b || ""; const m = a.length, n = b.length; if (!m) return n; if (!n) return m; let prev = Array.from({ length: n + 1 }, (_, j) => j); for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[n]; };
 
-export default function AssistantChat({ employees, computed, calcMonthPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask, onOpenProfile }) {
+export default function AssistantChat({ employees, computed, calcMonthPerf, managerPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask, onOpenProfile }) {
   const today = new Date(); const y = today.getFullYear();
   const nm = id => getEmp(id)?.name || "—";
   const dleftOf = t => { const d = new Date(t.deadline); if (isNaN(d)) return 9999; d.setHours(0, 0, 0, 0); return Math.ceil((d - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000); };
@@ -58,7 +59,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, empR
   const rankMap = (map, dir = "desc") => Object.entries(map).sort((a, b) => dir === "desc" ? b[1] - a[1] : a[1] - b[1]);
   const barsFrom = (entries, val = v => v) => entries.slice(0, 6).map(([id, v]) => ({ label: nm(id), value: val(v) }));
   const sixMonth = empId => { const s = []; for (let i = 5; i >= 0; i--) { const d = new Date(y, today.getMonth() - i, 1); const mp = calcMonthPerf(empId, d.getFullYear(), d.getMonth()); s.push(mp.resolved > 0 ? mp.perfScore : null); } return s; };
-  const personStats = (person, period) => { const inP = t => { if (!period) return true; const d = new Date(t.deadline); return !isNaN(d) && d >= period.from && d <= period.to; }; const mi = period?.monthIdx ?? today.getMonth(); const inScope = computed.filter(t => t.eid === person.id && inP(t)); const late = inScope.filter(t => t.status === "completed_late" || t.status === "overdue").length; const openN = computed.filter(t => t.eid === person.id && !isCompletedStatus(t.status)).length; const rel = empReliability[person.id]; const load = activeLoadByEid[person.id]; const m = calcMonthPerf(person.id, y, mi); return { total: inScope.length, late, openN, loadW: load ? load.w : 0, onTime: rel?.onTimeRate, avgDays: rel?.avgDays, score: m.resolved > 0 ? m.perfScore : null, eligible: m.eligible, mi }; };
+  const personStats = (person, period) => { const inP = t => { if (!period) return true; const d = new Date(t.deadline); return !isNaN(d) && d >= period.from && d <= period.to; }; const mi = period?.monthIdx ?? today.getMonth(); const inScope = computed.filter(t => t.eid === person.id && inP(t)); const late = inScope.filter(t => t.status === "completed_late" || t.status === "overdue").length; const openN = computed.filter(t => t.eid === person.id && !isCompletedStatus(t.status)).length; const rel = empReliability[person.id]; const load = activeLoadByEid[person.id]; const isMgr = MANAGER_EMP_ROLES.includes(person.role); const m = isMgr && managerPerf ? managerPerf(person.id, y, mi) : calcMonthPerf(person.id, y, mi); const rslv = isMgr ? m.resolvedW : m.resolved; return { total: inScope.length, late, openN, loadW: load ? load.w : 0, onTime: rel?.onTimeRate, avgDays: rel?.avgDays, score: rslv > 0 ? m.perfScore : null, eligible: m.eligible, mi, isMgr }; };
 
   const answer = (raw) => {
     const qn = strip(raw);
@@ -86,7 +87,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, empR
     // 2) So sánh 2 người
     if (has(qn, "so sanh") && persons.length >= 2) { const [a, b] = persons; const sa = personStats(a, period), sb = personStats(b, period); return { text: `⚖️ So sánh${sc}:`, list: [`Số việc: ${a.name} ${sa.total} · ${b.name} ${sb.total}`, `Trễ/quá hạn: ${a.name} ${sa.late} · ${b.name} ${sb.late}`, `Đúng hạn (lịch sử): ${a.name} ${sa.onTime ?? "—"}% · ${b.name} ${sb.onTime ?? "—"}%`, `Điểm tháng ${sa.mi + 1}: ${a.name} ${sa.score ?? "—"} · ${b.name} ${sb.score ?? "—"}`, `Đang mở: ${a.name} ${sa.openN} · ${b.name} ${sb.openN}`] }; }
     // 3) Một người (kèm sparkline xu hướng)
-    if (person && persons.length <= 1 && !has(qn, "phong nao", "trung binh", "tong so", "ty le")) { const s = personStats(person, period); const list = [`Số việc${sc}: ${s.total}${s.late ? ` · trễ/quá hạn: ${s.late}` : ""}`, `Đang mở: ${s.openN} việc${s.loadW ? ` (≈${s.loadW} quy đổi)` : ""}`]; if (s.onTime != null) list.push(`Đúng hạn (lịch sử): ${s.onTime}%${s.avgDays != null ? ` · TB ~${s.avgDays} ngày/việc` : ""}`); if (s.score != null) list.push(`Điểm tháng ${s.mi + 1}: ${s.score}đ${s.eligible ? "" : " (tham khảo)"}`); return { text: `👤 ${person.name} — ${person.dept}`, list, profileEid: person.id, spark: sixMonth(person.id) }; }
+    if (person && persons.length <= 1 && !has(qn, "phong nao", "trung binh", "tong so", "ty le")) { const s = personStats(person, period); const list = [`Số việc${sc}: ${s.total}${s.late ? ` · trễ/quá hạn: ${s.late}` : ""}`, `Đang mở: ${s.openN} việc${s.loadW ? ` (≈${s.loadW} quy đổi)` : ""}`]; if (s.onTime != null) list.push(`Đúng hạn (lịch sử): ${s.onTime}%${s.avgDays != null ? ` · TB ~${s.avgDays} ngày/việc` : ""}`); if (s.score != null) list.push(`${s.isMgr ? "🏛️ Điểm điều hành" : "Điểm"} tháng ${s.mi + 1}: ${s.score}đ${s.eligible ? "" : " (tham khảo)"}`); return { text: `👤 ${person.name} — ${person.dept}`, list, profileEid: person.id, spark: sixMonth(person.id) }; }
 
     // #6 — Thống kê tổng hợp
     if (has(qn, "trung binh")) { const map = {}; for (const t of computed) { if (t.eid && both(t)) map[t.eid] = (map[t.eid] || 0) + 1; } const vals = Object.values(map); const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : 0; return { text: `Trung bình mỗi người ${avg} việc${sc}.` }; }

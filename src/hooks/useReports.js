@@ -209,12 +209,17 @@ export default function useReports({ computed, computedGlobal, employees, curren
   const empProfile = (empId) => {
     const emp = (employees || []).find(e => e.id === empId);
     if (!emp) return null;
-    const cur = calcMonthPerf(empId, repYear, repMonth);
+    // Trưởng/Phó phòng chấm bằng ĐIỂM ĐIỀU HÀNH (managerPerf, theo kết quả phòng); nhân viên theo điểm cá nhân.
+    const isMgr = MANAGER_EMP_ROLES.includes(emp.role);
+    const mgrCur = mp => ({ perfScore: mp.perfScore, eligible: mp.eligible, resolved: mp.resolvedW, done: mp.doneW, onTime: mp.onTimeW, completedLate: mp.lateW, over: mp.overW, breakdown: mp.breakdown, collabTotal: 0, isManager: true });
+    const curMp = isMgr ? managerPerf(empId, repYear, repMonth) : null;
+    const cur = isMgr ? mgrCur(curMp) : calcMonthPerf(empId, repYear, repMonth);
     const trend = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(repYear, repMonth - i, 1); const m = d.getMonth(), y = d.getFullYear();
-      const mp = calcMonthPerf(empId, y, m);
-      trend.push({ name: `T${m + 1}`, score: mp.resolved > 0 ? mp.perfScore : null, eligible: mp.eligible, resolved: mp.resolved, done: mp.done });
+      const mp = isMgr ? managerPerf(empId, y, m) : calcMonthPerf(empId, y, m);
+      const rslv = isMgr ? mp.resolvedW : mp.resolved;
+      trend.push({ name: `T${m + 1}`, score: rslv > 0 ? mp.perfScore : null, eligible: mp.eligible, resolved: rslv, done: isMgr ? mp.doneW : mp.done });
     }
     // Việc đang mở (nhiệm vụ thường) của người này — dùng cg để đủ dữ liệu, sắp việc khẩn lên trước
     const open = cg.filter(t => t.eid === empId && !isCompletedStatus(t.status))
@@ -224,7 +229,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     // Nguyên nhân trễ của riêng người này (mọi thời gian) — nhìn ra "hay trễ vì lý do gì"
     const myLate = cg.filter(t => t.eid === empId && t.late_reason);
     const lateReasons = LATE_REASONS.map(r => ({ ...r, count: myLate.filter(t => t.late_reason === r.value).length })).filter(r => r.count > 0).sort((a, b) => b.count - a.count);
-    const onTimeRate = cur.resolved > 0 ? Math.round(cur.onTime / cur.resolved * 100) : 0;
+    const onTimeRate = isMgr ? curMp.onTimeRate : (cur.resolved > 0 ? Math.round(cur.onTime / cur.resolved * 100) : 0);
     // ── #5 Chỉ số CHỦ ĐỘNG (thông tin tham khảo, KHÔNG tính vào điểm 0–100) ──
     // Đo mức chủ động qua tỷ lệ việc hoàn thành SỚM hạn (xong trước hạn ≥1 ngày) và mức tham gia phối hợp.
     const myDone = cg.filter(t => t.eid === empId && t.status === "completed" && t.completed_at && t.deadline);
@@ -235,7 +240,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const myResolved = cg.filter(t => t.eid === empId && (t.status === "completed" || t.status === "completed_late" || t.status === "overdue"));
     const skillDefs = [{ label: "Nhiệm vụ thường", m: t => !t.template_id }, { label: "Nhiệm vụ định kỳ", m: t => !!t.template_id }];
     const skills = skillDefs.map(sd => { const arr = myResolved.filter(sd.m); const onTime = arr.filter(t => t.status === "completed").length; const rated = arr.filter(t => RATING[t.rating]); return { label: sd.label, resolved: arr.length, onTimeRate: arr.length ? Math.round(onTime / arr.length * 100) : null, avgRating: rated.length ? Math.round(rated.reduce((s, t) => s + RATING[t.rating].score, 0) / rated.length * 10) / 10 : null }; }).filter(s => s.resolved > 0);
-    return { emp, cur, trend, open, openCount: open.length, openW, lateReasons, lateTotal: myLate.length, onTimeRate, proactive, skills };
+    return { emp, cur, trend, open, openCount: open.length, openW, lateReasons, lateTotal: myLate.length, onTimeRate, proactive, skills, isManager: isMgr };
   };
 
   // ── ĐIỂM ĐIỀU HÀNH cho Trưởng/Phó phòng (kết hợp: hiệu quả điều hành phòng + khối lượng điều hành) ──

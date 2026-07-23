@@ -426,7 +426,7 @@ export default function Dashboard({
                 <tr key={e.id} onClick={() => setProfileId(e.id)} style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer" }} onMouseEnter={ev => ev.currentTarget.style.background = "#f9fafb"} onMouseLeave={ev => ev.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "9px 12px" }}><div style={{ fontWeight: 500 }}>{e.name}</div><div style={{ fontSize: 11, color: "#9ca3af" }}>{e.dept} · {e.role}</div></td>
                   <td style={{ padding: "9px 12px", textAlign: "center", whiteSpace: "nowrap" }}><span style={{ color: over ? "#b91c1c" : "#374151", fontWeight: over ? 700 : 500 }}>{p.openCount}</span> <span style={{ fontSize: 11, color: "#9ca3af" }}>(≈{p.openW})</span>{over && " 🔥"}</td>
-                  <td style={{ padding: "9px 12px", textAlign: "center" }}>{p.cur.resolved > 0 ? <span style={{ fontWeight: 700, color: p.cur.eligible ? "#111827" : "#9ca3af" }}>{p.cur.perfScore}{!p.cur.eligible && <span style={{ fontSize: 10, fontWeight: 400 }}> (tk)</span>}</span> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                  <td style={{ padding: "9px 12px", textAlign: "center" }}>{p.cur.resolved > 0 ? <span style={{ fontWeight: 700, color: p.cur.eligible ? "#111827" : "#9ca3af" }}>{p.isManager && <span title="Điểm điều hành (theo kết quả phòng)" style={{ fontSize: 10, marginRight: 3 }}>🏛️</span>}{p.cur.perfScore}{!p.cur.eligible && <span style={{ fontSize: 10, fontWeight: 400 }}> (tk)</span>}</span> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
                   <td style={{ padding: "9px 12px", textAlign: "center", fontWeight: 500, color: p.cur.resolved === 0 ? "#d1d5db" : p.onTimeRate >= 80 ? "#15803d" : p.onTimeRate >= 50 ? "#92400e" : "#b91c1c" }}>{p.cur.resolved > 0 ? p.onTimeRate + "%" : "—"}</td>
                   <td style={{ padding: "9px 12px", textAlign: "center", color: "#6366f1", fontSize: 12, whiteSpace: "nowrap" }}>Xem ›</td>
                 </tr>
@@ -434,7 +434,7 @@ export default function Dashboard({
             </table>
           </div>
           <div style={{ padding: "8px 16px", borderTop: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, color: "#9ca3af" }}>💡 "Điểm tháng" theo tháng đang chọn ở Báo cáo · (tk) = điểm tham khảo khi chưa đủ 5 việc đến hạn</span>
+            <span style={{ fontSize: 11, color: "#9ca3af" }}>💡 "Điểm tháng" theo tháng đang chọn ở Báo cáo · 🏛️ = điểm điều hành (Trưởng/Phó phòng, theo kết quả phòng) · (tk) = điểm tham khảo khi chưa đủ 5 việc đến hạn</span>
             {rosterTotalPages > 1 && (
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                 <button onClick={() => setRosterPage(p => Math.max(1, p - 1))} disabled={rosterPageSafe <= 1} style={{ padding: "3px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: rosterPageSafe <= 1 ? "#f3f4f6" : "#fff", color: rosterPageSafe <= 1 ? "#d1d5db" : "#374151", cursor: rosterPageSafe <= 1 ? "default" : "pointer", fontSize: 12 }}>‹</button>
@@ -560,7 +560,7 @@ export default function Dashboard({
 // ── Hồ sơ đánh giá 1 nhân viên (mở từ bảng "Nhân sự") ──
 function EmpProfileModal({ profile, isMobile, overloadThreshold, onClose, onOpenTask }) {
   if (!profile) return null;
-  const { emp, cur, trend, open, openCount, openW, lateReasons, lateTotal, onTimeRate, proactive, skills } = profile;
+  const { emp, cur, trend, open, openCount, openW, lateReasons, lateTotal, onTimeRate, proactive, skills, isManager } = profile;
   const over = openW >= overloadThreshold;
   const scoreTrend = trend.filter(t => t.score != null);
   const box = { background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 12px", textAlign: "center" };
@@ -579,14 +579,14 @@ function EmpProfileModal({ profile, isMobile, overloadThreshold, onClose, onOpen
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8 }}>📊 Tháng đang chọn</div>
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 8 }}>
-              <div style={box}><div style={{ fontSize: 22, fontWeight: 800, color: cur.resolved === 0 ? "#d1d5db" : cur.eligible ? "#4338ca" : "#9ca3af" }}>{cur.resolved > 0 ? cur.perfScore : "—"}</div><div style={{ fontSize: 10.5, color: "#6b7280", marginTop: 2 }}>Điểm{cur.resolved > 0 && !cur.eligible ? " (tham khảo)" : ""}</div></div>
+              <div style={box}><div style={{ fontSize: 22, fontWeight: 800, color: cur.resolved === 0 ? "#d1d5db" : cur.eligible ? "#4338ca" : "#9ca3af" }}>{cur.resolved > 0 ? cur.perfScore : "—"}</div><div style={{ fontSize: 10.5, color: "#6b7280", marginTop: 2 }}>{isManager ? "🏛️ Điểm điều hành" : "Điểm"}{cur.resolved > 0 && !cur.eligible ? " (tham khảo)" : ""}</div></div>
               <div style={box}><div style={{ fontSize: 22, fontWeight: 800, color: onTimeRate >= 80 ? "#15803d" : onTimeRate >= 50 ? "#92400e" : "#b91c1c" }}>{cur.resolved > 0 ? onTimeRate + "%" : "—"}</div><div style={{ fontSize: 10.5, color: "#6b7280", marginTop: 2 }}>Đúng hạn</div></div>
               <div style={box}><div style={{ fontSize: 22, fontWeight: 800, color: "#0f766e" }}>{cur.done}</div><div style={{ fontSize: 10.5, color: "#6b7280", marginTop: 2 }}>Việc quy đổi HT</div></div>
               <div style={box}><div style={{ fontSize: 22, fontWeight: 800, color: "#7c3aed" }}>{cur.collabTotal || 0}</div><div style={{ fontSize: 10.5, color: "#6b7280", marginTop: 2 }}>Phối hợp (½)</div></div>
             </div>
             {cur.breakdown && (
               <div style={{ fontSize: 11.5, color: "#6b7280", marginTop: 8, lineHeight: 1.6 }}>
-                Cấu thành điểm: ⏱️ thời hạn <b>{cur.breakdown.timeliness}</b> + ⭐ chất lượng <b>{cur.breakdown.quality}</b>{cur.breakdown.penalty > 0 && <> − phạt trễ <b style={{ color: "#b91c1c" }}>{cur.breakdown.penalty}</b></>}{cur.breakdown.workloadBonus > 0 && <> + thưởng KL <b style={{ color: "#15803d" }}>{cur.breakdown.workloadBonus}</b></>}{cur.breakdown.prioBonus > 0 && <> + thưởng ưu tiên <b style={{ color: "#15803d" }}>{cur.breakdown.prioBonus}</b></>}
+                Cấu thành điểm{isManager ? " điều hành (kết quả phòng)" : ""}: ⏱️ {isManager ? "đúng hạn phòng" : "thời hạn"} <b>{cur.breakdown.timeliness}</b> + ⭐ chất lượng <b>{cur.breakdown.quality}</b>{cur.breakdown.penalty > 0 && <> − {isManager ? "tồn đọng" : "phạt trễ"} <b style={{ color: "#b91c1c" }}>{cur.breakdown.penalty}</b></>}{cur.breakdown.workloadBonus > 0 && <> + thưởng KL <b style={{ color: "#15803d" }}>{cur.breakdown.workloadBonus}</b></>}{cur.breakdown.mgmtBonus > 0 && <> + thưởng KL điều hành <b style={{ color: "#15803d" }}>{cur.breakdown.mgmtBonus}</b></>}{cur.breakdown.prioBonus > 0 && <> + thưởng ưu tiên <b style={{ color: "#15803d" }}>{cur.breakdown.prioBonus}</b></>}
                 {!cur.eligible && cur.resolved > 0 && <span style={{ fontStyle: "italic" }}> · chưa đủ 5 việc đến hạn nên chỉ là điểm tham khảo</span>}
               </div>
             )}
