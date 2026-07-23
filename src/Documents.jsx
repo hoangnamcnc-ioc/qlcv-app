@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "./supabase";
 import { getPreviewUrl, parseJSON, todayStr, fmtDate, getStatus } from "./helpers";
 import { STATUS } from "./constants";
@@ -10,9 +10,12 @@ const isIncoming=d=>d.type==="den"||d.type==="incoming";
 
 export default function Documents({ currentUser, isMobile, inp, showToast, canManage, tasks, users, getTaskTitle, onOpenTask, onCreateTask, uploadFiles, uploadingFiles, projects, onProjectsChanged }){
   const [sumModal,setSumModal]=useState(null); // { doc, fileName, loading, error, result } — tóm tắt rút trích
-  const extractText=async(att)=>{
-    const resp=await fetch(att.url); if(!resp.ok) throw new Error("Không tải được tệp (có thể do quyền truy cập).");
-    const buf=await resp.arrayBuffer(); const name=(att.name||"").toLowerCase();
+  const fileInputRef=useRef(null);
+  const extractText=async(src)=>{
+    let buf,rawName;
+    if(src instanceof File){buf=await src.arrayBuffer();rawName=src.name;}
+    else{const resp=await fetch(src.url); if(!resp.ok) throw new Error("Không tải được tệp (có thể do quyền truy cập).");buf=await resp.arrayBuffer();rawName=src.name;}
+    const name=(rawName||"").toLowerCase();
     if(name.endsWith(".pdf")){
       const pdfjs=await import("pdfjs-dist");
       const workerUrl=(await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
@@ -36,6 +39,12 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
       const result=extractiveSummary(text);
       setSumModal(m=>m&&m.doc.id===d.id?{...m,loading:false,result}:m);
     }catch(e){setSumModal(m=>m&&m.doc.id===d.id?{...m,loading:false,error:e.message||"Không đọc được nội dung tệp"}:m);}
+  };
+  const onPickFile=async(e)=>{
+    const file=e.target.files&&e.target.files[0]; e.target.value=""; if(!file)return;
+    setSumModal({doc:{id:"__upload",doc_number:"Tệp tải lên",title:file.name,doc_date:todayStr,sender:""},fileName:file.name,loading:true,error:null,result:null});
+    try{const text=await extractText(file);const{ extractiveSummary }=await import("./summarize");const result=extractiveSummary(text);setSumModal(m=>m&&m.doc.id==="__upload"?{...m,loading:false,result}:m);}
+    catch(err){setSumModal(m=>m&&m.doc.id==="__upload"?{...m,loading:false,error:err.message||"Không đọc được nội dung tệp"}:m);}
   };
   const [assignModal,setAssignModal]=useState(null); // { doc, atts } — gán văn bản vào bước nhiệm vụ ngân sách
   const [assignProjId,setAssignProjId]=useState("");
@@ -203,6 +212,8 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
     <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Tìm theo số văn bản, trích yếu, nơi gửi..." style={{...inp,flex:1,minWidth:160}}/>
       {canManage&&!selectMode&&<button onClick={()=>setSelectMode(true)} style={{background:"#f9fafb",color:"#374151",border:"1px solid #d1d5db",borderRadius:8,padding:"8px 16px",fontSize:13,cursor:"pointer",fontWeight:500}}>☑️ Chọn</button>}
+      <button onClick={()=>fileInputRef.current&&fileInputRef.current.click()} title="Chọn tệp PDF/Word từ máy để tóm tắt nhanh (không lưu vào hệ thống)" style={{background:"#eef2ff",color:"#4338ca",border:"1px solid #a5b4fc",borderRadius:8,padding:"8px 16px",fontSize:13,cursor:"pointer",fontWeight:500}}>📝 Tóm tắt tệp</button>
+      <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt" style={{display:"none"}} onChange={onPickFile}/>
       {canManage&&<button onClick={openCreate} style={{background:"#4f46e5",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:13,cursor:"pointer",fontWeight:500}}>+ Thêm văn bản</button>}
     </div>
     {selectMode&&<div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"#eef2ff",border:"1px solid #c7d2fe",borderRadius:8,padding:"8px 12px"}}>
