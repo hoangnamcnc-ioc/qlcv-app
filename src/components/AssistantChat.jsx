@@ -3,6 +3,7 @@ import { DEPTS, STATUS } from "../constants";
 import { fmtDate } from "../helpers";
 import { MANAGER_EMP_ROLES } from "../hooks/useReports";
 import { GUIDE_SECTIONS, sectionText } from "../guideContent";
+import { buildModel, classify, fetchLearning, logInteraction, normQ } from "../chatLearning";
 
 // Trợ lý tra cứu THUẦN THUẬT TOÁN (không dùng AI ngoài): nhớ ngữ cảnh hội thoại, chịu gõ sai (fuzzy),
 // gợi ý khi gõ, truy vấn ngưỡng/thống kê, biểu đồ mini, nút hành động, chào bằng điểm nóng, nhập giọng nói.
@@ -19,7 +20,7 @@ const GUIDE_INDEX = (() => {
 const GUIDE_STOP = new Set(["cach", "lam", "sao", "the", "nao", "huong", "dan", "de", "o", "dau", "su", "dung", "phan", "mem", "toi", "minh", "muon", "gi", "co", "nhu", "va", "cho", "khi", "bang", "duoc", "khong", "la", "mot", "cai", "nay"]);
 const lev = (a, b) => { a = a || ""; b = b || ""; const m = a.length, n = b.length; if (!m) return n; if (!n) return m; let prev = Array.from({ length: n + 1 }, (_, j) => j); for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[n]; };
 
-export default function AssistantChat({ employees, computed, calcMonthPerf, managerPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask, onOpenProfile, onOpenHelp, isMobile }) {
+export default function AssistantChat({ employees, computed, calcMonthPerf, managerPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask, onOpenProfile, onOpenHelp, isMobile, me }) {
   // Tìm trong TÀI LIỆU HƯỚNG DẪN để trả lời câu "cách dùng" (chấm điểm IDF + cụm 2 từ)
   const searchGuide = qn => {
     const { idx, df, N } = GUIDE_INDEX;
@@ -65,6 +66,15 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const ctxRef = useRef({ person: null, dept: null, period: null });
   const endRef = useRef(null); const fileRef = useRef(null); const recRef = useRef(null);
   useEffect(() => { if (open) endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, open]);
+
+  // ── TỰ HỌC (TF-IDF + KNN) ──
+  const [model, setModel] = useState(null);      // mô hình phân loại dựng từ dữ liệu đã học
+  const rowsRef = useRef([]);                     // kho mẫu đã học (nạp từ Supabase + bổ sung trong phiên)
+  const [reacted, setReacted] = useState({});     // idx tin nhắn -> đã đánh giá
+  const [correcting, setCorrecting] = useState(-1); // idx tin nhắn đang "dạy lại"
+  const [corrText, setCorrText] = useState("");
+  useEffect(() => { fetchLearning().then(rows => { rowsRef.current = rows; setModel(buildModel(rows)); }); }, []);
+  const rebuild = () => setModel(buildModel(rowsRef.current));
 
   const parsePeriod = qn => {
     const monthRange = mi => { const d = new Date(y, mi, 1); return { from: new Date(d.getFullYear(), d.getMonth(), 1), to: new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59), label: `tháng ${d.getMonth() + 1}/${d.getFullYear()}`, monthIdx: d.getMonth() }; };
@@ -160,10 +170,25 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     // #4 — slot-filling: nếu chỉ nêu tiêu chí mơ hồ, hỏi lại
     if (has(qn, "tre", "nhanh", "diem", "nhieu", "it")) return { text: "Bạn muốn xem ở phạm vi nào?", clarify: ["Toàn cơ quan", "Phòng HCTH", "Phòng QL-KTDL", "Phòng HT-NTS", "Tháng này"] };
     const s = doSearch(); if (s) return s;
-    return { text: "Mình chưa rõ ý. Thử: tên một người/phòng (+ tháng/quý), \"so sánh A với B\", \"ai có hơn 10 việc\", \"tỷ lệ hoàn thành chung\", hoặc \"tìm việc <từ khoá>\"." };
+    return { text: "Mình chưa rõ ý. Thử: tên một người/phòng (+ tháng/quý), \"so sánh A với B\", \"ai có hơn 10 việc\", \"tỷ lệ hoàn thành chung\", hoặc \"tìm việc <từ khoá>\".", unsure: true };
   };
 
-  const send = (text) => { const q = (text ?? input).trim(); if (!q) return; setShowAc(false); setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", ...answer(q) }]); setInput(""); };
+  const answerKind = a => a.guide ? "guide" : a.unsure ? "unknown" : a.clarify ? "clarify" : a.tasks ? "tasks" : a.bars ? "rank" : a.profileEid ? "profile" : a.list ? "info" : "text";
+  const send = (text) => {
+    const q = (text ?? input).trim(); if (!q) return; setShowAc(false);
+    let ans = answer(q);
+    // TỰ HỌC: nếu không hiểu (hoặc có câu đã "dạy lại" rất giống) -> định tuyến sang câu đúng đã học
+    const c = classify(model, q);
+    if (c && c.corrected && (c.score >= 0.72 || (ans.unsure && c.score >= 0.42))) {
+      const routed = answer(c.corrected);
+      if (!routed.unsure) ans = { ...routed, learnedFrom: c.corrected };
+    }
+    setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", ...ans, q, intent: ans.intent || answerKind(ans) }]);
+    setInput("");
+  };
+  // Ghi nhận phản hồi 👍 / 👎(+dạy lại) => bổ sung mẫu học & dựng lại mô hình ngay
+  const giveFeedback = (i, val) => { const m = msgs[i]; if (!m || !m.q) return; logInteraction({ username: me, question: m.q, intent: m.intent, feedback: val }); rowsRef.current = [{ question: m.q, norm_q: normQ(m.q), corrected_q: null, feedback: val }, ...rowsRef.current]; rebuild(); setReacted(r => ({ ...r, [i]: "done" })); };
+  const teach = (i) => { const m = msgs[i]; const corrected = corrText.trim(); if (!m || !m.q || !corrected) return; logInteraction({ username: me, question: m.q, intent: m.intent, feedback: -1, corrected }); rowsRef.current = [{ question: m.q, norm_q: normQ(m.q), corrected_q: corrected, feedback: -1 }, ...rowsRef.current]; rebuild(); setReacted(r => ({ ...r, [i]: "done" })); setCorrecting(-1); setCorrText(""); send(corrected); };
   const clarify = (base, chip) => { const p = strip(chip); const suffix = p.includes("phong hcth") ? " phòng HCTH" : p.includes("ql-ktdl") ? " phòng QL-KTDL" : p.includes("ht-nts") ? " phòng HT-NTS" : p.includes("thang nay") ? " tháng này" : ""; send((base + suffix).trim()); };
 
   const onFile = async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return; setMsgs(m => [...m, { who: "me", text: `📎 ${f.name}` }, { who: "bot", text: "⏳ Đang đọc & tóm tắt tệp…" }]); try { const [{ extractFileText }, { extractiveSummary }] = await Promise.all([import("../fileText"), import("../summarize")]); const text = await extractFileText(f); const r = extractiveSummary(text); const botMsg = r.ok ? { who: "bot", text: `📝 Tóm tắt "${f.name}":`, list: [...r.summarySentences, ...(r.deadlines.length ? ["⏰ Mốc thời gian: " + r.deadlines.join(" · ")] : [])] } : { who: "bot", text: `Không rút được nội dung có ý nghĩa từ "${f.name}".` }; setMsgs(m => { const c = [...m]; c[c.length - 1] = botMsg; return c; }); } catch (err) { setMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", text: `⚠️ ${err.message || "Không đọc được tệp"}` }; return c; }); } };
@@ -194,6 +219,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
             {msgs.map((m, i) => (
               <div key={i} style={{ alignSelf: m.who === "me" ? "flex-end" : "flex-start", maxWidth: "90%", background: m.who === "me" ? "#4f46e5" : "#fff", color: m.who === "me" ? "#fff" : "#374151", border: m.who === "me" ? "none" : "1px solid #e5e7eb", borderRadius: 12, padding: "8px 12px", fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                 {m.text}
+                {m.learnedFrom && <div style={{ marginTop: 4, fontSize: 11, color: "#7c3aed", fontStyle: "italic" }}>🧠 Hiểu theo câu đã học: "{m.learnedFrom}"</div>}
                 {m.list && m.list.length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 3 }}>{m.list.map((li, k) => <div key={k} style={{ fontSize: 12.5 }}>{li}</div>)}</div>}
                 {m.bars && m.bars.length > 0 && barBlock(m.bars)}
                 {m.spark && sparkBlock(m.spark)}
@@ -205,6 +231,28 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
                     {m.guide && onOpenHelp && <button onClick={() => { onOpenHelp(); setOpen(false); }} style={{ fontSize: 11.5, color: "#4338ca", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 8, padding: "3px 10px", cursor: "pointer", fontWeight: 600 }}>📘 Mở hướng dẫn</button>}
                     {!m.guide && (m.bars || m.tasks || m.list) && <button onClick={() => exportCsv(m)} style={{ fontSize: 11.5, color: "#15803d", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>⬇ CSV</button>}
                     <button onClick={() => copyMsg(m, i)} style={{ fontSize: 11.5, color: "#6b7280", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>{copied === i ? "✓ Đã sao chép" : "⧉ Sao chép"}</button>
+                  </div>
+                )}
+                {m.who === "bot" && m.q && (
+                  <div style={{ marginTop: 8, borderTop: "1px dashed #eef2ff", paddingTop: 6 }}>
+                    {reacted[i] === "done" ? (
+                      <div style={{ fontSize: 11, color: "#16a34a" }}>✓ Cảm ơn, tôi đã ghi nhận để trả lời tốt hơn.</div>
+                    ) : correcting === i ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <div style={{ fontSize: 11.5, color: "#6b7280" }}>Bạn muốn hỏi điều gì? Viết lại giúp tôi hiểu:</div>
+                        <input value={corrText} onChange={e => setCorrText(e.target.value)} onKeyDown={e => e.key === "Enter" && teach(i)} placeholder="VD: ai trễ nhiều nhất phòng HCTH tháng 7" autoFocus style={{ fontSize: 12.5, padding: "6px 10px", border: "1px solid #c7d2fe", borderRadius: 8, outline: "none" }} />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => teach(i)} style={{ fontSize: 11.5, background: "#4f46e5", color: "#fff", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontWeight: 600 }}>Dạy trợ lý</button>
+                          <button onClick={() => { setCorrecting(-1); setCorrText(""); }} style={{ fontSize: 11.5, background: "none", color: "#6b7280", border: "none", cursor: "pointer" }}>Hủy</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <span style={{ fontSize: 11, color: "#9ca3af" }}>Hữu ích?</span>
+                        <button onClick={() => giveFeedback(i, 1)} title="Đúng ý" style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer" }}>👍</button>
+                        <button onClick={() => { setCorrecting(i); setCorrText(""); }} title="Chưa đúng — dạy lại" style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer" }}>👎</button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
