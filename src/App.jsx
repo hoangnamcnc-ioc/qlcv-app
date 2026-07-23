@@ -958,15 +958,15 @@ export default function App() {
       {/* ── DUYỆT HOÀN THÀNH & ĐÁNH GIÁ (TP/PP/BGĐ) ── */}
       {approveModal&&(
         <div onClick={()=>setApproveModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:440,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
-            <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:440,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+            <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexShrink:0}}>
               <div><div style={{fontWeight:700,fontSize:15}}>✅ Duyệt hoàn thành & đánh giá</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{approveModal.title}</div></div>
               <button onClick={()=>setApproveModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
             </div>
-            <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+            <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14,overflowY:"auto",flex:1,minHeight:0}}>
               <div style={{padding:"10px 14px",background:"#f8fafc",borderRadius:8,fontSize:12,color:"#374151"}}>
                 <div style={{marginBottom:4}}><b>{approveModal.requested_by}</b> yêu cầu lúc {approveModal.requested_at}</div>
-                {approveModal.completion_note&&<div style={{fontStyle:"italic",color:"#6b7280"}}>"{approveModal.completion_note}"</div>}
+                {approveModal.completion_note&&<div style={{fontStyle:"italic",color:"#6b7280",maxHeight:"32vh",overflowY:"auto",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>"{approveModal.completion_note}"</div>}
               </div>
               <div>
                 <div style={{fontSize:12,color:"#6b7280",marginBottom:8,fontWeight:500}}>Đánh giá kết quả <span style={{color:"#dc2626"}}>*</span></div>
@@ -979,7 +979,7 @@ export default function App() {
                 <input value={approveNote} onChange={e=>setApproveNote(e.target.value)} placeholder="Nhận xét về kết quả công việc..." style={inp}/>
               </div>
             </div>
-            <div style={{padding:"0 20px 18px",display:"flex",gap:8}}>
+            <div style={{padding:"12px 20px 16px",display:"flex",gap:8,borderTop:"1px solid #e5e7eb",flexShrink:0,background:"#fff",borderRadius:"0 0 14px 14px"}}>
               <button onClick={()=>setApproveModal(null)} style={{flex:1,padding:10,border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>Hủy</button>
               <button onClick={confirmApproveCompletion} disabled={!approveRating} style={{flex:2,padding:10,border:"none",borderRadius:8,background:approveRating?"#16a34a":"#d1d5db",color:"#fff",cursor:approveRating?"pointer":"not-allowed",fontSize:13,fontWeight:600}}>Xác nhận duyệt hoàn thành</button>
             </div>
