@@ -238,7 +238,10 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
           {d.sender&&<div style={{fontSize:12,color:"#6b7280",marginBottom:4}}>{isIncoming(d)?"Nơi gửi":"Nơi nhận"}: {d.sender}</div>}
           {d.note&&<div style={{fontSize:12,color:"#475569",fontStyle:"italic",marginBottom:4}}>📝 {d.note}</div>}
           {atts.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{atts.map((f,fi)=><a key={fi} href={getPreviewUrl(f.url,f.name)} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
-          {isIncoming(d)&&parseJSON(d.forwards,[]).length>0&&<div style={{fontSize:11,color:"#6d28d9",marginTop:6}}>↪️ Đã chuyển: {parseJSON(d.forwards,[]).map(f=>`${f.to_name}${f.viewed_at?" (👁️ đã xem)":" (🔴 chưa xem)"}`).join(" → ")}</div>}
+          {isIncoming(d)&&parseJSON(d.forwards,[]).length>0&&(()=>{const ch=parseJSON(d.forwards,[]);const dir=ch.filter(f=>f.note&&String(f.note).trim());return(<>
+            <div style={{fontSize:11,color:"#6d28d9",marginTop:6}}>↪️ Đã chuyển: {ch.map(f=>`${f.to_name}${f.viewed_at?" (👁️ đã xem)":" (🔴 chưa xem)"}`).join(" → ")}</div>
+            {dir.map((f,fi)=><div key={fi} style={{marginTop:4,padding:"6px 10px",background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,fontSize:12,color:"#9a3412"}}>📌 Ý kiến chỉ đạo{f.by_name?` — ${f.by_name}`:""}{f.at?` (${f.at})`:""}: <b>{f.note}</b></div>)}
+          </>);})()}
           {linkedTask&&(()=>{const st=STATUS[getStatus(linkedTask)];return(
           <div onClick={()=>onOpenTask&&onOpenTask(linkedTask)} style={{marginTop:8,padding:"6px 10px",background:"#f8fafc",borderRadius:8,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",color:"#4338ca"}}>🔗 Liên kết nhiệm vụ: <b>{linkedTask.title}</b>{st&&<span style={{background:st.bg,color:st.col,padding:"1px 8px",borderRadius:999,fontSize:11,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,flexShrink:0}}><span style={{width:6,height:6,borderRadius:"50%",background:st.dot,display:"inline-block"}}/>{st.label}</span>}</div>);})()}
           </div>
