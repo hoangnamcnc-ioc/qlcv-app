@@ -1302,7 +1302,7 @@ export default function App() {
     </div>
     </div>
     {/* Trợ lý chat — NGOÀI div zoom để popup fixed không bị scale/tràn màn hình mobile */}
-    {["admin","director","manager","deputy_manager","manager_hcth"].includes(currentUser?.role)&&(
+    {currentUser&&(
       <Suspense fallback={null}>
         <AssistantChat isMobile={isMobile} me={currentUser?.full_name||currentUser?.username} employees={employees} computed={computed} calcMonthPerf={calcMonthPerf} managerPerf={managerPerf} empReliability={empReliability} activeLoadByEid={activeLoadByEid} getEmp={getEmp} isCompletedStatus={isCompletedStatus} onOpenTask={t=>{setModal(t);loadComments(t.id);}} onOpenProfile={eid=>{setView("dashboard");setPendingProfileId(eid);}} onOpenHelp={()=>setView("help")}/>
       </Suspense>
