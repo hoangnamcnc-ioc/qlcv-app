@@ -852,7 +852,7 @@ export default function App() {
             <HelpGuide isMobile={isMobile}/>
           )}
           {view==="documents"&&canSeeDocumentsTab&&(
-            <Documents currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role)} tasks={tasks} users={users} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} onOpenTask={(t)=>{setView("tasks");const full=computed.find(x=>x.id===t.id)||t;setModal(full);loadComments(full.id);}} onCreateTask={openCreateTaskFromDoc}/>
+            <Documents currentUser={currentUser} isMobile={isMobile} inp={inp} showToast={showToast} canManage={["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role)} tasks={tasks} users={users} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} onOpenTask={(t)=>{setView("tasks");const full=computed.find(x=>x.id===t.id)||t;setModal(full);loadComments(full.id);}} onCreateTask={openCreateTaskFromDoc} projects={projectsForScoring} onProjectsChanged={refreshScoringData}/>
           )}
           {view==="chat"&&(
             <Chat currentUser={currentUser} users={users} isMobile={isMobile} inp={inp} showToast={showToast}/>

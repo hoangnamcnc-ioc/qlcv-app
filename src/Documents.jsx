@@ -8,7 +8,26 @@ const nowStr=()=>new Date().toLocaleString("vi-VN");
 const TYPES={den:{label:"Văn bản đến",icon:"📥",bg:"#dbeafe",col:"#1d4ed8"},di:{label:"Văn bản đi",icon:"📤",bg:"#dcfce7",col:"#15803d"}};
 const isIncoming=d=>d.type==="den"||d.type==="incoming";
 
-export default function Documents({ currentUser, isMobile, inp, showToast, canManage, tasks, users, getTaskTitle, onOpenTask, onCreateTask, uploadFiles, uploadingFiles }){
+export default function Documents({ currentUser, isMobile, inp, showToast, canManage, tasks, users, getTaskTitle, onOpenTask, onCreateTask, uploadFiles, uploadingFiles, projects, onProjectsChanged }){
+  const [assignModal,setAssignModal]=useState(null); // { doc, atts } — gán văn bản vào bước nhiệm vụ ngân sách
+  const [assignProjId,setAssignProjId]=useState("");
+  const [assignStepIdx,setAssignStepIdx]=useState("");
+  const [assigning,setAssigning]=useState(false);
+  const openAssign=(d,atts)=>{setAssignModal({doc:d,atts});setAssignProjId("");setAssignStepIdx("");};
+  const confirmAssign=async()=>{
+    const p=(projects||[]).find(x=>x.id===assignProjId);
+    if(!p||assignStepIdx===""){showToast&&showToast("Vui lòng chọn dự án và bước","error");return;}
+    setAssigning(true);
+    const idx=Number(assignStepIdx);const steps=parseJSON(p.steps,[]);
+    const cur=steps[idx].attachments||[];const seen=new Set(cur.map(f=>f.url));
+    const merged=[...cur];for(const f of assignModal.atts){if(!seen.has(f.url)){merged.push({name:f.name,url:f.url,from_doc:assignModal.doc.doc_number});seen.add(f.url);}}
+    const ns=steps.map((s,i)=>i===idx?{...s,attachments:merged}:s);
+    const{error}=await supabase.from("projects").update({steps:JSON.stringify(ns)}).eq("id",p.id);
+    setAssigning(false);
+    if(error){showToast&&showToast("Lỗi: "+(error.message||""),"error");return;}
+    showToast&&showToast(`Đã gán ${assignModal.atts.length} tệp vào bước "${steps[idx].content}" của dự án "${p.name}"`);
+    setAssignModal(null);onProjectsChanged&&onProjectsChanged();
+  };
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
@@ -173,6 +192,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
             </div>
             {canManage&&!selectMode&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {isIncoming(d)&&!d.task_id&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}
+              {atts.length>0&&projects&&projects.length>0&&<button onClick={()=>openAssign(d,atts)} style={{padding:"3px 9px",border:"1px solid #fcd34d",borderRadius:6,background:"#fffbeb",cursor:"pointer",fontSize:11,color:"#92400e",fontWeight:500}}>💰 Gán ngân sách</button>}
               {isIncoming(d)&&canForwardRole&&forwardTargets.length>0&&<button onClick={()=>openForward(d)} style={{padding:"3px 9px",border:"1px solid #c4b5fd",borderRadius:6,background:"#f5f3ff",cursor:"pointer",fontSize:11,color:"#6d28d9",fontWeight:500}}>↪️ Chuyển</button>}
               {canRecall(d)&&<button onClick={()=>recallForward(d)} style={{padding:"3px 9px",border:"1px solid #fdba74",borderRadius:6,background:"#fff7ed",cursor:"pointer",fontSize:11,color:"#c2410c",fontWeight:500}}>↩️ Thu hồi</button>}
               <button onClick={()=>openEdit(d)} style={{padding:"3px 9px",border:"1px solid #d1d5db",borderRadius:6,background:"#f9fafb",cursor:"pointer",fontSize:11}}>✏️ Sửa</button>
@@ -194,6 +214,16 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
           </div>
         </div>);})}
     </div>}
+
+    {assignModal&&(<div onClick={()=>setAssignModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:isMobile?"12px 8px":16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:480,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+      <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>💰 Gán văn bản vào nhiệm vụ ngân sách</span><button onClick={()=>setAssignModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div>
+      <div style={{padding:18,display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{background:"#f8fafc",border:"1px solid #e5e7eb",borderRadius:8,padding:"9px 12px",fontSize:12.5,color:"#374151"}}><b>{assignModal.doc.doc_number}</b> — {assignModal.doc.title}<div style={{color:"#6b7280",marginTop:3}}>📎 {assignModal.atts.length} tệp sẽ được đính vào bước bạn chọn.</div></div>
+        <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Dự án ngân sách *</label><select value={assignProjId} onChange={e=>{setAssignProjId(e.target.value);setAssignStepIdx("");}} style={inp}><option value="">— Chọn dự án —</option>{(projects||[]).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+        {assignProjId&&(()=>{const p=(projects||[]).find(x=>x.id===assignProjId);const steps=parseJSON(p?.steps,[]);return steps.length?<div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Bước thực hiện *</label><select value={assignStepIdx} onChange={e=>setAssignStepIdx(e.target.value)} style={inp}><option value="">— Chọn bước —</option>{steps.map((s,i)=><option key={i} value={i}>{s.id}. {s.content}</option>)}</select></div>:<div style={{fontSize:12,color:"#b91c1c"}}>Dự án này chưa có bước nào.</div>;})()}
+      </div>
+      <div style={{padding:"12px 18px",borderTop:"1px solid #e5e7eb",display:"flex",justifyContent:"flex-end",gap:8}}><button onClick={()=>setAssignModal(null)} style={{padding:"7px 16px",border:"1px solid #d1d5db",borderRadius:7,background:"none",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={confirmAssign} disabled={assigning||!assignProjId||assignStepIdx===""} style={{padding:"7px 16px",background:assigning||!assignProjId||assignStepIdx===""?"#d1d5db":"#d97706",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:13,fontWeight:600}}>{assigning?"Đang gán…":"💰 Gán vào bước"}</button></div>
+    </div></div>)}
 
     {form&&(<div onClick={()=>setForm(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:isMobile?"12px 8px":16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:520,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
       <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff"}}><span style={{fontWeight:600,fontSize:15}}>{form.id?"Sửa văn bản":"Thêm văn bản"}</span><button onClick={()=>setForm(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div>
