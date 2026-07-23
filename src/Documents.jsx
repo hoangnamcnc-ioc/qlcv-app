@@ -9,6 +9,34 @@ const TYPES={den:{label:"Văn bản đến",icon:"📥",bg:"#dbeafe",col:"#1d4ed
 const isIncoming=d=>d.type==="den"||d.type==="incoming";
 
 export default function Documents({ currentUser, isMobile, inp, showToast, canManage, tasks, users, getTaskTitle, onOpenTask, onCreateTask, uploadFiles, uploadingFiles, projects, onProjectsChanged }){
+  const [sumModal,setSumModal]=useState(null); // { doc, fileName, loading, error, result } — tóm tắt rút trích
+  const extractText=async(att)=>{
+    const resp=await fetch(att.url); if(!resp.ok) throw new Error("Không tải được tệp (có thể do quyền truy cập).");
+    const buf=await resp.arrayBuffer(); const name=(att.name||"").toLowerCase();
+    if(name.endsWith(".pdf")){
+      const pdfjs=await import("pdfjs-dist");
+      const workerUrl=(await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+      pdfjs.GlobalWorkerOptions.workerSrc=workerUrl;
+      const pdf=await pdfjs.getDocument({data:buf}).promise; let text=""; const max=Math.min(pdf.numPages,25);
+      for(let i=1;i<=max;i++){const p=await pdf.getPage(i);const c=await p.getTextContent();text+=c.items.map(it=>it.str).join(" ")+"\n";}
+      return text;
+    }
+    if(name.endsWith(".docx")){const mammoth=await import("mammoth");const{value}=await mammoth.extractRawText({arrayBuffer:buf});return value;}
+    if(name.endsWith(".txt"))return new TextDecoder("utf-8").decode(buf);
+    if(name.endsWith(".doc"))throw new Error("File Word cũ (.doc) chưa hỗ trợ — hãy lưu lại thành .docx.");
+    throw new Error("Chỉ tóm tắt được PDF, Word (.docx) hoặc .txt.");
+  };
+  const openSummary=async(d,atts)=>{
+    const att=(atts||[]).find(a=>/\.(pdf|docx|txt)$/i.test(a.name||""));
+    if(!att){showToast&&showToast("Văn bản không có tệp PDF/Word để tóm tắt","error");return;}
+    setSumModal({doc:d,fileName:att.name,loading:true,error:null,result:null});
+    try{
+      const text=await extractText(att);
+      const { extractiveSummary }=await import("./summarize");
+      const result=extractiveSummary(text);
+      setSumModal(m=>m&&m.doc.id===d.id?{...m,loading:false,result}:m);
+    }catch(e){setSumModal(m=>m&&m.doc.id===d.id?{...m,loading:false,error:e.message||"Không đọc được nội dung tệp"}:m);}
+  };
   const [assignModal,setAssignModal]=useState(null); // { doc, atts } — gán văn bản vào bước nhiệm vụ ngân sách
   const [assignProjId,setAssignProjId]=useState("");
   const [assignStepIdx,setAssignStepIdx]=useState("");
@@ -198,6 +226,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
             </div>
             {canManage&&!selectMode&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {isIncoming(d)&&!d.task_id&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}
+              {atts.some(a=>/\.(pdf|docx|txt)$/i.test(a.name||""))&&<button onClick={()=>openSummary(d,atts)} style={{padding:"3px 9px",border:"1px solid #a5b4fc",borderRadius:6,background:"#eef2ff",cursor:"pointer",fontSize:11,color:"#4338ca",fontWeight:500}}>📝 Tóm tắt</button>}
               {atts.length>0&&projects&&projects.length>0&&<button onClick={()=>openAssign(d,atts)} style={{padding:"3px 9px",border:"1px solid #fcd34d",borderRadius:6,background:"#fffbeb",cursor:"pointer",fontSize:11,color:"#92400e",fontWeight:500}}>💰 Gán ngân sách</button>}
               {isIncoming(d)&&canForwardRole&&forwardTargets.length>0&&<button onClick={()=>openForward(d)} style={{padding:"3px 9px",border:"1px solid #c4b5fd",borderRadius:6,background:"#f5f3ff",cursor:"pointer",fontSize:11,color:"#6d28d9",fontWeight:500}}>↪️ Chuyển</button>}
               {canRecall(d)&&<button onClick={()=>recallForward(d)} style={{padding:"3px 9px",border:"1px solid #fdba74",borderRadius:6,background:"#fff7ed",cursor:"pointer",fontSize:11,color:"#c2410c",fontWeight:500}}>↩️ Thu hồi</button>}
@@ -221,6 +250,23 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
           </div>
         </div>);})}
     </div>}
+
+    {sumModal&&(<div onClick={()=>setSumModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:isMobile?"12px 8px":16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:560,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+      <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexShrink:0}}><div><div style={{fontWeight:600,fontSize:15}}>📝 Tóm tắt nhanh (rút trích)</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{sumModal.doc.doc_number} · {sumModal.fileName}</div></div><button onClick={()=>setSumModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div>
+      <div style={{padding:18,overflowY:"auto",flex:1,minHeight:0,fontSize:13,color:"#374151"}}>
+        <div style={{background:"#f8fafc",border:"1px solid #e5e7eb",borderRadius:8,padding:"9px 12px",marginBottom:12}}><div style={{fontWeight:600,color:"#111827"}}>Trích yếu:</div><div>{sumModal.doc.title}</div>{sumModal.doc.sender&&<div style={{color:"#6b7280",marginTop:3,fontSize:12}}>Nơi gửi: {sumModal.doc.sender} · Ngày: {fmtDate(sumModal.doc.doc_date)}</div>}</div>
+        {sumModal.loading&&<div style={{textAlign:"center",color:"#6b7280",padding:20}}>⏳ Đang đọc và rút trích nội dung tệp…</div>}
+        {sumModal.error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"10px 12px",color:"#b91c1c"}}>⚠️ {sumModal.error}<div style={{fontSize:11.5,color:"#9a3412",marginTop:6}}>Nếu là PDF scan (ảnh), không có lớp chữ để đọc — chỉ xem được trích yếu ở trên.</div></div>}
+        {sumModal.result&&!sumModal.result.ok&&<div style={{color:"#92400e"}}>Không rút được nội dung có ý nghĩa (có thể là ảnh scan hoặc tệp rỗng). Xem trích yếu ở trên.</div>}
+        {sumModal.result&&sumModal.result.ok&&(<>
+          <div style={{fontWeight:600,color:"#111827",marginBottom:6}}>🔑 Ý chính:</div>
+          <ul style={{margin:"0 0 12px",paddingLeft:20,lineHeight:1.6}}>{sumModal.result.summarySentences.map((s,i)=><li key={i} style={{marginBottom:4}}>{s}</li>)}</ul>
+          {sumModal.result.deadlines.length>0&&<><div style={{fontWeight:600,color:"#111827",marginBottom:6}}>⏰ Mốc thời gian / hạn:</div><ul style={{margin:"0 0 12px",paddingLeft:20,lineHeight:1.6}}>{sumModal.result.deadlines.map((s,i)=><li key={i} style={{marginBottom:3}}>{s}</li>)}</ul></>}
+          {sumModal.result.listItems.length>0&&<><div style={{fontWeight:600,color:"#111827",marginBottom:6}}>📋 Các mục liệt kê:</div><ul style={{margin:"0 0 12px",paddingLeft:20,lineHeight:1.55,fontSize:12.5,color:"#475569"}}>{sumModal.result.listItems.map((s,i)=><li key={i} style={{marginBottom:2}}>{s}</li>)}</ul></>}
+          <div style={{fontSize:11,color:"#9ca3af",fontStyle:"italic",marginTop:8}}>💡 Đây là tóm tắt RÚT TRÍCH (lấy nguyên câu quan trọng, không diễn giải lại) — dùng để nắm nhanh, hãy đối chiếu văn bản gốc khi cần chính xác.</div>
+        </>)}
+      </div>
+    </div></div>)}
 
     {assignModal&&(<div onClick={()=>setAssignModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:isMobile?"12px 8px":16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:480,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
       <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>💰 Gán văn bản vào nhiệm vụ ngân sách</span><button onClick={()=>setAssignModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div>
