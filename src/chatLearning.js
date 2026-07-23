@@ -15,6 +15,7 @@ export function buildModel(rows) {
     terms: tokenize(r.norm_q || r.question || ""),
     corrected: r.corrected_q || null,
     feedback: r.feedback || 0,
+    promoted: !!r.promoted,
     raw: r.question || "",
   })).filter(d => d.terms.length);
   const df = new Map();
@@ -47,21 +48,43 @@ export function classify(model, question) {
   const qv = model.vec(tokenize(question));
   if (!qv.size) return null;
   let best = null, bs = 0;
-  for (const ex of model.examples) { const s = cosine(qv, ex.v); if (s > bs) { bs = s; best = ex; } }
+  // Câu đã "thăng cấp" (promoted) được ưu tiên hơn khi điểm giống xấp xỉ nhau
+  for (const ex of model.examples) { const s = cosine(qv, ex.v) * (ex.promoted ? 1.15 : 1); if (s > bs) { bs = s; best = ex; } }
   if (!best) return null;
-  return { score: bs, corrected: best.corrected, raw: best.raw, feedback: best.feedback };
+  return { score: bs, corrected: best.corrected, raw: best.raw, feedback: best.feedback, promoted: best.promoted };
 }
 
 export async function fetchLearning() {
   try {
     const { data, error } = await supabase
       .from("chat_learning")
-      .select("question,norm_q,corrected_q,feedback")
+      .select("question,norm_q,corrected_q,feedback,promoted")
       .order("created_at", { ascending: false })
       .limit(1000);
     if (error) return [];
     return data || [];
   } catch { return []; }
+}
+
+// ── Dùng cho trang admin: xem/duyệt/thăng cấp/xoá ──
+export async function fetchAllLearning() {
+  try {
+    const { data, error } = await supabase
+      .from("chat_learning")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(2000);
+    if (error) return { rows: [], error: error.message };
+    return { rows: data || [], error: null };
+  } catch (e) { return { rows: [], error: e.message }; }
+}
+
+export async function setPromoted(id, val) {
+  try { const { error } = await supabase.from("chat_learning").update({ promoted: val }).eq("id", id); return !error; } catch { return false; }
+}
+
+export async function deleteLearning(id) {
+  try { const { error } = await supabase.from("chat_learning").delete().eq("id", id); return !error; } catch { return false; }
 }
 
 export async function logInteraction({ username, question, intent, feedback, corrected }) {
