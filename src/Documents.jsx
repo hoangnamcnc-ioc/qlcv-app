@@ -23,8 +23,14 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
     const merged=[...cur];for(const f of assignModal.atts){if(!seen.has(f.url)){merged.push({name:f.name,url:f.url,from_doc:assignModal.doc.doc_number});seen.add(f.url);}}
     const ns=steps.map((s,i)=>i===idx?{...s,attachments:merged}:s);
     const{error}=await supabase.from("projects").update({steps:JSON.stringify(ns)}).eq("id",p.id);
+    if(error){setAssigning(false);showToast&&showToast("Lỗi: "+(error.message||""),"error");return;}
+    // Ghi nhận liên kết lên chính văn bản để hiển thị "Đã gán ngân sách" (bỏ trùng theo dự án + bước)
+    const curLinks=parseJSON(assignModal.doc.budget_links,[]);
+    const entry={project_id:p.id,project_name:p.name,step_id:steps[idx].id,step_content:steps[idx].content};
+    const nl=curLinks.some(x=>x.project_id===entry.project_id&&x.step_id===entry.step_id)?curLinks:[...curLinks,entry];
+    await supabase.from("documents").update({budget_links:JSON.stringify(nl)}).eq("id",assignModal.doc.id);
+    setItems(prev=>prev.map(x=>x.id===assignModal.doc.id?{...x,budget_links:JSON.stringify(nl)}:x));
     setAssigning(false);
-    if(error){showToast&&showToast("Lỗi: "+(error.message||""),"error");return;}
     showToast&&showToast(`Đã gán ${assignModal.atts.length} tệp vào bước "${steps[idx].content}" của dự án "${p.name}"`);
     setAssignModal(null);onProjectsChanged&&onProjectsChanged();
   };
@@ -205,6 +211,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
               {last&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:8,fontWeight:500,background:last.viewed_at?"#dcfce7":"#fee2e2",color:last.viewed_at?"#15803d":"#b91c1c"}}>{last.viewed_at?"👁️ Đã xem":"🔴 Chưa xem"}</span>}
               <span style={{fontSize:11,padding:"2px 8px",borderRadius:8,fontWeight:500,background:d.task_id?"#dbeafe":"#fef9c3",color:d.task_id?"#1d4ed8":"#92400e"}}>{d.task_id?"📋 Đã giao việc":"⏳ Chưa giao việc"}</span>
             </div>);})()}
+          {parseJSON(d.budget_links,[]).length>0&&<div style={{marginTop:4,marginBottom:4,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",fontSize:12,color:"#92400e"}}>💰 Đã gán ngân sách:{parseJSON(d.budget_links,[]).map((b,bi)=><span key={bi} title={b.project_name} style={{background:"#fffbeb",border:"1px solid #fcd34d",padding:"2px 8px",borderRadius:8,fontWeight:500}}>{b.project_name} · Bước {b.step_id}{b.step_content?` — ${b.step_content}`:""}</span>)}</div>}
           {d.sender&&<div style={{fontSize:12,color:"#6b7280",marginBottom:4}}>{isIncoming(d)?"Nơi gửi":"Nơi nhận"}: {d.sender}</div>}
           {d.note&&<div style={{fontSize:12,color:"#475569",fontStyle:"italic",marginBottom:4}}>📝 {d.note}</div>}
           {atts.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{atts.map((f,fi)=><a key={fi} href={getPreviewUrl(f.url,f.name)} target="_blank" rel="noreferrer" style={{fontSize:11,background:"#eef2ff",color:"#4338ca",padding:"2px 8px",borderRadius:6,textDecoration:"none"}}>📎 {f.name}</a>)}</div>}
