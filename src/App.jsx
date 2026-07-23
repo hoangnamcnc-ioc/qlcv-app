@@ -1304,7 +1304,7 @@ export default function App() {
     {/* Trợ lý chat — NGOÀI div zoom để popup fixed không bị scale/tràn màn hình mobile */}
     {currentUser&&(
       <Suspense fallback={null}>
-        <AssistantChat isMobile={isMobile} me={currentUser?.full_name||currentUser?.username} employees={employees} computed={computed} calcMonthPerf={calcMonthPerf} managerPerf={managerPerf} empReliability={empReliability} activeLoadByEid={activeLoadByEid} getEmp={getEmp} isCompletedStatus={isCompletedStatus} onOpenTask={t=>{setModal(t);loadComments(t.id);}} onOpenProfile={eid=>{setView("dashboard");setPendingProfileId(eid);}} onOpenHelp={()=>setView("help")}/>
+        <AssistantChat isMobile={isMobile} me={currentUser?.full_name||currentUser?.username} employees={employees} computed={computed} calcMonthPerf={calcMonthPerf} managerPerf={managerPerf} empReliability={empReliability} activeLoadByEid={activeLoadByEid} getEmp={getEmp} isCompletedStatus={isCompletedStatus} onOpenTask={t=>{setModal(t);loadComments(t.id);}} onOpenProfile={eid=>{setView("dashboard");setPendingProfileId(eid);}} onOpenHelp={()=>setView("help")} onCreate={(canCreate||canSelfCreate)?openCreateTask:null}/>
       </Suspense>
     )}
     {/* Hướng dẫn nhanh lần đầu — NGOÀI div zoom để không bị tràn/khoá trên mobile */}

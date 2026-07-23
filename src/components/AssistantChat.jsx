@@ -20,7 +20,7 @@ const GUIDE_INDEX = (() => {
 const GUIDE_STOP = new Set(["cach", "lam", "sao", "the", "nao", "huong", "dan", "de", "o", "dau", "su", "dung", "phan", "mem", "toi", "minh", "muon", "gi", "co", "nhu", "va", "cho", "khi", "bang", "duoc", "khong", "la", "mot", "cai", "nay"]);
 const lev = (a, b) => { a = a || ""; b = b || ""; const m = a.length, n = b.length; if (!m) return n; if (!n) return m; let prev = Array.from({ length: n + 1 }, (_, j) => j); for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[n]; };
 
-export default function AssistantChat({ employees, computed, calcMonthPerf, managerPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask, onOpenProfile, onOpenHelp, isMobile, me }) {
+export default function AssistantChat({ employees, computed, calcMonthPerf, managerPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask, onOpenProfile, onOpenHelp, isMobile, me, onCreate }) {
   // Tìm trong TÀI LIỆU HƯỚNG DẪN để trả lời câu "cách dùng" (chấm điểm IDF + cụm 2 từ)
   const searchGuide = qn => {
     const { idx, df, N } = GUIDE_INDEX;
@@ -73,6 +73,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const [reacted, setReacted] = useState({});     // idx tin nhắn -> đã đánh giá
   const [correcting, setCorrecting] = useState(-1); // idx tin nhắn đang "dạy lại"
   const [corrText, setCorrText] = useState("");
+  const [showExplain, setShowExplain] = useState({}); // idx -> mở "vì sao điểm này"
   useEffect(() => { fetchLearning().then(rows => { rowsRef.current = rows; setModel(buildModel(rows)); }); }, []);
   const rebuild = () => setModel(buildModel(rowsRef.current));
 
@@ -98,7 +99,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const rankMap = (map, dir = "desc") => Object.entries(map).sort((a, b) => dir === "desc" ? b[1] - a[1] : a[1] - b[1]);
   const barsFrom = (entries, val = v => v) => entries.slice(0, 6).map(([id, v]) => ({ label: nm(id), value: val(v) }));
   const sixMonth = empId => { const s = []; for (let i = 5; i >= 0; i--) { const d = new Date(y, today.getMonth() - i, 1); const mp = calcMonthPerf(empId, d.getFullYear(), d.getMonth()); s.push(mp.resolved > 0 ? mp.perfScore : null); } return s; };
-  const personStats = (person, period) => { const inP = t => { if (!period) return true; const d = new Date(t.deadline); return !isNaN(d) && d >= period.from && d <= period.to; }; const mi = period?.monthIdx ?? today.getMonth(); const inScope = computed.filter(t => t.eid === person.id && inP(t)); const late = inScope.filter(t => t.status === "completed_late" || t.status === "overdue").length; const openN = computed.filter(t => t.eid === person.id && !isCompletedStatus(t.status)).length; const rel = empReliability[person.id]; const load = activeLoadByEid[person.id]; const isMgr = MANAGER_EMP_ROLES.includes(person.role); const m = isMgr && managerPerf ? managerPerf(person.id, y, mi) : calcMonthPerf(person.id, y, mi); const rslv = isMgr ? m.resolvedW : m.resolved; return { total: inScope.length, late, openN, loadW: load ? load.w : 0, onTime: rel?.onTimeRate, avgDays: rel?.avgDays, score: rslv > 0 ? m.perfScore : null, eligible: m.eligible, mi, isMgr }; };
+  const personStats = (person, period) => { const inP = t => { if (!period) return true; const d = new Date(t.deadline); return !isNaN(d) && d >= period.from && d <= period.to; }; const mi = period?.monthIdx ?? today.getMonth(); const inScope = computed.filter(t => t.eid === person.id && inP(t)); const late = inScope.filter(t => t.status === "completed_late" || t.status === "overdue").length; const openN = computed.filter(t => t.eid === person.id && !isCompletedStatus(t.status)).length; const rel = empReliability[person.id]; const load = activeLoadByEid[person.id]; const isMgr = MANAGER_EMP_ROLES.includes(person.role); const m = isMgr && managerPerf ? managerPerf(person.id, y, mi) : calcMonthPerf(person.id, y, mi); const rslv = isMgr ? m.resolvedW : m.resolved; return { total: inScope.length, late, openN, loadW: load ? load.w : 0, onTime: rel?.onTimeRate, avgDays: rel?.avgDays, score: rslv > 0 ? m.perfScore : null, eligible: m.eligible, mi, isMgr, perf: m }; };
 
   const answer = (raw) => {
     const qn = strip(raw);
@@ -121,15 +122,18 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     // 0) Câu hỏi CÁCH DÙNG phần mềm → tra tài liệu hướng dẫn
     if (has(qn, "cach ", "lam sao", "lam the nao", "huong dan", "su dung", "o dau", "bang cach", "cach de", "dung the nao", "thao tac", "the nao de")) { const g = searchGuide(qn); if (g) return g; }
 
+    // #1 — LỆNH: mở form tạo việc (AN TOÀN: chỉ mở form để bạn tự điền & bấm lưu, không tự ý ghi)
+    if (has(qn, "tao viec moi", "tao nhiem vu moi", "giao viec moi", "them viec moi", "muon tao viec", "tao mot viec", "mo form tao", "tao giup toi viec")) return { text: "Mở form tạo việc mới cho bạn — điền thông tin rồi bấm lưu nhé.", action: "create" };
+
     // 1) Tìm việc theo từ khoá
     const doSearch = () => { const stop = new Set(["tim", "kiem", "tra", "cuu", "viec", "cong", "nhiem", "vu", "co", "nao", "ve", "cua", "la", "gi", "cho", "toi", "ai", "o", "va", "the", "nhat", "trong", "danh", "sach", "cac", "nhung", "hay", "giup", "xem", "lien", "quan", "den"]); const toks = qn.split(/[^a-z0-9]+/).filter(w => w.length >= 2 && !stop.has(w)); if (!toks.length) return null; const res = computed.map(t => { const hay = strip((t.title || "") + " " + (t.description || "")); return { t, hits: toks.filter(w => hay.includes(w)).length }; }).filter(x => x.hits > 0).sort((a, b) => b.hits - a.hits).slice(0, 7); return res.length ? { text: `🔎 Tìm thấy ${res.length} nhiệm vụ khớp:`, tasks: res.map(x => x.t) } : null; };
-    if (has(qn, "tim viec", "tim nhiem vu", "tra cuu", "co viec nao", "viec ve", "nhiem vu ve", "tim ")) { const r = doSearch(); if (r) return r; if (has(qn, "tim", "tra cuu")) return { text: "Không tìm thấy nhiệm vụ nào khớp từ khoá đó." }; }
+    if (has(qn, "tim viec", "tim nhiem vu", "tra cuu", "co viec nao", "viec ve", "nhiem vu ve", "tim ", "mo viec", "xem viec", "nhac viec")) { const r = doSearch(); if (r) return has(qn, "nhac") ? { ...r, text: "🔔 Bấm vào việc để mở, rồi nhấn nút \"Nhắc việc\":" } : r; if (has(qn, "tim", "tra cuu", "mo viec", "nhac")) return { text: "Không tìm thấy nhiệm vụ nào khớp từ khoá đó." }; }
 
     const persons = findPersons(qn);
     // 2) So sánh 2 người
     if (has(qn, "so sanh") && persons.length >= 2) { const [a, b] = persons; const sa = personStats(a, period), sb = personStats(b, period); return { text: `⚖️ So sánh${sc}:`, list: [`Số việc: ${a.name} ${sa.total} · ${b.name} ${sb.total}`, `Trễ/quá hạn: ${a.name} ${sa.late} · ${b.name} ${sb.late}`, `Đúng hạn (lịch sử): ${a.name} ${sa.onTime ?? "—"}% · ${b.name} ${sb.onTime ?? "—"}%`, `Điểm tháng ${sa.mi + 1}: ${a.name} ${sa.score ?? "—"} · ${b.name} ${sb.score ?? "—"}`, `Đang mở: ${a.name} ${sa.openN} · ${b.name} ${sb.openN}`] }; }
     // 3) Một người (kèm sparkline xu hướng)
-    if (person && persons.length <= 1 && !has(qn, "phong nao", "trung binh", "tong so", "ty le")) { const s = personStats(person, period); const list = [`Số việc${sc}: ${s.total}${s.late ? ` · trễ/quá hạn: ${s.late}` : ""}`, `Đang mở: ${s.openN} việc${s.loadW ? ` (≈${s.loadW} quy đổi)` : ""}`]; if (s.onTime != null) list.push(`Đúng hạn (lịch sử): ${s.onTime}%${s.avgDays != null ? ` · TB ~${s.avgDays} ngày/việc` : ""}`); if (s.score != null) list.push(`${s.isMgr ? "🏛️ Điểm điều hành" : "Điểm"} tháng ${s.mi + 1}: ${s.score}đ${s.eligible ? "" : " (tham khảo)"}`); return { text: `👤 ${person.name} — ${person.dept}`, list, profileEid: person.id, spark: sixMonth(person.id) }; }
+    if (person && persons.length <= 1 && !has(qn, "phong nao", "trung binh", "tong so", "ty le")) { const s = personStats(person, period); const list = [`Số việc${sc}: ${s.total}${s.late ? ` · trễ/quá hạn: ${s.late}` : ""}`, `Đang mở: ${s.openN} việc${s.loadW ? ` (≈${s.loadW} quy đổi)` : ""}`]; if (s.onTime != null) list.push(`Đúng hạn (lịch sử): ${s.onTime}%${s.avgDays != null ? ` · TB ~${s.avgDays} ngày/việc` : ""}`); if (s.score != null) list.push(`${s.isMgr ? "🏛️ Điểm điều hành" : "Điểm"} tháng ${s.mi + 1}: ${s.score}đ${s.eligible ? "" : " (tham khảo)"}`); const p = s.perf; const explain = (!s.isMgr && s.score != null && p) ? [`Việc đã đến hạn (quy đổi): ${p.total} · trong đó đúng hạn ${p.onTime}, trễ ${p.completedLate}, quá hạn/tồn ${p.over}`, `Tỷ lệ hoàn thành: ${p.completionRate}% · đủ điều kiện chốt điểm khi ≥5 việc đến hạn (${p.eligible ? "đủ ✓" : "chưa đủ — điểm tham khảo"})`, `Cách tính: điểm = phần đúng hạn (cộng) − phần trễ/quá hạn (trừ) + thưởng khối lượng, có nhân trọng số ưu tiên (nguồn: scoring.js — có kiểm thử).`] : null; const prevMi = (s.mi + 11) % 12; const followups = [`${person.name} tháng ${prevMi + 1}`, `Ai nhiều việc nhất phòng ${person.dept}`, `Ai trễ nhiều nhất phòng ${person.dept}`]; return { text: `👤 ${person.name} — ${person.dept}`, list, profileEid: person.id, spark: sixMonth(person.id), explain, followups }; }
 
     // #6 — Thống kê tổng hợp
     if (has(qn, "trung binh")) { const map = {}; for (const t of computed) { if (t.eid && both(t)) map[t.eid] = (map[t.eid] || 0) + 1; } const vals = Object.values(map); const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : 0; return { text: `Trung bình mỗi người ${avg} việc${sc}.` }; }
@@ -174,8 +178,14 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   };
 
   const answerKind = a => a.guide ? "guide" : a.unsure ? "unknown" : a.clarify ? "clarify" : a.tasks ? "tasks" : a.bars ? "rank" : a.profileEid ? "profile" : a.list ? "info" : "text";
+  // #8 — câu tôi hay hỏi (đếm theo từng người, lưu cục bộ)
+  const freqKey = "qlcv_chatfreq_" + (me || "anon");
+  const bumpFreq = q => { try { const o = JSON.parse(localStorage.getItem(freqKey) || "{}"); o[q] = (o[q] || 0) + 1; localStorage.setItem(freqKey, JSON.stringify(o)); } catch { /* ignore */ } };
+  const topFreq = () => { try { const o = JSON.parse(localStorage.getItem(freqKey) || "{}"); return Object.entries(o).filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([q]) => q); } catch { return []; } };
+  // #2 — "Ý bạn là…?" gợi ý câu gần nhất từ mẫu câu quen + kho đã dạy lại
+  const didYouMean = q => { const qs = strip(q); const qt = new Set(qs.split(/[^a-z0-9]+/).filter(w => w.length >= 2)); if (!qt.size) return []; const pool = new Set(acItems); for (const r of rowsRef.current) { if (r.corrected_q) pool.add(r.corrected_q); } const scored = [...pool].map(x => { const xs = strip(x); const xt = new Set(xs.split(/[^a-z0-9]+/).filter(w => w.length >= 2)); let inter = 0; for (const w of qt) if (xt.has(w)) inter++; const jac = inter / (qt.size + xt.size - inter || 1); const lv = 1 - lev(qs, xs) / Math.max(qs.length, xs.length || 1); return { x, s: Math.max(jac, lv * 0.75) }; }).sort((a, b) => b.s - a.s); return scored.filter(v => v.s >= 0.34).slice(0, 3).map(v => v.x); };
   const send = (text) => {
-    const q = (text ?? input).trim(); if (!q) return; setShowAc(false);
+    const q = (text ?? input).trim(); if (!q) return; setShowAc(false); bumpFreq(q);
     let ans = answer(q);
     // TỰ HỌC: nếu không hiểu (hoặc có câu đã "dạy lại" rất giống) -> định tuyến sang câu đúng đã học
     const c = classify(model, q);
@@ -183,9 +193,12 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
       const routed = answer(c.corrected);
       if (!routed.unsure) ans = { ...routed, learnedFrom: c.corrected };
     }
+    // #2 + #4: chưa hiểu -> gợi ý "ý bạn là" & ghi nhận vào kho để admin biết chỗ trợ lý còn "mù"
+    if (ans.unsure) { const dym = didYouMean(q); if (dym.length) ans = { ...ans, suggestions: dym }; logInteraction({ username: me, question: q, intent: "unknown", feedback: 0 }); }
     setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", ...ans, q, intent: ans.intent || answerKind(ans) }]);
     setInput("");
   };
+  const speak = (m) => { try { const synth = window.speechSynthesis; if (!synth) return; synth.cancel(); const txt = [m.text, ...(m.list || []), ...((m.bars || []).map(b => `${b.label}: ${b.value}`))].join(". "); const u = new SpeechSynthesisUtterance(txt); u.lang = "vi-VN"; synth.speak(u); } catch { /* ignore */ } };
   // Ghi nhận phản hồi 👍 / 👎(+dạy lại) => bổ sung mẫu học & dựng lại mô hình ngay
   const giveFeedback = (i, val) => { const m = msgs[i]; if (!m || !m.q) return; logInteraction({ username: me, question: m.q, intent: m.intent, feedback: val }); rowsRef.current = [{ question: m.q, norm_q: normQ(m.q), corrected_q: null, feedback: val }, ...rowsRef.current]; rebuild(); setReacted(r => ({ ...r, [i]: "done" })); };
   const teach = (i) => { const m = msgs[i]; const corrected = corrText.trim(); if (!m || !m.q || !corrected) return; logInteraction({ username: me, question: m.q, intent: m.intent, feedback: -1, corrected }); rowsRef.current = [{ question: m.q, norm_q: normQ(m.q), corrected_q: corrected, feedback: -1 }, ...rowsRef.current]; rebuild(); setReacted(r => ({ ...r, [i]: "done" })); setCorrecting(-1); setCorrText(""); send(corrected); };
@@ -225,12 +238,17 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
                 {m.spark && sparkBlock(m.spark)}
                 {m.tasks && m.tasks.length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }}>{m.tasks.map(t => { const st = STATUS[t.status]; return (<div key={t.id} onClick={() => onOpenTask && onOpenTask(t)} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "6px 9px", cursor: "pointer", background: "#f8fafc" }}><div style={{ fontSize: 12.5, fontWeight: 600, color: "#374151" }}>{t.title}</div><div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{t.dept} · {nm(t.eid)} · {fmtDate(t.deadline)} {st && <span style={{ color: st.col }}>· {st.label}</span>}</div></div>); })}</div>}
                 {m.clarify && <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>{m.clarify.map(c => <button key={c} onClick={() => clarify(msgs[i - 1]?.text || "", c)} style={{ fontSize: 11.5, background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 14, padding: "3px 10px", cursor: "pointer" }}>{c}</button>)}</div>}
+                {m.explain && (<div style={{ marginTop: 6 }}><button onClick={() => setShowExplain(s => ({ ...s, [i]: !s[i] }))} style={{ fontSize: 11.5, color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "3px 10px", cursor: "pointer", fontWeight: 600 }}>🧮 {showExplain[i] ? "Ẩn cách tính" : "Vì sao điểm này?"}</button>{showExplain[i] && <div style={{ marginTop: 5, display: "flex", flexDirection: "column", gap: 3, background: "#fffdf5", border: "1px solid #fde68a", borderRadius: 8, padding: "7px 10px" }}>{m.explain.map((l, k) => <div key={k} style={{ fontSize: 11.5, color: "#78350f", lineHeight: 1.5 }}>• {l}</div>)}</div>}</div>)}
+                {m.action === "create" && onCreate && <div style={{ marginTop: 8 }}><button onClick={() => { onCreate(); setOpen(false); }} style={{ fontSize: 12, background: "#4f46e5", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontWeight: 600 }}>➕ Mở form tạo việc</button></div>}
+                {m.suggestions && <div style={{ marginTop: 8 }}><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>Ý bạn là:</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{m.suggestions.map(s => <button key={s} onClick={() => send(s)} style={{ fontSize: 11.5, background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 14, padding: "3px 10px", cursor: "pointer" }}>{s}</button>)}</div></div>}
+                {m.followups && <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>{m.followups.map(s => <button key={s} onClick={() => send(s)} style={{ fontSize: 11.5, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 14, padding: "3px 10px", cursor: "pointer" }}>↪ {s}</button>)}</div>}
                 {m.who === "bot" && (m.list || m.bars || m.tasks || m.profileEid) && (
                   <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                     {m.profileEid && onOpenProfile && <button onClick={() => { onOpenProfile(m.profileEid); setOpen(false); }} style={{ fontSize: 11.5, color: "#4338ca", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 8, padding: "3px 10px", cursor: "pointer", fontWeight: 600 }}>👤 Xem chi tiết</button>}
                     {m.guide && onOpenHelp && <button onClick={() => { onOpenHelp(); setOpen(false); }} style={{ fontSize: 11.5, color: "#4338ca", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 8, padding: "3px 10px", cursor: "pointer", fontWeight: 600 }}>📘 Mở hướng dẫn</button>}
                     {!m.guide && (m.bars || m.tasks || m.list) && <button onClick={() => exportCsv(m)} style={{ fontSize: 11.5, color: "#15803d", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>⬇ CSV</button>}
                     <button onClick={() => copyMsg(m, i)} style={{ fontSize: 11.5, color: "#6b7280", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>{copied === i ? "✓ Đã sao chép" : "⧉ Sao chép"}</button>
+                    {typeof window !== "undefined" && window.speechSynthesis && <button onClick={() => speak(m)} title="Đọc to" style={{ fontSize: 12.5, background: "none", border: "none", cursor: "pointer" }}>🔊</button>}
                   </div>
                 )}
                 {m.who === "bot" && m.q && (
@@ -262,6 +280,12 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
           {sugs.length > 0 && (
             <div style={{ borderTop: "1px solid #f3f4f6", maxHeight: 150, overflowY: "auto", background: "#fff" }}>
               {sugs.map(s => <div key={s} onMouseDown={e => { e.preventDefault(); setInput(s); setShowAc(false); }} style={{ padding: "7px 14px", fontSize: 12.5, cursor: "pointer", borderBottom: "1px solid #f8fafc", color: "#374151" }}>{s}</div>)}
+            </div>
+          )}
+          {msgs.length <= 1 && topFreq().length > 0 && (
+            <div style={{ borderTop: "1px solid #f3f4f6", background: "#fff", padding: "8px 12px" }}>
+              <div style={{ fontSize: 10.5, color: "#9ca3af", marginBottom: 5 }}>⭐ Câu bạn hay hỏi</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{topFreq().map(s => <button key={s} onClick={() => send(s)} style={{ fontSize: 11.5, background: "#f5f3ff", color: "#6d28d9", border: "1px solid #ddd6fe", borderRadius: 14, padding: "3px 10px", cursor: "pointer" }}>{s}</button>)}</div>
             </div>
           )}
           <div style={{ padding: 10, borderTop: "1px solid #e5e7eb", display: "flex", gap: 6, alignItems: "center" }}>

@@ -28,6 +28,7 @@ export default function ChatLearningAdmin({ isMobile, showToast }) {
     down: rows.filter(r => r.feedback === -1).length,
     taught: rows.filter(r => r.corrected_q).length,
     promoted: rows.filter(r => r.promoted).length,
+    unknown: rows.filter(r => r.intent === "unknown" && !r.corrected_q).length,
   }), [rows]);
 
   const filtered = useMemo(() => {
@@ -36,6 +37,7 @@ export default function ChatLearningAdmin({ isMobile, showToast }) {
     else if (filter === "promoted") r = r.filter(x => x.promoted);
     else if (filter === "up") r = r.filter(x => x.feedback === 1);
     else if (filter === "down") r = r.filter(x => x.feedback === -1 && !x.corrected_q);
+    else if (filter === "unknown") r = r.filter(x => x.intent === "unknown" && !x.corrected_q);
     if (q.trim()) { const s = strip(q.trim()); r = r.filter(x => strip(x.question).includes(s) || strip(x.corrected_q || "").includes(s)); }
     return r;
   }, [rows, filter, q]);
@@ -69,7 +71,9 @@ export default function ChatLearningAdmin({ isMobile, showToast }) {
     ? <span style={{ fontSize: 10.5, background: "#ede9fe", color: "#6d28d9", padding: "1px 7px", borderRadius: 10, fontWeight: 600 }}>Đã dạy lại</span>
     : r.feedback === 1 ? <span style={{ fontSize: 10.5, background: "#dcfce7", color: "#15803d", padding: "1px 7px", borderRadius: 10, fontWeight: 600 }}>👍 Hữu ích</span>
     : r.feedback === -1 ? <span style={{ fontSize: 10.5, background: "#fee2e2", color: "#b91c1c", padding: "1px 7px", borderRadius: 10, fontWeight: 600 }}>👎 Chưa đạt</span>
+    : r.intent === "unknown" ? <span style={{ fontSize: 10.5, background: "#fef3c7", color: "#92400e", padding: "1px 7px", borderRadius: 10, fontWeight: 600 }}>❓ Chưa hiểu</span>
     : <span style={{ fontSize: 10.5, color: "#9ca3af" }}>—</span>;
+  const canPromote = r => !!r.corrected_q || r.feedback === 1;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -87,6 +91,7 @@ export default function ChatLearningAdmin({ isMobile, showToast }) {
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        {chip("unknown", "❓ Chưa hiểu (cần dạy)", stats.unknown)}
         {chip("taught", "Đã dạy lại", stats.taught)}
         {chip("promoted", "⭐ Thăng cấp", stats.promoted)}
         {chip("up", "👍 Hữu ích", stats.up)}
@@ -113,7 +118,7 @@ export default function ChatLearningAdmin({ isMobile, showToast }) {
               {r.corrected_q && <div style={{ fontSize: 12.5, color: "#6d28d9", marginTop: 2, wordBreak: "break-word" }}>↳ hiểu là: <b>"{r.corrected_q}"</b></div>}
             </div>
             <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 6, flexShrink: 0 }}>
-              <button disabled={busy === r.id} onClick={() => doPromote(r, !r.promoted)} style={{ fontSize: 11.5, padding: "5px 10px", borderRadius: 8, border: "1px solid " + (r.promoted ? "#fcd34d" : "#c7d2fe"), background: r.promoted ? "#fffbeb" : "#eef2ff", color: r.promoted ? "#b45309" : "#4338ca", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>{r.promoted ? "★ Bỏ thăng cấp" : "⭐ Thăng cấp"}</button>
+              {canPromote(r) && <button disabled={busy === r.id} onClick={() => doPromote(r, !r.promoted)} style={{ fontSize: 11.5, padding: "5px 10px", borderRadius: 8, border: "1px solid " + (r.promoted ? "#fcd34d" : "#c7d2fe"), background: r.promoted ? "#fffbeb" : "#eef2ff", color: r.promoted ? "#b45309" : "#4338ca", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>{r.promoted ? "★ Bỏ thăng cấp" : "⭐ Thăng cấp"}</button>}
               <button disabled={busy === r.id} onClick={() => doDelete(r)} title="Xoá mẫu học" style={{ fontSize: 11.5, padding: "5px 10px", borderRadius: 8, border: "1px solid #fecaca", background: "#fff0f0", color: "#dc2626", cursor: "pointer" }}>🗑</button>
             </div>
           </div>
