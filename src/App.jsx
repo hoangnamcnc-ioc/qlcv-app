@@ -523,6 +523,9 @@ export default function App() {
   const toggleCollab=empId=>{const cur=parseJSON(taskForm.data.collab_eids,[]);const next=cur.includes(empId)?cur.filter(i=>i!==empId):[...cur,empId];setTaskForm(f=>({...f,data:{...f.data,collab_eids:JSON.stringify(next)}}));};
   const toggleTemplateCollab=empId=>{const cur=parseJSON(templateForm.data.collab_eids,[]);const next=cur.includes(empId)?cur.filter(i=>i!==empId):[...cur,empId];setTemplateForm(f=>({...f,data:{...f.data,collab_eids:JSON.stringify(next)}}));};
   const submitTask=async()=>{let{data,editId}=taskForm;if(!data.title||!data.deadline)return;
+    // Cảnh báo tạo việc TRÙNG theo số văn bản: nếu tiêu đề bắt đầu bằng [số/ký hiệu] mà đã có
+    // nhiệm vụ ĐANG MỞ cùng số đó, hỏi lại trước khi tạo (tránh 1 văn bản bị giao thành 2 việc cho 2 người).
+    if(!editId){const mm=(data.title||"").match(/^\s*\[([^\]]+)\]/);if(mm){const tok=mm[1].trim().toLowerCase();const dup=computed.find(t=>!t.deleted&&!isCompletedStatus(t.status)&&(t.title||"").toLowerCase().includes("["+tok+"]"));if(dup){const who=getEmp(dup.eid)?.name||"—";if(!window.confirm(`⚠️ Văn bản [${mm[1].trim()}] đã có nhiệm vụ đang mở giao cho ${who}:\n"${dup.title}"\n\nVẫn tạo thêm nhiệm vụ mới này?`))return;}}}
     // Chốt chặn phía server-logic: nhân viên tự tạo chỉ được giao cho CHÍNH MÌNH, đúng phòng của mình, không phối hợp người khác.
     if(canSelfCreate&&!canCreate)data={...data,eid:currentUser.employee_id,dept:userDept,collab_eids:"[]",collab_note:""};
     if(editId)await updateTask(editId,data,"Cập nhật nhiệm vụ");else{const created=await addTask(data);if(created&&pendingDocLink){await supabase.from("documents").update({task_id:created.id}).eq("id",pendingDocLink);showToast("Đã liên kết nhiệm vụ với văn bản");}}setPendingDocLink(null);setTaskForm(null);};
