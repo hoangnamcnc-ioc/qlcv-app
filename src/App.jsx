@@ -44,6 +44,7 @@ export default function App() {
 
   const [view,setView]=useState("dashboard");
   const [showQuickStart,setShowQuickStart]=useState(false); // hướng dẫn nhanh lần đầu đăng nhập
+  const [pendingProfileId,setPendingProfileId]=useState(null); // mở Hồ sơ nhân viên từ trợ lý chat
   const [tasks,setTasks]=useState(null); const [employees,setEmployees]=useState(null);
   const [otherTasks,setOtherTasks]=useState([]);
   const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false);
@@ -568,7 +569,7 @@ export default function App() {
 
       {["admin","director","manager","deputy_manager","manager_hcth"].includes(currentUser?.role)&&(
         <Suspense fallback={null}>
-          <AssistantChat employees={employees} computed={computed} calcMonthPerf={calcMonthPerf} empReliability={empReliability} activeLoadByEid={activeLoadByEid} getEmp={getEmp} isCompletedStatus={isCompletedStatus} onOpenTask={t=>{setModal(t);loadComments(t.id);}}/>
+          <AssistantChat employees={employees} computed={computed} calcMonthPerf={calcMonthPerf} empReliability={empReliability} activeLoadByEid={activeLoadByEid} getEmp={getEmp} isCompletedStatus={isCompletedStatus} onOpenTask={t=>{setModal(t);loadComments(t.id);}} onOpenProfile={eid=>{setView("dashboard");setPendingProfileId(eid);}}/>
         </Suspense>
       )}
 
@@ -739,6 +740,7 @@ export default function App() {
               setModal={setModal} loadComments={loadComments}
               getEmp={getEmp} todayStr={todayStr}
               onReassign={(t,eid)=>{setForwardModal(t);setForwardEid(eid);}}
+              pendingProfileId={pendingProfileId} onProfileOpened={()=>setPendingProfileId(null)}
             />
           )}
 

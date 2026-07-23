@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { DEPTS, DEPT_COLOR, ROLE_COLORS, FULL_ACCESS, STATUS, STATUS_ORDER, FREQUENCIES, RATING, PRIO, VI_MONTHS } from "../constants";
 import { isCompletedStatus, fmtDate } from "../helpers";
@@ -16,7 +16,7 @@ export default function Dashboard({
   statFilter, setStatFilter,
   setView, setFDept,
   setModal, loadComments,
-  getEmp, todayStr, onReassign,
+  getEmp, todayStr, onReassign, pendingProfileId, onProfileOpened,
 }) {
   // Nhân viên (staff) chỉ thấy việc của mình → ẩn các khối mang tính điều hành/toàn phòng
   // (thống kê tổng, biểu đồ phòng ban, cảnh báo quá tải, quản lý nhiệm vụ định kỳ) cho gọn và tránh trùng lặp.
@@ -26,6 +26,8 @@ export default function Dashboard({
   const [doneOpen, setDoneOpen] = useState(false); // mục "Đã hoàn thành tháng này"
   const [healthCat, setHealthCat] = useState(null); // nhóm Sức khỏe dữ liệu đang mở danh sách
   const [profileId, setProfileId] = useState(null); // hồ sơ nhân viên đang mở
+  // Mở Hồ sơ nhân viên theo yêu cầu từ Trợ lý chat ("Xem chi tiết")
+  useEffect(() => { if (pendingProfileId) { setProfileId(pendingProfileId); onProfileOpened && onProfileOpened(); } }, [pendingProfileId]);
   const [rosterPage, setRosterPage] = useState(1); // phân trang bảng nhân sự
   // Danh sách nhân sự trong tầm quản lý để lập "bảng nhân sự": TP/PP xem phòng mình, BGĐ xem tất cả
   const rosterEmps = isManagerView ? (employees || []).filter(e => (FULL_ACCESS.includes(currentUser.role) || e.dept === userDept) && !e.no_kpi).slice().sort((a, b) => a.dept === b.dept ? a.name.localeCompare(b.name) : a.dept.localeCompare(b.dept)) : [];
