@@ -1,111 +1,167 @@
 import React, { useState, useRef, useEffect } from "react";
+import { DEPTS, STATUS } from "../constants";
+import { fmtDate } from "../helpers";
 
-// Trợ lý tra cứu bằng THUẬT TOÁN (không dùng AI ngoài): nhận diện ý định theo từ khoá rồi trả lời từ số liệu.
+// Trợ lý tra cứu bằng THUẬT TOÁN (không dùng AI ngoài). Hiểu: bỏ dấu + từ đồng nghĩa, tên người/phòng,
+// mốc thời gian (hôm nay/tuần này/tháng N/quý N/… ngày qua), và TÌM NHIỆM VỤ theo từ khoá gợi nhớ.
 // Phạm vi dữ liệu theo quyền xem của người hỏi (computed đã lọc theo vai trò).
-const VI_MONTHS = ["tháng 1","tháng 2","tháng 3","tháng 4","tháng 5","tháng 6","tháng 7","tháng 8","tháng 9","tháng 10","tháng 11","tháng 12"];
+const strip = s => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d");
+const has = (qn, ...arr) => arr.some(w => qn.includes(w));
 const SUGGESTIONS = [
   "Tháng này ai nhiều việc nhất?",
-  "Ai ít việc nhất?",
   "Ai làm nhanh nhất?",
   "Ai trễ hạn nhiều nhất?",
   "Ai đúng hạn cao nhất?",
-  "Ai điểm cao nhất tháng này?",
-  "Ai đang quá tải?",
-  "Ai đang rảnh nhất?",
-  "Phòng nào tốt nhất?",
+  "Việc nào sắp trễ?",
+  "Còn bao nhiêu việc quá hạn?",
+  "Phòng nào tốt nhất quý 3?",
+  "Tìm việc: báo cáo",
 ];
 
-export default function AssistantChat({ employees, computed, calcMonthPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus }) {
+export default function AssistantChat({ employees, computed, calcMonthPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask }) {
   const [open, setOpen] = useState(false);
-  const [msgs, setMsgs] = useState([{ who: "bot", text: "Chào bạn! Hỏi tôi về công việc theo số liệu, ví dụ bấm một câu gợi ý bên dưới hoặc gõ câu hỏi.", list: [] }]);
+  const [msgs, setMsgs] = useState([{ who: "bot", text: "Chào bạn! Hỏi tôi bằng lời tự nhiên: về một người (\"Nguyễn Văn A tháng này thế nào?\"), một phòng, mốc thời gian (tuần này/quý 3…), hoặc tìm việc theo từ khoá (\"tìm việc báo cáo\")." }]);
   const [input, setInput] = useState("");
   const endRef = useRef(null);
   useEffect(() => { if (open) endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, open]);
 
   const today = new Date();
+  const y = today.getFullYear();
   const nm = id => getEmp(id)?.name || "—";
-  const parseMonth = q => { const m = q.match(/th[aá]ng\s*(\d{1,2})/); if (m) return Math.min(11, Math.max(0, +m[1] - 1)); if (/th[aá]ng n[aà]y|hi[eệ]n t[aạ]i/.test(q)) return today.getMonth(); return null; };
-  const monthLabel = mi => `${VI_MONTHS[mi]}/${today.getFullYear()}`;
 
-  // Đếm việc theo người (lọc theo tháng nếu có)
-  const countTasks = mi => { const y = today.getFullYear(); const map = {}; for (const t of computed) { if (!t.eid) continue; if (mi != null) { const d = new Date(t.deadline); if (isNaN(d) || d.getFullYear() !== y || d.getMonth() !== mi) continue; } map[t.eid] = (map[t.eid] || 0) + 1; } return map; };
-  const countLate = mi => { const y = today.getFullYear(); const map = {}; for (const t of computed) { if (!t.eid) continue; if (!(t.status === "completed_late" || t.status === "overdue")) continue; if (mi != null) { const d = new Date(t.deadline); if (isNaN(d) || d.getFullYear() !== y || d.getMonth() !== mi) continue; } map[t.eid] = (map[t.eid] || 0) + 1; } return map; };
-  const rank = (map, dir = "desc") => Object.entries(map).sort((a, b) => dir === "desc" ? b[1] - a[1] : a[1] - b[1]);
+  const parsePeriod = qn => {
+    const monthRange = mi => ({ from: new Date(y, mi, 1), to: new Date(y, mi + 1, 0, 23, 59, 59), label: `tháng ${mi + 1}/${y}`, monthIdx: mi });
+    let m;
+    if ((m = qn.match(/thang\s*(\d{1,2})/))) return monthRange(Math.min(11, Math.max(0, +m[1] - 1)));
+    if ((m = qn.match(/quy\s*([1-4])/))) { const q = +m[1], s = (q - 1) * 3; return { from: new Date(y, s, 1), to: new Date(y, s + 3, 0, 23, 59, 59), label: `quý ${q}/${y}` }; }
+    if (/hom nay/.test(qn)) { const d = new Date(today); d.setHours(0, 0, 0, 0); const e = new Date(today); e.setHours(23, 59, 59, 999); return { from: d, to: e, label: "hôm nay" }; }
+    if (/tuan nay/.test(qn)) { const d = new Date(today); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); d.setHours(0, 0, 0, 0); const e = new Date(d); e.setDate(e.getDate() + 6); e.setHours(23, 59, 59, 999); return { from: d, to: e, label: "tuần này" }; }
+    if (/thang nay|hien tai/.test(qn)) return monthRange(today.getMonth());
+    if ((m = qn.match(/(\d+)\s*ngay/))) { const d = new Date(today); d.setDate(d.getDate() - +m[1]); return { from: d, to: new Date(today), label: `${m[1]} ngày qua` }; }
+    if (/nam nay/.test(qn)) return { from: new Date(y, 0, 1), to: new Date(y, 11, 31, 23, 59, 59), label: `năm ${y}` };
+    return null;
+  };
+  const findPerson = qn => { let best = null; for (const e of (employees || [])) { const en = strip(e.name); if (qn.includes(en)) { if (!best || en.length > strip(best.name).length) best = e; continue; } const last = en.split(" ").slice(-2).join(" "); if (last.length >= 5 && qn.includes(last) && !best) best = e; } return best; };
+  const findDept = qn => (DEPTS || []).find(d => qn.includes(strip(d)));
+
+  const rankMap = (map, dir = "desc") => Object.entries(map).sort((a, b) => dir === "desc" ? b[1] - a[1] : a[1] - b[1]);
   const topList = (arr, fmt, n = 5) => arr.slice(0, n).map(([id, v], i) => `${i + 1}. ${nm(id)} — ${fmt(v)}`);
 
   const answer = (raw) => {
-    const q = raw.toLowerCase().trim();
-    const mi = parseMonth(q);
-    const scope = mi != null ? ` (${monthLabel(mi)})` : "";
-    // Điểm hiệu suất
-    if (/(đi[eể]m|hi[eệ]u su[aấ]t|x[eế]p h[aạ]ng)/.test(q)) {
-      const useMi = mi != null ? mi : today.getMonth();
-      const rows = (employees || []).filter(e => !e.no_kpi).map(e => ({ e, m: calcMonthPerf(e.id, today.getFullYear(), useMi) })).filter(x => x.m.resolved > 0);
-      const asc = /th[aấ]p|k[eé]m|y[eế]u/.test(q);
-      rows.sort((a, b) => asc ? a.m.perfScore - b.m.perfScore : b.m.perfScore - a.m.perfScore);
-      if (!rows.length) return { text: `Chưa có ai đủ dữ liệu chấm điểm ${monthLabel(useMi)}.`, list: [] };
-      return { text: `Điểm hiệu suất ${monthLabel(useMi)} (${asc ? "thấp → cao" : "cao → thấp"}):`, list: rows.slice(0, 5).map((x, i) => `${i + 1}. ${x.e.name} — ${x.m.perfScore}đ${x.m.eligible ? "" : " (tham khảo)"}`) };
+    const qn = strip(raw);
+    const period = parsePeriod(qn);
+    const inPeriod = t => { if (!period) return true; const d = new Date(t.deadline); return !isNaN(d) && d >= period.from && d <= period.to; };
+    const scope = period ? ` (${period.label})` : "";
+
+    // 1) TÌM NHIỆM VỤ theo từ khoá (khi có động từ tìm, hoặc cụm "việc về/nhiệm vụ về")
+    const wantSearch = has(qn, "tim viec", "tim nhiem vu", "tra cuu", "co viec nao", "viec ve", "nhiem vu ve", "cong viec ve", "tim ");
+    const doSearch = () => {
+      const stop = new Set(["tim", "kiem", "tra", "cuu", "viec", "cong", "nhiem", "vu", "co", "nao", "ve", "cua", "la", "gi", "cho", "toi", "ai", "o", "va", "the", "nhat", "trong", "danh", "sach", "list", "cac", "nhung", "hay", "giup", "xem", "lien", "quan", "den"]);
+      const toks = qn.split(/[^a-z0-9]+/).filter(w => w.length >= 2 && !stop.has(w));
+      if (!toks.length) return null;
+      const res = computed.map(t => { const hay = strip((t.title || "") + " " + (t.description || "")); return { t, hits: toks.filter(w => hay.includes(w)).length }; }).filter(x => x.hits > 0).sort((a, b) => b.hits - a.hits).slice(0, 7);
+      if (!res.length) return null;
+      return { text: `🔎 Tìm thấy ${res.length} nhiệm vụ khớp:`, tasks: res.map(x => x.t) };
+    };
+    if (wantSearch) { const r = doSearch(); if (r) return r; if (has(qn, "tim", "tra cuu")) return { text: "Không tìm thấy nhiệm vụ nào khớp từ khoá đó (trong phạm vi bạn được xem).", list: [] }; }
+
+    // 2) Câu hỏi về MỘT NGƯỜI cụ thể
+    const person = findPerson(qn);
+    if (person) {
+      const mi = period?.monthIdx ?? today.getMonth();
+      const inScope = computed.filter(t => t.eid === person.id && inPeriod(t));
+      const late = inScope.filter(t => t.status === "completed_late" || t.status === "overdue").length;
+      const openN = computed.filter(t => t.eid === person.id && !isCompletedStatus(t.status)).length;
+      const rel = empReliability[person.id]; const load = activeLoadByEid[person.id]; const m = calcMonthPerf(person.id, y, mi);
+      const list = [`Số việc${scope}: ${inScope.length}${late ? ` · trễ/quá hạn: ${late}` : ""}`, `Đang mở: ${openN} việc${load ? ` (≈${load.w} quy đổi)` : ""}`];
+      if (rel?.onTimeRate != null) list.push(`Đúng hạn (lịch sử): ${rel.onTimeRate}%${rel.avgDays != null ? ` · TB ~${rel.avgDays} ngày/việc` : ""}`);
+      if (m.resolved > 0) list.push(`Điểm tháng ${mi + 1}: ${m.perfScore}đ${m.eligible ? "" : " (tham khảo)"}`);
+      return { text: `👤 ${person.name} — ${person.dept}`, list };
     }
-    // Trễ hạn nhiều nhất
-    if (/(tr[eễ]|qu[aá] h[aạ]n)/.test(q)) {
-      const r = rank(countLate(mi));
-      if (!r.length) return { text: `Không có việc trễ/quá hạn nào${scope}. 👍`, list: [] };
+
+    // 3) Câu hỏi về MỘT PHÒNG cụ thể
+    const dept = findDept(qn);
+    if (dept && has(qn, "phong", strip(dept))) {
+      const dt = computed.filter(t => t.dept === dept && inPeriod(t));
+      const done = dt.filter(t => isCompletedStatus(t.status)).length;
+      const overdue = dt.filter(t => t.status === "overdue").length;
+      return { text: `🏢 Phòng ${dept}${scope}`, list: [`Tổng việc: ${dt.length} · Hoàn thành: ${done} (${dt.length ? Math.round(done / dt.length * 100) : 0}%)`, `Quá hạn: ${overdue} · Sắp/đang mở: ${dt.filter(t => !isCompletedStatus(t.status)).length}`] };
+    }
+
+    // 4) Việc sắp trễ / nguy cơ
+    if (has(qn, "sap tre", "sap het han", "nguy co", "sap qua han")) {
+      const dleft = t => { const d = new Date(t.deadline); if (isNaN(d)) return 9999; d.setHours(0, 0, 0, 0); return Math.ceil((d - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000); };
+      const res = computed.filter(t => !isCompletedStatus(t.status) && !t.completion_requested && t.status !== "overdue" && dleft(t) >= 0 && dleft(t) <= 3 && (t.progress || 0) < 60).sort((a, b) => dleft(a) - dleft(b)).slice(0, 7);
+      if (!res.length) return { text: "Không có việc nào sắp trễ (hạn ≤3 ngày, tiến độ <60%). 👍", list: [] };
+      return { text: `⚠️ ${res.length} việc sắp trễ:`, tasks: res };
+    }
+    // 5) Đếm việc quá hạn
+    if (has(qn, "bao nhieu", "con may", "tong so", "may viec") && has(qn, "qua han", "tre")) {
+      const n = computed.filter(t => t.status === "overdue" && inPeriod(t)).length;
+      return { text: `Hiện có ${n} việc quá hạn${scope}.`, list: [] };
+    }
+    // 6) Điểm
+    if (has(qn, "diem", "hieu suat", "xep hang")) {
+      const mi = period?.monthIdx ?? today.getMonth();
+      const rows = (employees || []).filter(e => !e.no_kpi).map(e => ({ e, m: calcMonthPerf(e.id, y, mi) })).filter(x => x.m.resolved > 0);
+      if (!rows.length) return { text: `Chưa có ai đủ dữ liệu chấm điểm tháng ${mi + 1}.`, list: [] };
+      const asc = has(qn, "thap", "kem", "yeu"); rows.sort((a, b) => asc ? a.m.perfScore - b.m.perfScore : b.m.perfScore - a.m.perfScore);
+      return { text: `Điểm tháng ${mi + 1} (${asc ? "thấp → cao" : "cao → thấp"}):`, list: rows.slice(0, 5).map((x, i) => `${i + 1}. ${x.e.name} — ${x.m.perfScore}đ${x.m.eligible ? "" : " (tham khảo)"}`) };
+    }
+    // 7) Trễ nhiều nhất
+    if (has(qn, "tre", "qua han", "cham")) {
+      const map = {}; for (const t of computed) { if (!t.eid) continue; if (!(t.status === "completed_late" || t.status === "overdue")) continue; if (!inPeriod(t)) continue; map[t.eid] = (map[t.eid] || 0) + 1; }
+      const r = rankMap(map); if (!r.length) return { text: `Không có việc trễ/quá hạn nào${scope}. 👍`, list: [] };
       return { text: `Người có nhiều việc trễ/quá hạn nhất${scope}:`, list: topList(r, v => `${v} việc trễ`) };
     }
-    // Đúng hạn cao nhất
-    if (/(đ[uú]ng h[aạ]n|tin c[aậ]y)/.test(q)) {
+    // 8) Đúng hạn cao nhất
+    if (has(qn, "dung han", "tin cay", "dung hen")) {
       const r = Object.entries(empReliability || {}).filter(([id, v]) => v.onTimeRate != null && v.resolved >= 3 && !getEmp(id)?.no_kpi).sort((a, b) => b[1].onTimeRate - a[1].onTimeRate);
       if (!r.length) return { text: "Chưa đủ dữ liệu lịch sử để xếp hạng đúng hạn.", list: [] };
-      return { text: "Đúng hạn cao nhất (theo lịch sử, ≥3 việc):", list: r.slice(0, 5).map(([id, v], i) => `${i + 1}. ${nm(id)} — ${v.onTimeRate}% (${v.resolved} việc)`) };
+      return { text: "Đúng hạn cao nhất (lịch sử, ≥3 việc):", list: r.slice(0, 5).map(([id, v], i) => `${i + 1}. ${nm(id)} — ${v.onTimeRate}% (${v.resolved} việc)`) };
     }
-    // Nhanh nhất
-    if (/(nhanh|s[oớ]m|t[oố]c đ[oộ])/.test(q)) {
+    // 9) Nhanh nhất
+    if (has(qn, "nhanh", "som", "toc do")) {
       const r = Object.entries(empReliability || {}).filter(([id, v]) => v.avgDays != null && v.resolved >= 3 && !getEmp(id)?.no_kpi).sort((a, b) => a[1].avgDays - b[1].avgDays);
       if (!r.length) return { text: "Chưa đủ dữ liệu để tính tốc độ hoàn thành.", list: [] };
       return { text: "Hoàn thành nhanh nhất (thời gian TB/việc):", list: r.slice(0, 5).map(([id, v], i) => `${i + 1}. ${nm(id)} — ~${v.avgDays} ngày/việc`) };
     }
-    // Quá tải / rảnh
-    if (/(qu[aá] t[aả]i|nhi[eề]u vi[eệ]c nh[aấ]t đang|b[aậ]n nh[aấ]t)/.test(q) && /(qu[aá] t[aả]i|b[aậ]n|đang)/.test(q) && mi == null) {
+    // 10) Quá tải
+    if (has(qn, "qua tai", "ban nhat", "om nhieu")) {
       const r = Object.entries(activeLoadByEid || {}).sort((a, b) => b[1].w - a[1].w);
       if (!r.length) return { text: "Hiện không ai có việc đang mở.", list: [] };
       return { text: "Đang gánh nhiều việc mở nhất (quy đổi):", list: r.slice(0, 5).map(([id, v], i) => `${i + 1}. ${nm(id)} — ${v.count} việc (≈${v.w} quy đổi)`) };
     }
-    if (/(r[aả]nh|[ií]t vi[eệ]c nh[aấ]t đang|nh[aà]n)/.test(q) && mi == null && /(r[aả]nh|nh[aà]n|[ií]t)/.test(q)) {
+    // 11) Rảnh nhất
+    if (has(qn, "ranh", "nhan roi") || (has(qn, "it viec") && has(qn, "dang", "hien"))) {
       const withLoad = new Set(Object.keys(activeLoadByEid || {}));
       const free = (employees || []).filter(e => !e.no_kpi && !withLoad.has(e.id));
       if (free.length) return { text: "Đang rảnh (không có việc mở nào):", list: free.slice(0, 6).map((e, i) => `${i + 1}. ${e.name} (${e.dept})`) };
       const r = Object.entries(activeLoadByEid || {}).sort((a, b) => a[1].w - b[1].w);
       return { text: "Ít việc mở nhất (quy đổi):", list: r.slice(0, 5).map(([id, v], i) => `${i + 1}. ${nm(id)} — ${v.count} việc (≈${v.w} quy đổi)`) };
     }
-    // Phòng nào tốt/kém nhất
-    if (/ph[oò]ng n[aà]o|ph[oò]ng.*(t[oố]t|k[eé]m|cao|th[aấ]p)/.test(q)) {
-      const y = today.getFullYear(); const byDept = {};
-      for (const t of computed) { const d = t.dept; if (!d) continue; if (mi != null) { const dd = new Date(t.deadline); if (isNaN(dd) || dd.getFullYear() !== y || dd.getMonth() !== mi) continue; } if (!byDept[d]) byDept[d] = { total: 0, done: 0 }; byDept[d].total++; if (isCompletedStatus(t.status)) byDept[d].done++; }
+    // 12) Phòng nào tốt/kém
+    if (has(qn, "phong nao") || (has(qn, "phong") && has(qn, "tot", "kem", "cao", "thap"))) {
+      const byDept = {}; for (const t of computed) { const d = t.dept; if (!d) continue; if (!inPeriod(t)) continue; if (!byDept[d]) byDept[d] = { total: 0, done: 0 }; byDept[d].total++; if (isCompletedStatus(t.status)) byDept[d].done++; }
       const rows = Object.entries(byDept).map(([d, v]) => ({ d, rate: v.total ? Math.round(v.done / v.total * 100) : 0, total: v.total }));
       if (!rows.length) return { text: `Chưa có dữ liệu phòng ban${scope}.`, list: [] };
-      const asc = /k[eé]m|th[aấ]p|y[eế]u/.test(q);
-      rows.sort((a, b) => asc ? a.rate - b.rate : b.rate - a.rate);
+      const asc = has(qn, "kem", "thap", "yeu"); rows.sort((a, b) => asc ? a.rate - b.rate : b.rate - a.rate);
       return { text: `Tỷ lệ hoàn thành theo phòng${scope} (${asc ? "thấp → cao" : "cao → thấp"}):`, list: rows.map((r, i) => `${i + 1}. ${r.d} — ${r.rate}% (${r.total} việc)`) };
     }
-    // Ít việc nhất
-    if (/[ií]t.*vi[eệ]c|vi[eệ]c.*[ií]t nh[aấ]t/.test(q)) {
-      const r = rank(countTasks(mi), "asc");
-      if (!r.length) return { text: `Không có dữ liệu việc${scope}.`, list: [] };
-      return { text: `Người ít việc nhất${scope || " (toàn bộ việc đang thấy)"}:`, list: topList(r, v => `${v} việc`) };
-    }
-    // Nhiều việc nhất (mặc định khi hỏi "ai nhiều việc")
-    if (/nhi[eề]u.*vi[eệ]c|vi[eệ]c.*nhi[eề]u nh[aấ]t|ai.*vi[eệ]c/.test(q)) {
-      const r = rank(countTasks(mi), "desc");
-      if (!r.length) return { text: `Không có dữ liệu việc${scope}.`, list: [] };
-      return { text: `Người nhiều việc nhất${scope || " (toàn bộ việc đang thấy)"}:`, list: topList(r, v => `${v} việc`) };
-    }
-    return { text: "Tôi chưa hiểu câu hỏi. Bạn thử bấm một câu gợi ý, hoặc hỏi về: nhiều/ít việc, làm nhanh, trễ hạn, đúng hạn, điểm, quá tải/rảnh, phòng nào tốt nhất (có thể thêm \"tháng N\").", list: [] };
+    // 13) Nhiều/ít việc
+    const countTasks = () => { const map = {}; for (const t of computed) { if (!t.eid || !inPeriod(t)) continue; map[t.eid] = (map[t.eid] || 0) + 1; } return map; };
+    if (has(qn, "it viec", "viec it")) { const r = rankMap(countTasks(), "asc"); if (!r.length) return { text: `Không có dữ liệu việc${scope}.`, list: [] }; return { text: `Người ít việc nhất${scope}:`, list: topList(r, v => `${v} việc`) }; }
+    if (has(qn, "nhieu viec", "viec nhieu", "nhieu nhat", "ai viec")) { const r = rankMap(countTasks(), "desc"); if (!r.length) return { text: `Không có dữ liệu việc${scope}.`, list: [] }; return { text: `Người nhiều việc nhất${scope}:`, list: topList(r, v => `${v} việc`) }; }
+
+    // 14) Fallback: thử tìm nhiệm vụ theo từ khoá; nếu không có thì gợi ý
+    const s = doSearch();
+    if (s) return s;
+    return { text: "Mình chưa chắc ý câu hỏi. Bạn thử: hỏi tên một người/phòng, thêm mốc thời gian (tuần này/quý 3…), hoặc \"tìm việc <từ khoá>\". Bấm câu gợi ý bên dưới cũng được.", list: [] };
   };
 
   const send = (text) => {
     const q = (text ?? input).trim(); if (!q) return;
-    const a = answer(q);
-    setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", ...a }]);
+    setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", ...answer(q) }]);
     setInput("");
   };
 
@@ -113,27 +169,32 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, empR
     <>
       <button onClick={() => setOpen(o => !o)} title="Trợ lý tra cứu" style={{ position: "fixed", right: 20, bottom: 20, zIndex: 200, width: 56, height: 56, borderRadius: "50%", border: "none", background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", fontSize: 26, cursor: "pointer", boxShadow: "0 6px 20px rgba(79,70,229,0.45)" }}>{open ? "✕" : "💬"}</button>
       {open && (
-        <div style={{ position: "fixed", right: 20, bottom: 86, zIndex: 200, width: "min(380px, calc(100vw - 40px))", height: "min(560px, calc(100vh - 120px))", background: "#fff", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e5e7eb" }}>
+        <div style={{ position: "fixed", right: 20, bottom: 86, zIndex: 200, width: "min(390px, calc(100vw - 40px))", height: "min(580px, calc(100vh - 120px))", background: "#fff", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e5e7eb" }}>
           <div style={{ background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", padding: "12px 16px" }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>🤖 Trợ lý tra cứu</div>
-            <div style={{ fontSize: 11, opacity: 0.9 }}>Trả lời từ số liệu công việc (theo quyền xem của bạn)</div>
+            <div style={{ fontSize: 11, opacity: 0.9 }}>Hỏi bằng lời tự nhiên · tìm việc theo từ khoá · theo quyền xem của bạn</div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 10, background: "#f8fafc" }}>
             {msgs.map((m, i) => (
-              <div key={i} style={{ alignSelf: m.who === "me" ? "flex-end" : "flex-start", maxWidth: "85%", background: m.who === "me" ? "#4f46e5" : "#fff", color: m.who === "me" ? "#fff" : "#374151", border: m.who === "me" ? "none" : "1px solid #e5e7eb", borderRadius: 12, padding: "8px 12px", fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              <div key={i} style={{ alignSelf: m.who === "me" ? "flex-end" : "flex-start", maxWidth: "88%", background: m.who === "me" ? "#4f46e5" : "#fff", color: m.who === "me" ? "#fff" : "#374151", border: m.who === "me" ? "none" : "1px solid #e5e7eb", borderRadius: 12, padding: "8px 12px", fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                 {m.text}
-                {m.list && m.list.length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 3 }}>{m.list.map((li, li2) => <div key={li2} style={{ fontSize: 12.5 }}>{li}</div>)}</div>}
+                {m.list && m.list.length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 3 }}>{m.list.map((li, k) => <div key={k} style={{ fontSize: 12.5 }}>{li}</div>)}</div>}
+                {m.tasks && m.tasks.length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }}>{m.tasks.map(t => { const sc = STATUS[t.status]; return (
+                  <div key={t.id} onClick={() => onOpenTask && onOpenTask(t)} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "6px 9px", cursor: "pointer", background: "#f8fafc" }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "#374151" }}>{t.title}</div>
+                    <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{t.dept} · {nm(t.eid)} · {fmtDate(t.deadline)} {sc && <span style={{ color: sc.col }}>· {sc.label}</span>}</div>
+                  </div>); })}</div>}
               </div>
             ))}
             <div ref={endRef} />
           </div>
           {msgs.length <= 1 && (
-            <div style={{ padding: "6px 10px", display: "flex", gap: 6, flexWrap: "wrap", borderTop: "1px solid #f3f4f6", maxHeight: 120, overflowY: "auto" }}>
+            <div style={{ padding: "6px 10px", display: "flex", gap: 6, flexWrap: "wrap", borderTop: "1px solid #f3f4f6", maxHeight: 130, overflowY: "auto" }}>
               {SUGGESTIONS.map(s => <button key={s} onClick={() => send(s)} style={{ fontSize: 11.5, background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 14, padding: "4px 10px", cursor: "pointer" }}>{s}</button>)}
             </div>
           )}
           <div style={{ padding: 10, borderTop: "1px solid #e5e7eb", display: "flex", gap: 8 }}>
-            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") send(); }} placeholder="Hỏi về công việc…" style={{ flex: 1, padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 10, fontSize: 13 }} />
+            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") send(); }} placeholder="Hỏi hoặc tìm việc…" style={{ flex: 1, padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 10, fontSize: 13 }} />
             <button onClick={() => send()} style={{ background: "#4f46e5", color: "#fff", border: "none", borderRadius: 10, padding: "0 16px", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>Gửi</button>
           </div>
         </div>

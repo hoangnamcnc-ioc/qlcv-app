@@ -568,7 +568,7 @@ export default function App() {
 
       {["admin","director","manager","deputy_manager","manager_hcth"].includes(currentUser?.role)&&(
         <Suspense fallback={null}>
-          <AssistantChat employees={employees} computed={computed} calcMonthPerf={calcMonthPerf} empReliability={empReliability} activeLoadByEid={activeLoadByEid} getEmp={getEmp} isCompletedStatus={isCompletedStatus}/>
+          <AssistantChat employees={employees} computed={computed} calcMonthPerf={calcMonthPerf} empReliability={empReliability} activeLoadByEid={activeLoadByEid} getEmp={getEmp} isCompletedStatus={isCompletedStatus} onOpenTask={t=>{setModal(t);loadComments(t.id);}}/>
         </Suspense>
       )}
 
