@@ -19,7 +19,7 @@ const GUIDE_INDEX = (() => {
 const GUIDE_STOP = new Set(["cach", "lam", "sao", "the", "nao", "huong", "dan", "de", "o", "dau", "su", "dung", "phan", "mem", "toi", "minh", "muon", "gi", "co", "nhu", "va", "cho", "khi", "bang", "duoc", "khong", "la", "mot", "cai", "nay"]);
 const lev = (a, b) => { a = a || ""; b = b || ""; const m = a.length, n = b.length; if (!m) return n; if (!n) return m; let prev = Array.from({ length: n + 1 }, (_, j) => j); for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[n]; };
 
-export default function AssistantChat({ employees, computed, calcMonthPerf, managerPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask, onOpenProfile, onOpenHelp }) {
+export default function AssistantChat({ employees, computed, calcMonthPerf, managerPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask, onOpenProfile, onOpenHelp, isMobile }) {
   // Tìm trong TÀI LIỆU HƯỚNG DẪN để trả lời câu "cách dùng" (chấm điểm IDF + cụm 2 từ)
   const searchGuide = qn => {
     const { idx, df, N } = GUIDE_INDEX;
@@ -183,9 +183,9 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
 
   return (
     <>
-      <button onClick={() => setOpen(o => !o)} title="Trợ lý tra cứu" style={{ position: "fixed", right: 20, bottom: 20, zIndex: 200, width: 56, height: 56, borderRadius: "50%", border: "none", background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", fontSize: 26, cursor: "pointer", boxShadow: "0 6px 20px rgba(79,70,229,0.45)" }}>{open ? "✕" : "💬"}</button>
+      <button onClick={() => setOpen(o => !o)} title="Trợ lý tra cứu" style={{ position: "fixed", right: isMobile ? 14 : 20, bottom: isMobile ? "calc(70px + env(safe-area-inset-bottom,0px))" : 20, zIndex: 210, width: 56, height: 56, borderRadius: "50%", border: "none", background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", fontSize: 26, cursor: "pointer", boxShadow: "0 6px 20px rgba(79,70,229,0.45)" }}>{open ? "✕" : "💬"}</button>
       {open && (
-        <div style={{ position: "fixed", right: 20, bottom: 86, zIndex: 200, width: "min(400px, calc(100vw - 40px))", height: "min(600px, calc(100vh - 120px))", background: "#fff", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e5e7eb" }}>
+        <div style={{ position: "fixed", right: isMobile ? 10 : 20, left: isMobile ? 10 : "auto", bottom: isMobile ? "calc(134px + env(safe-area-inset-bottom,0px))" : 86, zIndex: 210, width: isMobile ? "auto" : "min(400px, calc(100vw - 40px))", height: isMobile ? "calc(100dvh - 150px - env(safe-area-inset-bottom,0px))" : "min(600px, calc(100dvh - 120px))", background: "#fff", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e5e7eb" }}>
           <div style={{ background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", padding: "12px 16px" }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>🤖 Trợ lý tra cứu</div>
             <div style={{ fontSize: 11, opacity: 0.9 }}>Nhớ ngữ cảnh · so sánh · biểu đồ · giọng nói · tóm tắt tệp</div>
