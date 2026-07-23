@@ -25,6 +25,7 @@ export default function TaskModal({
   setDeleteConfirm,
   setForwardModal, setForwardEid,
   loadComments,
+  isDeptManager, approveCreateTask, rejectCreateTask,
 }) {
   const [previewImg, setPreviewImg] = useState(null);
   const [chkText, setChkText] = useState("");
@@ -47,6 +48,19 @@ export default function TaskModal({
         </div>
 
         <div style={{ padding: 18, flex: 1 }}>
+          {modal.pending_create && (
+            isDeptManager ? (
+              <div style={{ marginBottom: 12, padding: "12px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#15803d", marginBottom: 8 }}>🆕 {getEmp(modal.eid)?.name || modal.created_by_name} tự tạo việc này — cần bạn duyệt</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button onClick={() => approveCreateTask(modal.id)} style={{ fontSize: 13, padding: "8px 16px", border: "none", borderRadius: 8, background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 600 }}>✅ Duyệt việc này</button>
+                  <button onClick={() => { const r = window.prompt("Lý do từ chối (tùy chọn):", ""); if (r !== null) rejectCreateTask(modal.id, r.trim()); }} style={{ fontSize: 13, padding: "8px 16px", border: "1px solid #fca5a5", borderRadius: 8, background: "#fff0f0", color: "#dc2626", cursor: "pointer", fontWeight: 600 }}>❌ Từ chối</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginBottom: 12, padding: "10px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, fontSize: 12.5, color: "#92400e" }}>⏳ Việc bạn tự tạo đang <b>chờ Trưởng phòng duyệt</b> — chưa tính vào công việc chính thức cho tới khi được duyệt.</div>
+            )
+          )}
           <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 8 }}>{modal.title}</div>
           {modal.description && <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 14 }}>{modal.description}</div>}
 

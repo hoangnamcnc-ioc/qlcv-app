@@ -143,7 +143,7 @@ export const GUIDE_SECTIONS = [
         "⛓ Chờ việc hoàn thành trước (tùy chọn): đặt phụ thuộc — việc này chỉ hoàn thành được sau khi việc kia xong (tránh làm sai thứ tự nhiều khâu). Chi tiết việc hiện banner phụ thuộc, hệ thống chặn hoàn thành nếu việc chờ chưa xong.",
       ]},
       { h: "🙋 Nhân viên tự tạo việc của mình" },
-      { note: "Nhân viên có nút + Tự tạo việc để ghi nhận việc tự phát/sáng kiến. Việc này chỉ giao cho CHÍNH MÌNH, đúng phòng của mình. Người tạo KHÔNG tự duyệt/tự chấm điểm — Trưởng/Phó phòng là người duyệt hoàn thành và đánh giá (đảm bảo công bằng). Nhân viên sửa lại được việc mình tự tạo khi CHƯA gửi duyệt.", color: "1D4ED8", bg: "#EFF6FF" },
+      { note: "Nhân viên có nút + Tự tạo việc để ghi nhận việc tự phát/sáng kiến. Việc này chỉ giao cho CHÍNH MÌNH, đúng phòng của mình. QUAN TRỌNG: việc tự tạo phải được TRƯỞNG/PHÓ PHÒNG DUYỆT thì mới thành việc chính thức (mới tính vào danh sách, báo cáo, chấm điểm) — khi chưa duyệt, việc ở trạng thái 'chờ duyệt tạo mới' và Trưởng phòng thấy ở chuông 🔔 để bấm Duyệt/Từ chối. Người tạo KHÔNG tự duyệt/tự chấm điểm — Trưởng/Phó phòng cũng là người duyệt hoàn thành và đánh giá. Nhân viên sửa lại được việc mình tự tạo khi CHƯA gửi duyệt.", color: "1D4ED8", bg: "#EFF6FF" },
       { h: "Tìm kiếm & lọc" },
       { p: "Ô tìm kiếm theo tên việc/mô tả/người thực hiện/số văn bản, cùng bộ lọc Trạng thái, Phòng ban, Nhân viên, Sắp xếp." },
       { note: "Nút 👤 Tôi giao (Trưởng/Phó phòng, TP.HCTH, BGĐ, Admin mới thấy) lọc riêng những việc CHÍNH bạn đã giao (tạo hoặc chuyển tiếp) — giúp theo dõi riêng phần việc mình phải chịu trách nhiệm duyệt, không lẫn với việc của người khác trong phòng." },

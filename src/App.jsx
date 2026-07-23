@@ -311,6 +311,7 @@ export default function App() {
     filtered, paged, totalPages,
     notifications, unratedTasks, suspiciousTasks, myPendingTaskApprovals, myPendingExtRequests,
     seenKey, markSeen, myAssignedTasks, myNewTasks, myOverdueTasks, myNewTaskIds,
+    myPendingCreateApprovals, myOwnPendingCreate, approveCreateTask, rejectCreateTask,
   } = useTasks({ tasks, setTasks, employees, currentUser, canSeeAll, userDept, canCreate, showToast, getEmp, setModal, setSaving, delegations });
 
   // ── Hiệu suất/Báo cáo (tổng hợp phòng ban, điểm hiệu suất tháng, bảng xếp hạng, thống kê trễ hạn/quá tải) ──
@@ -490,7 +491,7 @@ export default function App() {
     if(myNewTasks.length>0||myOverdueTasks.length>0||myPendingApprovals.length>0||myPendingTaskApprovals.length>0||myPendingExtRequests.length>0||myPendingDocForwards.length>0)setShowLoginPopup(true);
     setLoginNotifShown(true);
   },[currentUser,loading,loginNotifShown,myNewTasks.length,myOverdueTasks.length,myPendingApprovals.length,myPendingTaskApprovals.length,myPendingExtRequests.length,myPendingDocForwards.length]);
-  const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length+suspiciousTasks.length+myPendingApprovals.length+myPendingTaskApprovals.length+myPendingExtRequests.length+unreadCommentTasks.length+myPendingDocForwards.length;
+  const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length+suspiciousTasks.length+myPendingApprovals.length+myPendingTaskApprovals.length+myPendingExtRequests.length+unreadCommentTasks.length+myPendingDocForwards.length+(myPendingCreateApprovals?.length||0);
   // Nhật ký TOÀN DIỆN = gộp sự kiện từ Nhiệm vụ (history) + Hỗ trợ ND (ghi nhận) + Ngân sách & Nhiệm vụ khác
   // (duyệt bước/nghiệm thu). Sắp theo mốc thời gian THẬT (parseAnyTime xử lý nhiều định dạng), KHÔNG cắt bớt —
   // component tự lọc/phân trang. Không hề xóa dữ liệu, chỉ tổng hợp để hiển thị.
@@ -538,7 +539,7 @@ export default function App() {
   const workSubviews=[{id:"tasks",icon:"📋",label:"Nhiệm vụ"},{id:"investment",icon:"💰",label:"Nhiệm vụ ngân sách"},{id:"othertasks",icon:"📌",label:"Nhiệm vụ khác"},{id:"supportcases",icon:"🎧",label:"Hỗ trợ người dùng/PAHT và vận hành DC",shortLabel:"Hỗ trợ ND"}];
   // "Nhiệm vụ định kỳ" là modal (không phải view riêng) nhưng vẫn hiện như 1 tab con trong "Công việc"
   const workExtras=canCreate?[{id:"recurring",icon:"🔄",label:"Nhiệm vụ định kỳ",onClick:()=>setShowRecurring(true)},{id:"bulkhandoff",icon:"🔁",label:"Bàn giao hàng loạt",onClick:openBulkHandoff}]:[];
-  const myQueueTotal=myPendingTaskApprovals.length+myPendingExtRequests.length+unratedTasks.length+unreadCommentTasks.length+myPendingApprovals.length+myPendingProjectSteps.length+myPendingProjectExt.length+myPendingProjectStepExt.length;
+  const myQueueTotal=myPendingTaskApprovals.length+myPendingExtRequests.length+unratedTasks.length+unreadCommentTasks.length+myPendingApprovals.length+myPendingProjectSteps.length+myPendingProjectExt.length+myPendingProjectStepExt.length+(myPendingCreateApprovals?.length||0);
   const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"myqueue",icon:"🗂️",label:"Việc chờ xử lý",shortLabel:"Chờ xử lý",badge:myQueueTotal},{id:"work",icon:"💼",label:"Công việc"},{id:"calendar",icon:"🗓️",label:"Lịch (Deadline/Trực)",shortLabel:"Lịch"},...(canSeeDocumentsTab?[{id:"documents",icon:"📁",label:"Văn bản",badge:docsNeedingAttentionCount}]:[]),{id:"chat",icon:"💬",label:"Chat"},{id:"reports",icon:"📈",label:"Báo cáo"},{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(["admin","director"].includes(currentUser?.role)?[{id:"chatlearn",icon:"🧠",label:"Trợ lý học"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
   const isWorkView=workSubviews.some(w=>w.id===view);
   const getViewMeta=id=>navItems.find(n=>n.id===id)||workSubviews.find(w=>w.id===id);
@@ -671,6 +672,7 @@ export default function App() {
               </button>
               {showNotif&&<div style={{position:"absolute",top:36,right:0,width:320,maxHeight:420,overflowY:"auto",background:"#fff",border:"1px solid #e5e7eb",borderRadius:12,boxShadow:"0 8px 24px rgba(0,0,0,0.15)",zIndex:100}}>
                 <div style={{padding:"10px 14px",borderBottom:"1px solid #e5e7eb",fontWeight:600,fontSize:13,display:"flex",justifyContent:"space-between"}}><span>🔔 Thông báo ({totalNotif})</span><button onClick={()=>setShowNotif(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#9ca3af"}}>✕</button></div>
+                {myPendingCreateApprovals?.length>0&&<div><div style={{padding:"8px 14px",background:"#f0fdf4",fontSize:11,fontWeight:600,color:"#15803d",borderBottom:"1px solid #bbf7d0"}}>🆕 VIỆC NHÂN VIÊN TỰ TẠO — CHỜ BẠN DUYỆT ({myPendingCreateApprovals.length})</div>{myPendingCreateApprovals.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#f7fef9"}} onMouseEnter={e=>e.currentTarget.style.background="#f0fdf4"} onMouseLeave={e=>e.currentTarget.style.background="#f7fef9"}><span style={{fontSize:18,flexShrink:0}}>🆕</span><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#15803d"}}>{getEmp(t.eid)?.name||t.created_by_name} tự tạo · Hạn: {fmtDate(t.deadline)}</div><div style={{display:"flex",gap:6,marginTop:6}}><button onClick={e=>{e.stopPropagation();approveCreateTask(t.id);}} style={{fontSize:11,padding:"4px 10px",border:"none",borderRadius:6,background:"#16a34a",color:"#fff",cursor:"pointer",fontWeight:600}}>✅ Duyệt</button><button onClick={e=>{e.stopPropagation();const r=window.prompt("Lý do từ chối (tùy chọn):","");if(r!==null)rejectCreateTask(t.id,r.trim());}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",color:"#dc2626",cursor:"pointer"}}>❌ Từ chối</button></div></div></div>)}</div>}
                 {myPendingTaskApprovals.length>0&&<div><div style={{padding:"8px 14px",background:"#fffbeb",fontSize:11,fontWeight:600,color:"#92400e",borderBottom:"1px solid #fde68a"}}>📨 NHIỆM VỤ CHỜ BẠN DUYỆT ({myPendingTaskApprovals.length})</div>{myPendingTaskApprovals.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#fffef5"}} onMouseEnter={e=>e.currentTarget.style.background="#fffbeb"} onMouseLeave={e=>e.currentTarget.style.background="#fffef5"}><span style={{fontSize:18,flexShrink:0}}>📨</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.reminder_at&&"🔔 "}{t.title}</div><div style={{fontSize:11,color:"#92400e"}}>{t.requested_by} yêu cầu duyệt lúc {t.requested_at}{t.reminder_at&&` · Đã được nhắc lúc ${t.reminder_at}`}</div>{pendingApprovalDays(t)>=2&&<div style={{fontSize:10,color:"#b91c1c",fontWeight:700,marginTop:2}}>⏳ Đã chờ duyệt {pendingApprovalDays(t)} ngày — nên duyệt sớm</div>}</div></div>)}</div>}
                 {myPendingExtRequests.length>0&&<div><div style={{padding:"8px 14px",background:"#eff6ff",fontSize:11,fontWeight:600,color:"#1d4ed8",borderBottom:"1px solid #bfdbfe"}}>📅 ĐỀ XUẤT GIA HẠN CHỜ BẠN DUYỆT ({myPendingExtRequests.length})</div>{myPendingExtRequests.map(t=><div key={t.id} onClick={()=>{setModal(t);loadComments(t.id);setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#f8fbff"}} onMouseEnter={e=>e.currentTarget.style.background="#eff6ff"} onMouseLeave={e=>e.currentTarget.style.background="#f8fbff"}><span style={{fontSize:18,flexShrink:0}}>📅</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{t.title}</div><div style={{fontSize:11,color:"#1d4ed8"}}>{t.ext_requested_by} đề xuất gia hạn đến {t.ext_proposed}</div></div></div>)}</div>}
                 {myPendingApprovals.length>0&&<div><div style={{padding:"8px 14px",background:"#fffbeb",fontSize:11,fontWeight:600,color:"#92400e",borderBottom:"1px solid #fde68a"}}>📨 CHỜ DUYỆT HOÀN THÀNH ({myPendingApprovals.length})</div>{myPendingApprovals.map((a,i)=><div key={i} onClick={()=>{setView("othertasks");setShowNotif(false);}} style={{padding:"10px 14px",borderBottom:"1px solid #f3f4f6",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",background:"#fffef5"}} onMouseEnter={e=>e.currentTarget.style.background="#fffbeb"} onMouseLeave={e=>e.currentTarget.style.background="#fffef5"}><span style={{fontSize:18,flexShrink:0}}>📨</span><div><div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{a.taskName}</div><div style={{fontSize:11,color:"#92400e"}}>Bước: {a.content} · {a.requested_by} yêu cầu duyệt</div></div></div>)}</div>}
@@ -701,6 +703,13 @@ export default function App() {
         )}
 
         <div style={{flex:1,overflowY:"auto",padding:isMobile?12:20,paddingBottom:isMobile?"72px":20}}>
+        {myOwnPendingCreate?.length>0&&(
+          <div style={{marginBottom:14,padding:"11px 14px",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,fontSize:13,color:"#92400e",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <span style={{fontSize:18}}>⏳</span>
+            <span style={{flex:1,minWidth:160}}>Bạn có <b>{myOwnPendingCreate.length}</b> việc tự tạo đang <b>chờ Trưởng phòng duyệt</b> (chưa tính vào công việc chính thức).</span>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{myOwnPendingCreate.slice(0,4).map(t=><button key={t.id} onClick={()=>{setModal(t);loadComments(t.id);}} style={{fontSize:11.5,padding:"4px 10px",border:"1px solid #fcd34d",borderRadius:8,background:"#fff",color:"#92400e",cursor:"pointer"}}>{t.title.length>28?t.title.slice(0,28)+"…":t.title}</button>)}</div>
+          </div>
+        )}
         <Suspense fallback={<div style={{padding:40,textAlign:"center",color:"#9ca3af",fontSize:13}}>Đang tải…</div>}>
         <ErrorBoundary key={view} label={getViewMeta(view)?.label||"màn hình này"}>
 
@@ -1179,6 +1188,7 @@ export default function App() {
         setDeleteConfirm={setDeleteConfirm}
         setForwardModal={setForwardModal} setForwardEid={setForwardEid}
         loadComments={loadComments}
+        isDeptManager={["manager","deputy_manager","manager_hcth","admin","director"].includes(currentUser?.role)} approveCreateTask={approveCreateTask} rejectCreateTask={rejectCreateTask}
       />
       </ErrorBoundary>
       {/* User modal */}

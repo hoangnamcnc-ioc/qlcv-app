@@ -46,7 +46,10 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const canEditOwnSelfTask = (t) => !!currentUser && currentUser.role === "staff" && t.self_created && t.eid === currentUser.employee_id && !t.completed && !t.completion_requested;
 
   // ── CRUD ──
-  const addTask = async data => { setSaving(true); const selfCreated = !canCreate; const h = [{ action: selfCreated ? "Nhân viên tự tạo việc" : "Tạo nhiệm vụ", by: currentUser.full_name, at: nowStr() }]; const t = { ...data, id: `t${Date.now()}`, completed: data.progress === 100, created: todayStr, created_by_id: currentUser.id, created_by_name: currentUser.full_name, self_created: selfCreated, forwarded_by: "", deleted: false, history: JSON.stringify(h), rating: "", rating_note: "", rated_by: "", rated_at: "", late_reason: "", late_note: "" }; const { error } = await supabase.from("tasks").insert(t); if (!error) { setTasks(p => [t, ...p]); showToast("Đã tạo nhiệm vụ"); } else { console.error("Lỗi tạo nhiệm vụ:", error); showToast("Lỗi: " + (error.message || "không tạo được"), "error"); } setSaving(false); return error ? null : t; };
+  const addTask = async data => { setSaving(true); const selfCreated = !canCreate; const h = [{ action: selfCreated ? "Nhân viên tự tạo việc (chờ Trưởng phòng duyệt)" : "Tạo nhiệm vụ", by: currentUser.full_name, at: nowStr() }]; const t = { ...data, id: `t${Date.now()}`, completed: data.progress === 100, created: todayStr, created_by_id: currentUser.id, created_by_name: currentUser.full_name, self_created: selfCreated, pending_create: selfCreated, forwarded_by: "", deleted: false, history: JSON.stringify(h), rating: "", rating_note: "", rated_by: "", rated_at: "", late_reason: "", late_note: "" }; const { error } = await supabase.from("tasks").insert(t); if (!error) { setTasks(p => [t, ...p]); showToast(selfCreated ? "Đã gửi — chờ Trưởng phòng duyệt việc bạn tự tạo" : "Đã tạo nhiệm vụ"); } else { console.error("Lỗi tạo nhiệm vụ:", error); showToast("Lỗi: " + (error.message || "không tạo được"), "error"); } setSaving(false); return error ? null : t; };
+  // Trưởng/Phó phòng (hoặc BGĐ) duyệt việc nhân viên tự tạo -> việc mới chính thức được ghi nhận (tính vào báo cáo).
+  const approveCreateTask = async id => { const task = tasks.find(t => t.id === id); if (!task) return; const h = parseJSON(task.history, []); h.push({ action: "Duyệt việc nhân viên tự tạo", by: currentUser.full_name, at: nowStr() }); const { error } = await supabase.from("tasks").update({ pending_create: false, history: JSON.stringify(h) }).eq("id", id); if (!error) { setTasks(p => p.map(t => t.id === id ? { ...t, pending_create: false, history: JSON.stringify(h) } : t)); setModal(null); showToast("Đã duyệt — việc được chính thức ghi nhận"); } else showToast("Lỗi: " + (error.message || ""), "error"); };
+  const rejectCreateTask = async (id, reason) => { const task = tasks.find(t => t.id === id); if (!task) return; const h = parseJSON(task.history, []); h.push({ action: `Từ chối việc nhân viên tự tạo${reason ? ": " + reason : ""}`, by: currentUser.full_name, at: nowStr() }); const { error } = await supabase.from("tasks").update({ deleted: true, history: JSON.stringify(h) }).eq("id", id); if (!error) { setTasks(p => p.map(t => t.id === id ? { ...t, deleted: true, history: JSON.stringify(h) } : t)); setModal(null); showToast("Đã từ chối — việc chuyển vào thùng rác"); } else showToast("Lỗi: " + (error.message || ""), "error"); };
   // LƯU Ý: progress===100 KHÔNG còn tự động suy ra completed:true — hoàn thành chỉ được đặt tường minh
   // qua confirmApproveCompletion (sau khi TP/PP/BGĐ duyệt), tránh việc "Yêu cầu hoàn thành" (cũng set progress:100)
   // vô tình bỏ qua bước duyệt.
@@ -210,7 +213,12 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // ── Danh sách phái sinh: hiển thị, lọc, phân trang ──
   const visibleTasks = useMemo(() => (tasks || []).filter(t => !t.deleted && canSeeTask(t)), [tasks, canSeeTask]);
   const trashedTasks = useMemo(() => (tasks || []).filter(t => t.deleted && canSeeTask(t)), [tasks, canSeeTask]);
-  const computedAll = useMemo(() => visibleTasks.map(t => ({ ...t, status: getStatus(t) })), [visibleTasks]);
+  // Việc nhân viên tự tạo còn CHỜ TP DUYỆT (pending_create) chưa phải việc chính thức -> tách riêng,
+  // không tính vào danh sách/thống kê/chấm điểm cho tới khi được duyệt.
+  const computedAll = useMemo(() => visibleTasks.filter(t => !t.pending_create).map(t => ({ ...t, status: getStatus(t) })), [visibleTasks]);
+  const pendingCreateTasks = useMemo(() => visibleTasks.filter(t => t.pending_create), [visibleTasks]);
+  const myPendingCreateApprovals = useMemo(() => pendingCreateTasks.filter(t => isDeptManagerOf(t) || ["admin", "director"].includes(currentUser?.role)), [pendingCreateTasks, currentUser, userDept]);
+  const myOwnPendingCreate = useMemo(() => pendingCreateTasks.filter(t => t.eid === currentUser?.employee_id), [pendingCreateTasks, currentUser]);
 
   // ── Bộ lọc thời gian (Từ ngày...Đến ngày) theo hạn chót — dùng chung cho Dashboard & tab Nhiệm vụ ──
   // Không áp dụng cho thông báo/việc của tôi bên dưới để không "giấu" việc thật sự đang chờ xử lý.
@@ -230,7 +238,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // số liệu hiệu suất nhất quán, đầy đủ (khớp với dữ liệu Hỗ trợ/dự án vốn đã tải toàn cục).
   // KHÔNG dùng cho các danh sách thao tác — chúng vẫn giới hạn theo quyền qua "computed".
   const computedGlobal = useMemo(() => {
-    const all = (tasks || []).filter(t => !t.deleted).map(t => ({ ...t, status: getStatus(t) }));
+    const all = (tasks || []).filter(t => !t.deleted && !t.pending_create).map(t => ({ ...t, status: getStatus(t) }));
     if (!dateFrom && !dateTo) return all;
     return all.filter(t => { if (!t.deadline) return false; if (dateFrom && t.deadline < dateFrom) return false; if (dateTo && t.deadline > dateTo) return false; return true; });
   }, [tasks, dateFrom, dateTo]);
@@ -292,5 +300,6 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     filtered, paged, totalPages,
     notifications, unratedTasks, suspiciousTasks, myPendingTaskApprovals, myPendingExtRequests,
     seenKey, markSeen, myAssignedTasks, myNewTasks, myOverdueTasks, myNewTaskIds,
+    pendingCreateTasks, myPendingCreateApprovals, myOwnPendingCreate, approveCreateTask, rejectCreateTask,
   };
 }
