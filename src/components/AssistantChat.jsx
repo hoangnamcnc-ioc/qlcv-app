@@ -2,14 +2,43 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { DEPTS, STATUS } from "../constants";
 import { fmtDate } from "../helpers";
 import { MANAGER_EMP_ROLES } from "../hooks/useReports";
+import { GUIDE_SECTIONS, sectionText } from "../guideContent";
 
 // Trợ lý tra cứu THUẦN THUẬT TOÁN (không dùng AI ngoài): nhớ ngữ cảnh hội thoại, chịu gõ sai (fuzzy),
 // gợi ý khi gõ, truy vấn ngưỡng/thống kê, biểu đồ mini, nút hành động, chào bằng điểm nóng, nhập giọng nói.
 const strip = s => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d");
 const has = (qn, ...arr) => arr.some(w => qn.includes(w));
+
+// Chỉ mục tài liệu hướng dẫn (dựng 1 lần) để trả lời câu hỏi "cách dùng"
+const GUIDE_INDEX = (() => {
+  const idx = GUIDE_SECTIONS.map(s => { const lines = sectionText(s); return { s, lines, hay: strip(lines.join(" \n ")), titleS: strip(s.title) }; });
+  const df = {};
+  for (const it of idx) { const seen = new Set(it.hay.split(/[^a-z0-9]+/).filter(w => w.length >= 3)); for (const w of seen) df[w] = (df[w] || 0) + 1; }
+  return { idx, df, N: idx.length };
+})();
+const GUIDE_STOP = new Set(["cach", "lam", "sao", "the", "nao", "huong", "dan", "de", "o", "dau", "su", "dung", "phan", "mem", "toi", "minh", "muon", "gi", "co", "nhu", "va", "cho", "khi", "bang", "duoc", "khong", "la", "mot", "cai", "nay"]);
 const lev = (a, b) => { a = a || ""; b = b || ""; const m = a.length, n = b.length; if (!m) return n; if (!n) return m; let prev = Array.from({ length: n + 1 }, (_, j) => j); for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[n]; };
 
-export default function AssistantChat({ employees, computed, calcMonthPerf, managerPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask, onOpenProfile }) {
+export default function AssistantChat({ employees, computed, calcMonthPerf, managerPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask, onOpenProfile, onOpenHelp }) {
+  // Tìm trong TÀI LIỆU HƯỚNG DẪN để trả lời câu "cách dùng" (chấm điểm IDF + cụm 2 từ)
+  const searchGuide = qn => {
+    const { idx, df, N } = GUIDE_INDEX;
+    const toks = qn.split(/[^a-z0-9]+/).filter(w => w.length >= 3 && !GUIDE_STOP.has(w));
+    if (!toks.length) return null;
+    const bigrams = []; for (let k = 0; k + 1 < toks.length; k++) bigrams.push(toks[k] + " " + toks[k + 1]);
+    let best = null, bs = 0;
+    for (const it of idx) {
+      let score = 0;
+      for (const w of toks) { const c = it.hay.split(w).length - 1; if (c > 0) { const idf = Math.log(1 + N / (df[w] || 1)); score += Math.min(c, 3) * idf; if (it.titleS.includes(w)) score += 2 * idf; } }
+      for (const bg of bigrams) { if (it.hay.includes(bg)) score += 4; if (it.titleS.includes(bg)) score += 6; }
+      if (score > bs) { bs = score; best = it; }
+    }
+    if (!best || bs === 0) return null;
+    const ml = best.lines.filter(l => { const ls = strip(l); return toks.some(w => ls.includes(w)); }).slice(0, 6);
+    const picked = (ml.length ? ml : best.lines.slice(1, 5)).map(l => "• " + l);
+    return { text: `📘 ${best.s.icon} ${best.s.title}`, list: picked, guide: true };
+  };
+
   const today = new Date(); const y = today.getFullYear();
   const nm = id => getEmp(id)?.name || "—";
   const dleftOf = t => { const d = new Date(t.deadline); if (isNaN(d)) return 9999; d.setHours(0, 0, 0, 0); return Math.ceil((d - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000); };
@@ -24,7 +53,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     if (overdue) bits.push(`${overdue} việc quá hạn`);
     if (pending) bits.push(`${pending} việc chờ duyệt`);
     const hot = bits.length ? `🔥 Điểm nóng hôm nay: ${bits.join(" · ")}.` : "✅ Hôm nay chưa có điểm nóng nào.";
-    return { who: "bot", text: `${hot}\nHỏi tôi về một người, so sánh 2 người, lọc theo phòng + tháng, truy vấn số ("ai có hơn 10 việc?"), tìm việc, hoặc bấm 📎 tải tệp lên tóm tắt. 🎤 có thể hỏi bằng giọng nói.` };
+    return { who: "bot", text: `${hot}\nHỏi tôi về một người, so sánh 2 người, lọc theo phòng + tháng, truy vấn số ("ai có hơn 10 việc?"), tìm việc, hỏi cách dùng phần mềm ("làm sao để giao việc?"), hoặc bấm 📎 tải tệp lên tóm tắt. 🎤 có thể hỏi bằng giọng nói.` };
   };
 
   const [open, setOpen] = useState(false);
@@ -78,6 +107,9 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     const sc = scope ? ` (${scope})` : "";
     // ngưỡng số (#5): hơn/trên/dưới N
     const thr = (() => { let m; if ((m = qn.match(/(hon|tren|lon hon|>=?|nhieu hon)\s*(\d+)/))) return { op: ">", n: +m[2] }; if ((m = qn.match(/(duoi|it hon|nho hon|<=?)\s*(\d+)/))) return { op: "<", n: +m[2] }; return null; })();
+
+    // 0) Câu hỏi CÁCH DÙNG phần mềm → tra tài liệu hướng dẫn
+    if (has(qn, "cach ", "lam sao", "lam the nao", "huong dan", "su dung", "o dau", "bang cach", "cach de", "dung the nao", "thao tac", "the nao de")) { const g = searchGuide(qn); if (g) return g; }
 
     // 1) Tìm việc theo từ khoá
     const doSearch = () => { const stop = new Set(["tim", "kiem", "tra", "cuu", "viec", "cong", "nhiem", "vu", "co", "nao", "ve", "cua", "la", "gi", "cho", "toi", "ai", "o", "va", "the", "nhat", "trong", "danh", "sach", "cac", "nhung", "hay", "giup", "xem", "lien", "quan", "den"]); const toks = qn.split(/[^a-z0-9]+/).filter(w => w.length >= 2 && !stop.has(w)); if (!toks.length) return null; const res = computed.map(t => { const hay = strip((t.title || "") + " " + (t.description || "")); return { t, hits: toks.filter(w => hay.includes(w)).length }; }).filter(x => x.hits > 0).sort((a, b) => b.hits - a.hits).slice(0, 7); return res.length ? { text: `🔎 Tìm thấy ${res.length} nhiệm vụ khớp:`, tasks: res.map(x => x.t) } : null; };
@@ -143,7 +175,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const startVoice = () => { if (!SR) return; try { const r = new SR(); r.lang = "vi-VN"; r.interimResults = false; r.maxAlternatives = 1; r.onresult = e => { const txt = e.results[0][0].transcript; setInput(txt); setTimeout(() => send(txt), 120); }; r.onend = () => setListening(false); r.onerror = () => setListening(false); recRef.current = r; setListening(true); r.start(); } catch { setListening(false); } };
 
   // #3 — autocomplete
-  const acItems = useMemo(() => { const names = (employees || []).filter(e => !e.no_kpi).map(e => e.name); const depts = (DEPTS || []).map(d => `Phòng ${d}`); const tpl = ["ai nhiều việc nhất", "ai trễ nhiều nhất", "ai làm nhanh nhất", "ai đúng hạn cao nhất", "việc nào sắp trễ", "phòng nào tốt nhất", "so sánh ", "tìm việc ", "ai có hơn 10 việc", "tỷ lệ hoàn thành chung", "trung bình mỗi người bao nhiêu việc"]; return [...names, ...depts, ...tpl]; }, [employees]);
+  const acItems = useMemo(() => { const names = (employees || []).filter(e => !e.no_kpi).map(e => e.name); const depts = (DEPTS || []).map(d => `Phòng ${d}`); const tpl = ["ai nhiều việc nhất", "ai trễ nhiều nhất", "ai làm nhanh nhất", "ai đúng hạn cao nhất", "việc nào sắp trễ", "phòng nào tốt nhất", "so sánh ", "tìm việc ", "ai có hơn 10 việc", "tỷ lệ hoàn thành chung", "trung bình mỗi người bao nhiêu việc", "làm sao để giao việc", "cách yêu cầu hoàn thành", "cách đánh giá nhân viên", "hướng dẫn phân quyền"]; return [...names, ...depts, ...tpl]; }, [employees]);
   const sugs = (showAc && input.trim().length >= 2) ? acItems.filter(x => strip(x).includes(strip(input.trim()))).slice(0, 6) : [];
 
   const barBlock = bars => { const mx = Math.max(...bars.map(b => b.value), 1); return (<div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>{bars.map((b, k) => (<div key={k} style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 92, fontSize: 11, color: "#374151", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.label}</div><div style={{ flex: 1, height: 8, background: "#eef2ff", borderRadius: 4, overflow: "hidden" }}><div style={{ height: "100%", width: (b.value / mx * 100) + "%", background: "#6366f1" }} /></div><div style={{ width: 34, fontSize: 11, textAlign: "right", color: "#4338ca", fontWeight: 600 }}>{b.value}</div></div>))}</div>); };
@@ -170,7 +202,8 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
                 {m.who === "bot" && (m.list || m.bars || m.tasks || m.profileEid) && (
                   <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                     {m.profileEid && onOpenProfile && <button onClick={() => { onOpenProfile(m.profileEid); setOpen(false); }} style={{ fontSize: 11.5, color: "#4338ca", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 8, padding: "3px 10px", cursor: "pointer", fontWeight: 600 }}>👤 Xem chi tiết</button>}
-                    {(m.bars || m.tasks || m.list) && <button onClick={() => exportCsv(m)} style={{ fontSize: 11.5, color: "#15803d", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>⬇ CSV</button>}
+                    {m.guide && onOpenHelp && <button onClick={() => { onOpenHelp(); setOpen(false); }} style={{ fontSize: 11.5, color: "#4338ca", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 8, padding: "3px 10px", cursor: "pointer", fontWeight: 600 }}>📘 Mở hướng dẫn</button>}
+                    {!m.guide && (m.bars || m.tasks || m.list) && <button onClick={() => exportCsv(m)} style={{ fontSize: 11.5, color: "#15803d", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>⬇ CSV</button>}
                     <button onClick={() => copyMsg(m, i)} style={{ fontSize: 11.5, color: "#6b7280", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>{copied === i ? "✓ Đã sao chép" : "⧉ Sao chép"}</button>
                   </div>
                 )}
