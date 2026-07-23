@@ -20,10 +20,27 @@ const SUGGESTIONS = [
 
 export default function AssistantChat({ employees, computed, calcMonthPerf, empReliability, activeLoadByEid, getEmp, isCompletedStatus, onOpenTask }) {
   const [open, setOpen] = useState(false);
-  const [msgs, setMsgs] = useState([{ who: "bot", text: "Chào bạn! Hỏi tôi bằng lời tự nhiên: về một người (\"Nguyễn Văn A tháng này thế nào?\"), một phòng, mốc thời gian (tuần này/quý 3…), hoặc tìm việc theo từ khoá (\"tìm việc báo cáo\")." }]);
+  const [msgs, setMsgs] = useState([{ who: "bot", text: "Chào bạn! Hỏi tôi về một người (\"Nguyễn Văn A tháng này thế nào?\"), một phòng, mốc thời gian, tìm việc theo từ khoá — hoặc bấm 📎 để tải một tệp PDF/Word lên và tóm tắt nhanh." }]);
   const [input, setInput] = useState("");
   const endRef = useRef(null);
+  const fileRef = useRef(null);
   useEffect(() => { if (open) endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, open]);
+
+  const onFile = async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+    setMsgs(m => [...m, { who: "me", text: `📎 ${f.name}` }, { who: "bot", text: "⏳ Đang đọc & tóm tắt tệp…" }]);
+    try {
+      const [{ extractFileText }, { extractiveSummary }] = await Promise.all([import("../fileText"), import("../summarize")]);
+      const text = await extractFileText(f);
+      const r = extractiveSummary(text);
+      const botMsg = r.ok
+        ? { who: "bot", text: `📝 Tóm tắt "${f.name}":`, list: [...r.summarySentences, ...(r.deadlines.length ? ["⏰ Mốc thời gian: " + r.deadlines.join(" · ")] : [])] }
+        : { who: "bot", text: `Không rút được nội dung có ý nghĩa từ "${f.name}" (có thể là PDF scan/ảnh).` };
+      setMsgs(m => { const c = [...m]; c[c.length - 1] = botMsg; return c; });
+    } catch (err) {
+      setMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", text: `⚠️ ${err.message || "Không đọc được tệp"}` }; return c; });
+    }
+  };
 
   const today = new Date();
   const y = today.getFullYear();
@@ -193,8 +210,10 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, empR
               {SUGGESTIONS.map(s => <button key={s} onClick={() => send(s)} style={{ fontSize: 11.5, background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 14, padding: "4px 10px", cursor: "pointer" }}>{s}</button>)}
             </div>
           )}
-          <div style={{ padding: 10, borderTop: "1px solid #e5e7eb", display: "flex", gap: 8 }}>
-            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") send(); }} placeholder="Hỏi hoặc tìm việc…" style={{ flex: 1, padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 10, fontSize: 13 }} />
+          <div style={{ padding: 10, borderTop: "1px solid #e5e7eb", display: "flex", gap: 8, alignItems: "center" }}>
+            <button onClick={() => fileRef.current && fileRef.current.click()} title="Tải tệp PDF/Word lên để tóm tắt" style={{ background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 10, width: 38, height: 38, cursor: "pointer", fontSize: 17, flexShrink: 0 }}>📎</button>
+            <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={onFile} />
+            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") send(); }} placeholder="Hỏi, tìm việc, hoặc 📎 tải tệp…" style={{ flex: 1, padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 10, fontSize: 13 }} />
             <button onClick={() => send()} style={{ background: "#4f46e5", color: "#fff", border: "none", borderRadius: 10, padding: "0 16px", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>Gửi</button>
           </div>
         </div>

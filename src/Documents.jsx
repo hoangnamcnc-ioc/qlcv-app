@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "./supabase";
 import { getPreviewUrl, parseJSON, todayStr, fmtDate, getStatus } from "./helpers";
+import { extractFileText } from "./fileText";
 import { STATUS } from "./constants";
 
 const nowStr=()=>new Date().toLocaleString("vi-VN");
@@ -11,30 +12,12 @@ const isIncoming=d=>d.type==="den"||d.type==="incoming";
 export default function Documents({ currentUser, isMobile, inp, showToast, canManage, tasks, users, getTaskTitle, onOpenTask, onCreateTask, uploadFiles, uploadingFiles, projects, onProjectsChanged }){
   const [sumModal,setSumModal]=useState(null); // { doc, fileName, loading, error, result } — tóm tắt rút trích
   const fileInputRef=useRef(null);
-  const extractText=async(src)=>{
-    let buf,rawName;
-    if(src instanceof File){buf=await src.arrayBuffer();rawName=src.name;}
-    else{const resp=await fetch(src.url); if(!resp.ok) throw new Error("Không tải được tệp (có thể do quyền truy cập).");buf=await resp.arrayBuffer();rawName=src.name;}
-    const name=(rawName||"").toLowerCase();
-    if(name.endsWith(".pdf")){
-      const pdfjs=await import("pdfjs-dist");
-      const workerUrl=(await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
-      pdfjs.GlobalWorkerOptions.workerSrc=workerUrl;
-      const pdf=await pdfjs.getDocument({data:buf}).promise; let text=""; const max=Math.min(pdf.numPages,25);
-      for(let i=1;i<=max;i++){const p=await pdf.getPage(i);const c=await p.getTextContent();text+=c.items.map(it=>it.str).join(" ")+"\n";}
-      return text;
-    }
-    if(name.endsWith(".docx")){const mammoth=await import("mammoth");const{value}=await mammoth.extractRawText({arrayBuffer:buf});return value;}
-    if(name.endsWith(".txt"))return new TextDecoder("utf-8").decode(buf);
-    if(name.endsWith(".doc"))throw new Error("File Word cũ (.doc) chưa hỗ trợ — hãy lưu lại thành .docx.");
-    throw new Error("Chỉ tóm tắt được PDF, Word (.docx) hoặc .txt.");
-  };
   const openSummary=async(d,atts)=>{
     const att=(atts||[]).find(a=>/\.(pdf|docx|txt)$/i.test(a.name||""));
     if(!att){showToast&&showToast("Văn bản không có tệp PDF/Word để tóm tắt","error");return;}
     setSumModal({doc:d,fileName:att.name,loading:true,error:null,result:null});
     try{
-      const text=await extractText(att);
+      const text=await extractFileText(att);
       const { extractiveSummary }=await import("./summarize");
       const result=extractiveSummary(text);
       setSumModal(m=>m&&m.doc.id===d.id?{...m,loading:false,result}:m);
@@ -43,7 +26,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
   const onPickFile=async(e)=>{
     const file=e.target.files&&e.target.files[0]; e.target.value=""; if(!file)return;
     setSumModal({doc:{id:"__upload",doc_number:"Tệp tải lên",title:file.name,doc_date:todayStr,sender:""},fileName:file.name,loading:true,error:null,result:null});
-    try{const text=await extractText(file);const{ extractiveSummary }=await import("./summarize");const result=extractiveSummary(text);setSumModal(m=>m&&m.doc.id==="__upload"?{...m,loading:false,result}:m);}
+    try{const text=await extractFileText(file);const{ extractiveSummary }=await import("./summarize");const result=extractiveSummary(text);setSumModal(m=>m&&m.doc.id==="__upload"?{...m,loading:false,result}:m);}
     catch(err){setSumModal(m=>m&&m.doc.id==="__upload"?{...m,loading:false,error:err.message||"Không đọc được nội dung tệp"}:m);}
   };
   const [assignModal,setAssignModal]=useState(null); // { doc, atts } — gán văn bản vào bước nhiệm vụ ngân sách
