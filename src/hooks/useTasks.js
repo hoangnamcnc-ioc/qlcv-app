@@ -10,7 +10,9 @@ const PAGE_SIZE = 20;
 // Tách khỏi App.jsx để component chính không phải ôm hết state + xử lý của module này.
 export default function useTasks({ tasks, setTasks, employees, currentUser, canSeeAll, userDept, canCreate, showToast, getEmp, setModal, setSaving, delegations }) {
   // ── Phân quyền ──
-  const canSeeTask = useMemo(() => (t) => { if (!currentUser) return false; if (canSeeAll) return true; if (["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; if (t.eid === currentUser.employee_id) return true; return parseJSON(t.collab_eids, []).includes(currentUser.employee_id); }, [currentUser, canSeeAll, userDept]);
+  // Nhân viên NAY được XEM toàn bộ việc của phòng mình (chỉ xem — sửa/cập nhật/duyệt vẫn giới hạn theo quyền
+  // riêng ở canEditTask/canUpdateProgress/canApprove). Cộng tác viên khác phòng vẫn thấy việc mình phối hợp.
+  const canSeeTask = useMemo(() => (t) => { if (!currentUser) return false; if (canSeeAll) return true; if (userDept && t.dept === userDept) return true; if (t.eid === currentUser.employee_id) return true; return parseJSON(t.collab_eids, []).includes(currentUser.employee_id); }, [currentUser, canSeeAll, userDept]);
   const canEditTask = useMemo(() => (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; return false; }, [currentUser, userDept]);
   const canDeleteTask = useMemo(() => (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (["manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; return false; }, [currentUser, userDept]);
   // Cập nhật tiến độ: người chủ trì, quản lý, VÀ người phối hợp (họ đóng góp phần việc nên được ghi nhận tiến độ).
@@ -265,7 +267,9 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const paged = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
 
   // ── Thông báo phái sinh từ nhiệm vụ (luôn dựa trên TOÀN BỘ việc, không bị ảnh hưởng bởi bộ lọc thời gian) ──
-  const notifications = useMemo(() => computedAll.filter(t => t.status === "overdue" || t.status === "nearly_due").sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)), [computedAll]);
+  // Nhắc deadline: quản lý/BGĐ nhận cảnh báo toàn phòng; nhân viên chỉ nhận của việc MÌNH (dù nay xem được cả phòng),
+  // tránh bị dội thông báo hạn chót của đồng nghiệp.
+  const notifications = useMemo(() => { const deptWide = canSeeAll || ["manager", "deputy_manager", "manager_hcth"].includes(currentUser?.role); return computedAll.filter(t => (t.status === "overdue" || t.status === "nearly_due") && (deptWide || t.eid === currentUser?.employee_id || parseJSON(t.collab_eids, []).includes(currentUser?.employee_id))).sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)); }, [computedAll, currentUser, canSeeAll]);
   // Việc chờ chấm điểm: người giao (created_by_id) với việc thường; TP/PP với việc nhân viên tự tạo (self_created)
   const unratedTasks = useMemo(() => computedAll.filter(t => t.status === "completed" && !t.rating && (t.self_created ? isDeptManagerOf(t) : t.created_by_id === currentUser?.id)), [computedAll, currentUser, userDept]);
   const suspiciousTasks = useMemo(() => canCreate ? computedAll.filter(t => t.suspicious_completion && !t.rating) : [], [computedAll, canCreate]);
