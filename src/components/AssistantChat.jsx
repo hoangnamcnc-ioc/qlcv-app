@@ -144,7 +144,9 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     const K = dec.kind, sl = dec.slots;
     const STLABEL = { pending_approval: "chờ duyệt", overdue: "quá hạn", completed: "hoàn thành", in_progress: "đang làm" };
     const und = [dept ? `phòng ${dept}` : (sl.subject === "org" ? "toàn cơ quan" : ""), (person && persons.length <= 1) ? person.name : "", period ? period.label : "", sl.status ? STLABEL[sl.status] : "", sl.metric || "", sl.order === "asc" ? "thấp→cao" : sl.order === "desc" ? "cao→thấp" : ""].filter(Boolean).join(" · ");
-    const U = a => (a && !a.unsure && und) ? { ...a, understood: und } : a;
+    // Gắn "understood" (đã hiểu gì) và cờ "weak" khi bộ nội bộ KÉM CHẮC CHẮN (dec.ambiguous) — để send()
+    // biết nên nhờ AI xem lại. Không gắn weak nếu câu này chính là do AI bóc (aiSlots) để tránh lặp.
+    const U = a => { if (!a || a.unsure) return a; const r = und ? { ...a, understood: und } : { ...a }; if (dec.ambiguous && !aiSlots) r.weak = true; return r; };
 
     if (K === "guide") { const g = searchGuide(qn); if (g) return g; }
     if (K === "create") return { text: "Mở form tạo việc mới cho bạn — điền thông tin rồi bấm lưu nhé.", action: "create" };
@@ -218,11 +220,15 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
       const routed = answer(c.corrected);
       if (!routed.unsure) ans = { ...routed, learnedFrom: c.corrected };
     }
-    // Ý 3: chỉ khi CẢ nội bộ lẫn đã-học đều bí VÀ AI được bật → nhờ AI bóc ý, rồi chạy truy vấn TẠI CHỖ.
-    if (ans.unsure && aiEnabled) {
+    // Ý 3: nhờ AI khi nội bộ BÍ (unsure) HOẶC KÉM CHẮC CHẮN (weak = câu mơ hồ), và AI được bật.
+    //  - AI trả về slots  → chạy truy vấn TẠI CHỖ với ý AI bóc được (ưu tiên, vì hiểu tốt hơn).
+    //  - AI trả về answer → câu NGOÀI phạm vi dữ liệu; chỉ hiển thị khi nội bộ bí hẳn (unsure),
+    //    KHÔNG đè lên một câu trả lời dữ liệu chỉ vì mơ hồ.
+    if ((ans.unsure || ans.weak) && aiEnabled) {
       setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", text: "⏳ Đang hiểu câu hỏi…", pending: true }]);
       const ai = await parseWithAI(q);
       if (ai && ai.slots) { const routed = answer(q, ai.slots); if (!routed.unsure) ans = { ...routed, viaAI: true }; }
+      else if (ai && ai.answer && ans.unsure) { ans = { text: ai.answer, viaAI: true }; }
       ans = finalizeUnsure(q, ans);
       setMsgs(m => { const copy = [...m]; copy[copy.length - 1] = { who: "bot", ...ans, q, intent: ans.intent || answerKind(ans) }; return copy; });
       return;
@@ -266,6 +272,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
                 {m.text}
                 {m.learnedFrom && <div style={{ marginTop: 4, fontSize: 11, color: "#7c3aed", fontStyle: "italic" }}>🧠 Hiểu theo câu đã học: "{m.learnedFrom}"</div>}
                 {m.understood && <div style={{ marginTop: 3, fontSize: 10.5, color: "#9ca3af" }}>🎯 Hiểu: {m.understood}</div>}
+                {m.viaAI && <div style={{ marginTop: 3, fontSize: 10.5, color: "#0891b2" }}>✨ Trả lời có hỗ trợ của AI</div>}
                 {m.list && m.list.length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 3 }}>{m.list.map((li, k) => <div key={k} style={{ fontSize: 12.5 }}>{li}</div>)}</div>}
                 {m.bars && m.bars.length > 0 && barBlock(m.bars)}
                 {m.spark && sparkBlock(m.spark)}

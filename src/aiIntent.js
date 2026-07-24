@@ -54,6 +54,8 @@ export async function parseWithAI(question) {
     clearTimeout(timer);
     if (!res.ok) return null;
     const data = await res.json();
+    // Câu NGOÀI phạm vi dữ liệu → AI trả về câu trả lời tự do (không phải slots)
+    if (data && typeof data.answer === "string" && data.answer.trim()) return { answer: data.answer.trim() };
     const slots = normalizeSlots(data.slots || data);
     if (!slots) return null;
     return { slots, kind: slots.kind };
