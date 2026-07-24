@@ -75,10 +75,28 @@ export function extractSlots(raw) {
   };
 }
 
-// ctx: { personCount, hasDept } — nơi gọi nhận diện tên người/phòng thật rồi truyền vào.
-export function classify(raw, ctx = {}) {
+// ── Ý 1: TỰ KHAI THÁC TỪ MỚI ────────────────────────────────────────────────────────────────────
+// Tập hợp MỌI từ/cụm đã biết (nằm trong LEX) + vài từ khung câu hỏi cố định, để trang Trợ lý học
+// phát hiện câu người dùng hỏi chứa từ nào trợ lý CHƯA biết → gợi ý admin bổ sung vào LEX.
+const KNOWN_WORDS = (() => {
+  const set = new Set();
+  for (const arr of Object.values(LEX)) for (const phrase of arr) for (const w of phrase.trim().split(/\s+/)) if (w.length >= 2) set.add(w);
+  // Từ khung câu hỏi phổ biến (không mang ngữ nghĩa cần học)
+  for (const w of ["viec", "nhiem", "vu", "cong", "phong", "thang", "quy", "nam", "cua", "trong", "phai", "lam", "ai", "nao", "la", "gi", "cho", "toi", "minh", "muon", "ban", "hay", "giup", "di", "ma", "thi", "nhu", "cac", "mot", "duoc", "khong", "tre", "cham", "ty", "le", "so", "sanh", "vs", "va", "voi", "phu", "trach", "thuc", "hien", "hoan", "thanh"]) set.add(w);
+  return set;
+})();
+
+// Trả về danh sách "từ mới" (đã bỏ dấu) xuất hiện trong câu nhưng chưa có trong LEX/khung — ứng viên bổ sung.
+export function unknownWords(raw) {
+  const toks = strip(raw).split(/[^a-z0-9]+/).filter(w => w.length >= 2);
+  return [...new Set(toks.filter(w => !KNOWN_WORDS.has(w) && !/^\d+$/.test(w)))];
+}
+export { LEX };
+
+// Chấm điểm ý định TỪ SLOTS (tách riêng để dùng chung cho slots nội bộ lẫn slots do AI bóc — Ý 3).
+// ctx: { personCount, hasDept }. Trả về kết quả xếp hạng ý định như classify().
+export function scoreSlots(s, ctx = {}) {
   const { personCount = 0, hasDept = false } = ctx;
-  const s = extractSlots(raw);
   const sc = {};
   const add = (k, v) => { if (v > 0) sc[k] = (sc[k] || 0) + v; };
   const ranky = s.superl || s.order;
@@ -91,7 +109,8 @@ export function classify(raw, ctx = {}) {
   if (s.status === "pending_approval") add("list", 9);
   else if (s.status) {
     if (s.wantList) add("list", 8);
-    else if (hasDept || personCount >= 1) add("list", 7);
+    // Hỏi "AI/người nào" + trạng thái = muốn XẾP THEO NGƯỜI (nhường cho rank_people), không phải liệt kê việc
+    else if ((hasDept || personCount >= 1) && s.subject !== "people") add("list", 7);
     else if (!ranky && s.subject !== "people") add("list", 4); // "việc quá hạn"
   }
   if (s.wantList && !s.status && s.hasViec && !s.metric) add("list", 3);
@@ -134,4 +153,9 @@ export function classify(raw, ctx = {}) {
   const second = entries[1] ? { kind: entries[1][0], score: entries[1][1] } : null;
   const margin = topS - (second ? second.score : 0);
   return { kind: topK, slots: s, score: topS, second, ambiguous: margin <= 1 && topS < 7 };
+}
+
+// ctx: { personCount, hasDept } — nơi gọi nhận diện tên người/phòng thật rồi truyền vào.
+export function classify(raw, ctx = {}) {
+  return scoreSlots(extractSlots(raw), ctx);
 }

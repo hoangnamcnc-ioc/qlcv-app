@@ -104,6 +104,12 @@ const CASES = [
   ["tôi phải làm gì để giao việc", {}, "guide"],
   // Xếp hạng phòng — từ mới
   ["phòng nào xuất sắc nhất", {}, "rank_dept_rate"],
+
+  // ══ GHÉP ĐIỀU KIỆN (trạng thái + xếp hạng người) ══
+  ["ai nhiều việc chờ duyệt nhất", {}, "rank_people", { status: "pending_approval" }],
+  ["ai có nhiều việc quá hạn nhất", {}, "rank_people", { status: "overdue" }],
+  ["việc quá hạn phòng HCTH do ai phụ trách", { hasDept: true }, "rank_people", { status: "overdue" }],
+  ["ai đang làm nhiều việc nhất", {}, "rank_people", { status: "in_progress" }],
 ];
 
 for (const [q, ctx, kind, slotCheck] of CASES) {

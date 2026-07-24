@@ -4,7 +4,8 @@ import { fmtDate } from "../helpers";
 import { MANAGER_EMP_ROLES } from "../hooks/useReports";
 import { GUIDE_SECTIONS, sectionText } from "../guideContent";
 import { buildModel, classify as classifyLearn, fetchLearning, logInteraction, normQ } from "../chatLearning";
-import { classify } from "../chatIntent";
+import { classify, scoreSlots } from "../chatIntent";
+import { aiEnabled, parseWithAI } from "../aiIntent";
 
 // Trợ lý tra cứu THUẦN THUẬT TOÁN (không dùng AI ngoài): nhớ ngữ cảnh hội thoại, chịu gõ sai (fuzzy),
 // gợi ý khi gõ, truy vấn ngưỡng/thống kê, biểu đồ mini, nút hành động, chào bằng điểm nóng, nhập giọng nói.
@@ -102,7 +103,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const sixMonth = empId => { const s = []; for (let i = 5; i >= 0; i--) { const d = new Date(y, today.getMonth() - i, 1); const mp = calcMonthPerf(empId, d.getFullYear(), d.getMonth()); s.push(mp.resolved > 0 ? mp.perfScore : null); } return s; };
   const personStats = (person, period) => { const inP = t => { if (!period) return true; const d = new Date(t.deadline); return !isNaN(d) && d >= period.from && d <= period.to; }; const mi = period?.monthIdx ?? today.getMonth(); const inScope = computed.filter(t => t.eid === person.id && inP(t)); const late = inScope.filter(t => t.status === "completed_late" || t.status === "overdue").length; const openN = computed.filter(t => t.eid === person.id && !isCompletedStatus(t.status)).length; const rel = empReliability[person.id]; const load = activeLoadByEid[person.id]; const isMgr = MANAGER_EMP_ROLES.includes(person.role); const m = isMgr && managerPerf ? managerPerf(person.id, y, mi) : calcMonthPerf(person.id, y, mi); const rslv = isMgr ? m.resolvedW : m.resolved; return { total: inScope.length, late, openN, loadW: load ? load.w : 0, onTime: rel?.onTimeRate, avgDays: rel?.avgDays, score: rslv > 0 ? m.perfScore : null, eligible: m.eligible, mi, isMgr, perf: m }; };
 
-  const answer = (raw) => {
+  const answer = (raw, aiSlots) => {
     const qn = strip(raw);
     // #1 — ngữ cảnh follow-up
     const fu = has(qn, "the con", "con ", "vay con", "con lai", "vay thi", "the thi", "thi sao", "con nua");
@@ -134,7 +135,9 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     const persons = findPersons(qn);
 
     // ── PHÂN LOẠI Ý ĐỊNH: chấm điểm mọi ý định rồi chọn cái mạnh nhất (thay cho khớp-nhánh-đầu-tiên) ──
-    const dec = classify(qn, { personCount: persons.length || (person ? 1 : 0), hasDept: !!dept });
+    // Ý 3: nếu có slots do AI bóc (khi bộ nội bộ bí) → chấm điểm trên slots AI thay vì tự tách từ câu.
+    const ctx = { personCount: persons.length || (person ? 1 : 0), hasDept: !!dept };
+    const dec = aiSlots ? scoreSlots(aiSlots, ctx) : classify(qn, ctx);
     const K = dec.kind, sl = dec.slots;
     const STLABEL = { pending_approval: "chờ duyệt", overdue: "quá hạn", completed: "hoàn thành", in_progress: "đang làm" };
     const und = [dept ? `phòng ${dept}` : (sl.subject === "org" ? "toàn cơ quan" : ""), (person && persons.length <= 1) ? person.name : "", period ? period.label : "", sl.status ? STLABEL[sl.status] : "", sl.metric || "", sl.order === "asc" ? "thấp→cao" : sl.order === "desc" ? "cao→thấp" : ""].filter(Boolean).join(" · ");
@@ -157,6 +160,15 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
       if (sl.metric === "load") { const r = Object.entries(activeLoadByEid || {}).filter(([id]) => relDeptOk(id)).sort((a, b) => b[1].w - a[1].w); if (!r.length) return { text: "Hiện không ai có việc đang mở." }; return U({ text: `Đang gánh nhiều việc mở nhất${dept ? ` (phòng ${dept})` : ""} (quy đổi):`, bars: r.slice(0, 6).map(([id, v]) => ({ label: nm(id), value: v.w })) }); }
       if (sl.metric === "free") { const withLoad = new Set(Object.keys(activeLoadByEid || {})); const free = (employees || []).filter(e => !e.no_kpi && (!dept || e.dept === dept) && !withLoad.has(e.id)); if (free.length) return U({ text: `Đang rảnh${dept ? ` (phòng ${dept})` : ""} (không có việc mở):`, list: free.slice(0, 6).map((e, i) => `${i + 1}. ${e.name} (${e.dept})`) }); const r = Object.entries(activeLoadByEid || {}).filter(([id]) => relDeptOk(id)).sort((a, b) => a[1].w - b[1].w); return U({ text: "Ít việc mở nhất (quy đổi):", bars: r.slice(0, 6).map(([id, v]) => ({ label: nm(id), value: v.w })) }); }
       if (sl.late) { const map = {}; for (const t of computed) { if (!t.eid || !both(t)) continue; if (!(t.status === "completed_late" || t.status === "overdue")) continue; map[t.eid] = (map[t.eid] || 0) + 1; } const r = rankMap(map); if (!r.length) return { text: `Không có việc trễ/quá hạn nào${sc}. 👍` }; return U({ text: `Người nhiều việc trễ/quá hạn nhất${sc}:`, bars: barsFrom(r) }); }
+      // GHÉP ĐIỀU KIỆN: "ai nhiều việc [trạng thái] nhất" / "việc [trạng thái] phòng X do ai phụ trách"
+      // → đếm theo NGƯỜI nhưng CHỈ việc đúng trạng thái đó (không phải mọi việc như nhánh mặc định).
+      if (sl.status) {
+        const stOk = st => sl.status === "pending_approval" ? st === "pending_approval" : sl.status === "completed" ? isCompletedStatus(st) : sl.status === "overdue" ? st === "overdue" : (!isCompletedStatus(st) && st !== "pending_approval");
+        const map = {}; for (const t of computed) { if (!t.eid || !both(t)) continue; if (stOk(t.status)) map[t.eid] = (map[t.eid] || 0) + 1; }
+        const r = rankMap(map, sl.order === "asc" ? "asc" : "desc");
+        if (!r.length) return { text: `Không có ai có việc ${STLABEL[sl.status]}${sc}. 👍` };
+        return U({ text: `Người ${sl.order === "asc" ? "ít" : "nhiều"} việc ${STLABEL[sl.status]} nhất${sc}:`, bars: barsFrom(r) });
+      }
       const r = rankMap(countTasks(), sl.order === "asc" ? "asc" : "desc"); if (!r.length) return { text: `Không có dữ liệu việc${sc}.` }; return U({ text: `Người ${sl.order === "asc" ? "ít" : "nhiều"} việc nhất${sc}:`, bars: barsFrom(r) });
     }
     if (K === "person" && person) { const s = personStats(person, period); const list = [`Số việc${sc}: ${s.total}${s.late ? ` · trễ/quá hạn: ${s.late}` : ""}`, `Đang mở: ${s.openN} việc${s.loadW ? ` (≈${s.loadW} quy đổi)` : ""}`]; if (s.onTime != null) list.push(`Đúng hạn (lịch sử): ${s.onTime}%${s.avgDays != null ? ` · TB ~${s.avgDays} ngày/việc` : ""}`); if (s.score != null) list.push(`${s.isMgr ? "🏛️ Điểm điều hành" : "Điểm"} tháng ${s.mi + 1}: ${s.score}đ${s.eligible ? "" : " (tham khảo)"}`); const p = s.perf; const explain = (!s.isMgr && s.score != null && p) ? [`Việc đã đến hạn (quy đổi): ${p.total} · trong đó đúng hạn ${p.onTime}, trễ ${p.completedLate}, quá hạn/tồn ${p.over}`, `Tỷ lệ hoàn thành: ${p.completionRate}% · đủ điều kiện chốt điểm khi ≥5 việc đến hạn (${p.eligible ? "đủ ✓" : "chưa đủ — điểm tham khảo"})`, `Cách tính: điểm = phần đúng hạn (cộng) − phần trễ/quá hạn (trừ) + thưởng khối lượng, có nhân trọng số ưu tiên (nguồn: scoring.js — có kiểm thử).`] : null; const prevMi = (s.mi + 11) % 12; const followups = [`${person.name} tháng ${prevMi + 1}`, `Ai nhiều việc nhất phòng ${person.dept}`, `Ai trễ nhiều nhất phòng ${person.dept}`]; return { text: `👤 ${person.name} — ${person.dept}`, list, profileEid: person.id, spark: sixMonth(person.id), explain, followups, understood: und || undefined }; }
@@ -175,8 +187,10 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const topFreq = () => { try { const o = JSON.parse(localStorage.getItem(freqKey) || "{}"); return Object.entries(o).filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([q]) => q); } catch { return []; } };
   // #2 — "Ý bạn là…?" gợi ý câu gần nhất từ mẫu câu quen + kho đã dạy lại
   const didYouMean = q => { const qs = strip(q); const qt = new Set(qs.split(/[^a-z0-9]+/).filter(w => w.length >= 2)); if (!qt.size) return []; const pool = new Set(acItems); for (const r of rowsRef.current) { if (r.corrected_q) pool.add(r.corrected_q); } const scored = [...pool].map(x => { const xs = strip(x); const xt = new Set(xs.split(/[^a-z0-9]+/).filter(w => w.length >= 2)); let inter = 0; for (const w of qt) if (xt.has(w)) inter++; const jac = inter / (qt.size + xt.size - inter || 1); const lv = 1 - lev(qs, xs) / Math.max(qs.length, xs.length || 1); return { x, s: Math.max(jac, lv * 0.75) }; }).sort((a, b) => b.s - a.s); return scored.filter(v => v.s >= 0.34).slice(0, 3).map(v => v.x); };
-  const send = (text) => {
-    const q = (text ?? input).trim(); if (!q) return; setShowAc(false); bumpFreq(q);
+  // #2 + #4: chưa hiểu -> gợi ý "ý bạn là" & ghi nhận vào kho để admin biết chỗ trợ lý còn "mù"
+  const finalizeUnsure = (q, ans) => { if (ans.unsure) { const dym = didYouMean(q); if (dym.length) ans = { ...ans, suggestions: dym }; logInteraction({ username: me, question: q, intent: "unknown", feedback: 0 }); } return ans; };
+  const send = async (text) => {
+    const q = (text ?? input).trim(); if (!q) return; setShowAc(false); bumpFreq(q); setInput("");
     let ans = answer(q);
     // TỰ HỌC: nếu không hiểu (hoặc có câu đã "dạy lại" rất giống) -> định tuyến sang câu đúng đã học
     const c = classifyLearn(model, q);
@@ -184,10 +198,17 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
       const routed = answer(c.corrected);
       if (!routed.unsure) ans = { ...routed, learnedFrom: c.corrected };
     }
-    // #2 + #4: chưa hiểu -> gợi ý "ý bạn là" & ghi nhận vào kho để admin biết chỗ trợ lý còn "mù"
-    if (ans.unsure) { const dym = didYouMean(q); if (dym.length) ans = { ...ans, suggestions: dym }; logInteraction({ username: me, question: q, intent: "unknown", feedback: 0 }); }
+    // Ý 3: chỉ khi CẢ nội bộ lẫn đã-học đều bí VÀ AI được bật → nhờ AI bóc ý, rồi chạy truy vấn TẠI CHỖ.
+    if (ans.unsure && aiEnabled) {
+      setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", text: "⏳ Đang hiểu câu hỏi…", pending: true }]);
+      const ai = await parseWithAI(q);
+      if (ai && ai.slots) { const routed = answer(q, ai.slots); if (!routed.unsure) ans = { ...routed, viaAI: true }; }
+      ans = finalizeUnsure(q, ans);
+      setMsgs(m => { const copy = [...m]; copy[copy.length - 1] = { who: "bot", ...ans, q, intent: ans.intent || answerKind(ans) }; return copy; });
+      return;
+    }
+    ans = finalizeUnsure(q, ans);
     setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", ...ans, q, intent: ans.intent || answerKind(ans) }]);
-    setInput("");
   };
   const speak = (m) => { try { const synth = window.speechSynthesis; if (!synth) return; synth.cancel(); const txt = [m.text, ...(m.list || []), ...((m.bars || []).map(b => `${b.label}: ${b.value}`))].join(". "); const u = new SpeechSynthesisUtterance(txt); u.lang = "vi-VN"; synth.speak(u); } catch { /* ignore */ } };
   // Ghi nhận phản hồi 👍 / 👎(+dạy lại) => bổ sung mẫu học & dựng lại mô hình ngay

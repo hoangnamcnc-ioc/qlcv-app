@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchAllLearning, setPromoted, deleteLearning } from "./chatLearning";
+import { unknownWords } from "./chatIntent";
 
 // Trang admin: xem & duyệt những gì trợ lý chat đã "học" từ phản hồi người dùng.
 // - 👍 = câu được xác nhận đúng · 👎 kèm "dạy lại" = câu ánh xạ sang ý đúng
@@ -30,6 +31,15 @@ export default function ChatLearningAdmin({ isMobile, showToast }) {
     promoted: rows.filter(r => r.promoted).length,
     unknown: rows.filter(r => r.intent === "unknown" && !r.corrected_q).length,
   }), [rows]);
+
+  // ── Ý 1: TỪ MỚI trợ lý CHƯA BIẾT — gom từ trong các câu bị "chưa hiểu"/👎 (không phải khung câu),
+  // đếm tần suất để admin biết nên bổ sung cách nói nào vào từ điển LEX (chatIntent.js) ở lần cập nhật sau. ──
+  const vocabGaps = useMemo(() => {
+    const failed = rows.filter(r => (r.intent === "unknown" || r.feedback === -1) && !r.corrected_q);
+    const freq = new Map();
+    for (const r of failed) for (const w of unknownWords(r.question || "")) freq.set(w, (freq.get(w) || 0) + 1);
+    return [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30);
+  }, [rows]);
 
   const filtered = useMemo(() => {
     let r = rows;
@@ -100,6 +110,18 @@ export default function ChatLearningAdmin({ isMobile, showToast }) {
         <button onClick={load} style={{ fontSize: 12, color: "#4f46e5", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", marginLeft: "auto" }}>↻ Tải lại</button>
       </div>
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Tìm trong câu hỏi / câu đã dạy lại…" style={{ padding: "9px 13px", border: "1px solid #d1d5db", borderRadius: 10, fontSize: 13, width: "100%", boxSizing: "border-box" }} />
+
+      {vocabGaps.length > 0 && (
+        <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "12px 14px" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: "#92400e", marginBottom: 4 }}>🔤 Từ trợ lý CHƯA biết (từ các câu chưa hiểu / 👎)</div>
+          <div style={{ fontSize: 11.5, color: "#a16207", marginBottom: 8 }}>Những từ này người dùng hay hỏi mà trợ lý chưa nhận ra. Gợi ý cho lập trình bổ sung vào từ điển <b>LEX</b> (chatIntent.js) ở lần cập nhật sau. Số trong ngoặc = số câu chứa từ đó.</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {vocabGaps.map(([w, n]) => (
+              <span key={w} style={{ fontSize: 12, background: "#fff", border: "1px solid #fcd34d", color: "#92400e", padding: "3px 9px", borderRadius: 8 }}>{w} <b style={{ color: "#b45309" }}>({n})</b></span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {err && <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 8, padding: "10px 14px", fontSize: 13 }}>⚠️ Chưa đọc được bảng <b>chat_learning</b> ({err}). Hãy chạy tệp <b>supabase/37-tao-bang-chat-hoc.sql</b> trong Supabase.</div>}
       {loading && <div style={{ padding: 24, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>Đang tải…</div>}
