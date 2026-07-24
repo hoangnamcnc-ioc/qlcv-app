@@ -31,9 +31,13 @@ A) Nếu câu hỏi VỀ DỮ LIỆU công việc/nhân sự (việc quá hạn,
    - myAssigned (bool: hỏi "việc TÔI đã giao")
    - threshold: {"op":">"|"<","n":số} hoặc null
 
-B) Nếu câu hỏi NGOÀI phạm vi dữ liệu phần mềm (kiến thức chung, tư vấn cách làm việc, soạn thảo, giải thích khái niệm,
-   chào hỏi, câu xã giao...): trả về {"type":"answer","answer":"<câu trả lời ngắn gọn, hữu ích, tiếng Việt>"}.
+B) Nếu câu hỏi NGOÀI phạm vi dữ liệu phần mềm (kiến thức chung, tư vấn cách làm việc, soạn thảo văn bản, giải thích
+   khái niệm, chào hỏi, câu xã giao...): trả về {"type":"answer","answer":"<câu trả lời tiếng Việt>"}.
+   QUAN TRỌNG: nếu người dùng YÊU CẦU SOẠN/VIẾT một văn bản (đơn xin nghỉ phép, email, tờ trình, công văn, báo cáo,
+   thông báo...), hãy VIẾT ĐẦY ĐỦ văn bản hoàn chỉnh ngay trong "answer" — KHÔNG chỉ mô tả cách viết. Thông tin còn
+   thiếu thì tự ĐIỀN MẪU (VD: họ tên "Nguyễn Văn A", ngày "…/…/…", phòng "…") để người dùng thay sau. Xuống dòng bằng \\n.
    Trả lời đúng mực, phù hợp môi trường công sở nhà nước. Nếu là câu không thể/không nên trả lời, lịch sự từ chối ngắn gọn.
+   Dựa vào các lượt hội thoại trước (nếu có) để hiểu câu nối tiếp như "viết giúp đi", "làm tiếp đi".
 
 Ví dụ A: {"type":"slots","slots":{"status":"overdue","subject":"people","order":"desc","superl":true}}
 Ví dụ B: {"type":"answer","answer":"Để viết một email xin nghỉ phép, bạn nên nêu rõ lý do, thời gian nghỉ và người thay thế..."}`;
@@ -56,13 +60,16 @@ export default async function handler(req, res) {
     // Model dùng gói FREE. Có thể đổi qua biến môi trường GEMINI_MODEL nếu 1 model bị hết hạn ngạch.
     const model = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+    // Ghép vài lượt hội thoại trước (nếu có) để AI hiểu câu nối tiếp; role chỉ nhận "user"/"model".
+    const hist = Array.isArray(body.history) ? body.history.filter(h => h && typeof h.text === "string" && h.text.trim()).slice(-6).map(h => ({ role: h.role === "model" ? "model" : "user", parts: [{ text: String(h.text).slice(0, 600) }] })) : [];
+    const contents = [...hist, { role: "user", parts: [{ text: String(question).slice(0, 600) }] }];
     const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: SYS }] },
-        contents: [{ role: "user", parts: [{ text: String(question).slice(0, 300) }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 300, responseMimeType: "application/json" },
+        contents,
+        generationConfig: { temperature: 0.2, maxOutputTokens: 1400, responseMimeType: "application/json" },
       }),
     });
     if (!r.ok) { const detail = await r.text().catch(() => ""); res.status(200).json({ slots: null, error: "gemini " + r.status, detail: detail.slice(0, 300) }); return; }

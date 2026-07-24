@@ -40,15 +40,18 @@ function normalizeSlots(x) {
 }
 
 // Trả về { slots, kind } nếu AI hiểu được; null nếu tắt/lỗi/quá thời gian → nơi gọi tự quay về nội bộ.
-export async function parseWithAI(question) {
+// history: vài lượt hội thoại gần nhất [{ role:"user"|"model", text }] để AI hiểu câu nối tiếp
+// (VD "viết giúp đi" sau khi đã bàn về đơn xin nghỉ phép).
+export async function parseWithAI(question, history) {
   if (!aiEnabled || !question || !question.trim()) return null;
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 4500); // chậm quá thì bỏ, dùng bộ nội bộ cho mượt
+    const timer = setTimeout(() => ctrl.abort(), 12000); // soạn văn bản dài cần lâu hơn; chậm quá mới bỏ
+    const hist = Array.isArray(history) ? history.filter(h => h && h.text).slice(-6).map(h => ({ role: h.role === "model" ? "model" : "user", text: String(h.text).slice(0, 600) })) : [];
     const res = await fetch(PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: question.slice(0, 300) }),
+      body: JSON.stringify({ question: question.slice(0, 600), history: hist }),
       signal: ctrl.signal,
     });
     clearTimeout(timer);

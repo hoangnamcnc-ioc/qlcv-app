@@ -232,7 +232,9 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     //    KHÔNG đè lên một câu trả lời dữ liệu chỉ vì mơ hồ.
     if ((ans.unsure || ans.weak) && aiEnabled) {
       setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", text: "⏳ Đang hiểu câu hỏi…", pending: true }]);
-      const ai = await parseWithAI(q);
+      // Gửi kèm vài lượt gần nhất để AI hiểu câu nối tiếp ("viết giúp đi", "làm tiếp"…).
+      const hist = msgs.slice(-6).filter(m => m.text && !m.pending).map(m => ({ role: m.who === "me" ? "user" : "model", text: m.text }));
+      const ai = await parseWithAI(q, hist);
       if (ai && ai.slots) { const routed = answer(q, ai.slots); if (!routed.unsure) ans = { ...routed, viaAI: true }; }
       else if (ai && ai.answer && ans.unsure) { ans = { text: ai.answer, viaAI: true }; }
       ans = finalizeUnsure(q, ans);
