@@ -112,7 +112,11 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     const qn = strip(raw);
     // #1 — ngữ cảnh follow-up
     const fu = has(qn, "the con", "con ", "vay con", "con lai", "vay thi", "the thi", "thi sao", "con nua");
-    let person = findPersons(qn)[0] || fuzzyPerson(qn) || null;
+    // Tên gõ ĐẦY ĐỦ (findPersons) → nhận ngay. Tên ĐOÁN MỜ (fuzzyPerson) chỉ nhận khi câu thực sự hỏi
+    // về CÔNG VIỆC/HỒ SƠ của người đó — tránh khớp nhầm tên trong câu hỏi tính năng
+    // (VD "Lê Xuân Quang có đăng nhập phần mềm không" ⇏ hồ sơ "Lê Quang Thanh").
+    let person = findPersons(qn)[0] || null;
+    if (!person) { const fp = fuzzyPerson(qn); if (fp && has(qn, "viec", "nhiem vu", "diem", "ho so", "tien do", "qua han", "tre han", "hoan thanh", "dung han", "nang suat", "phu trach", "dang lam", "xep loai", "cham diem", "bao nhieu", "the nao", "ra sao", "lam an")) person = fp; }
     let dept = findDept(qn) || null;
     let period = parsePeriod(qn);
     if (fu) { person = person || ctxRef.current.person; dept = dept || ctxRef.current.dept; period = period || ctxRef.current.period; }
