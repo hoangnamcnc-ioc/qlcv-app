@@ -63,6 +63,47 @@ const CASES = [
 
   // Không hiểu
   ["hôm nay trời đẹp quá", {}, "unknown"],
+
+  // ══ CÁCH DIỄN ĐẠT MỞ RỘNG (trước đây trợ lý hay không hiểu) ══
+  // Quá tải — nhiều cách nói
+  ["ai đang ngập việc nhất", {}, "rank_people", { metric: "load" }],
+  ["ai ôm nặng nhất", {}, "rank_people", { metric: "load" }],
+  ["nhân viên nào tải cao nhất", {}, "rank_people", { metric: "load" }],
+  ["ai gánh nặng nhất", {}, "rank_people", { metric: "load" }],
+  // Rảnh
+  ["ai đang nhàn nhã", {}, "rank_people", { metric: "free" }],
+  ["ai đang thong thả", {}, "rank_people", { metric: "free" }],
+  // Điểm / xếp loại
+  ["ai xếp loại cao nhất tháng 7", {}, "rank_people", { metric: "score" }],
+  ["ai thành tích tốt nhất", {}, "rank_people", { metric: "score" }],
+  ["ai năng suất cao nhất", {}, "rank_people", { metric: "score" }],
+  // Đúng hạn / tốc độ
+  ["ai giữ hạn tốt nhất", {}, "rank_people", { metric: "ontime" }],
+  ["ai uy tín nhất về tiến độ", {}, "rank_people", { metric: "ontime" }],
+  ["ai xử lý nhanh nhất", {}, "rank_people", { metric: "speed" }],
+  // Trạng thái — cách nói khác
+  ["việc bị trễ deadline", {}, "list", { status: "overdue" }],
+  ["việc vượt hạn", {}, "list", { status: "overdue" }],
+  ["danh sách việc đang triển khai", {}, "list", { status: "in_progress" }],
+  ["việc đã chốt xong", {}, "list", { status: "completed" }],
+  ["việc chờ lãnh đạo duyệt", {}, "list", { status: "pending_approval" }],
+  ["việc chờ ký", {}, "list", { status: "pending_approval" }],
+  // Sắp trễ
+  ["việc nào gần deadline", {}, "upcoming"],
+  ["nhiệm vụ sắp đáo hạn", {}, "upcoming"],
+  // Ngưỡng — từ mới
+  ["ai vượt 10 việc", {}, "threshold"],
+  ["ai chưa tới 3 việc", {}, "threshold"],
+  // Tạo / tìm
+  ["lập việc mới giúp tôi", {}, "create"],
+  ["khởi tạo việc", {}, "create"],
+  ["có nhiệm vụ nào về ngân sách", {}, "search"],
+  // Hướng dẫn — cách hỏi khác
+  ["chỉ tôi cách chốt sổ điểm", {}, "guide"],
+  ["chuyển văn bản ở mục nào", {}, "guide"],
+  ["tôi phải làm gì để giao việc", {}, "guide"],
+  // Xếp hạng phòng — từ mới
+  ["phòng nào xuất sắc nhất", {}, "rank_dept_rate"],
 ];
 
 for (const [q, ctx, kind, slotCheck] of CASES) {
