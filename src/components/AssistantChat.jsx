@@ -95,7 +95,10 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   };
   const findPersons = qn => { const cand = []; const seen = new Set(); for (const e of (employees || [])) { const en = strip(e.name); if (qn.includes(en)) cand.push({ e, len: en.length, at: qn.indexOf(en) }); else { const last = en.split(" ").slice(-2).join(" "); if (last.length >= 5 && qn.includes(last)) cand.push({ e, len: last.length, at: qn.indexOf(last) }); } } cand.sort((a, b) => b.len - a.len); const out = []; for (const c of cand) if (!seen.has(c.e.id)) { seen.add(c.e.id); out.push(c); } return out.sort((a, b) => a.at - b.at).map(c => c.e); };
   // #2 — fuzzy: khớp tên dù gõ sai/thiếu (≥2 từ trong tên khớp exact hoặc lệch ≤1 ký tự)
-  const fuzzyPerson = qn => { const qt = qn.split(/[^a-z0-9]+/).filter(w => w.length >= 2); let best = null, bs = 1; for (const e of (employees || [])) { const nt = strip(e.name).split(" ").filter(Boolean); let mt = 0; for (const w of nt) if (qt.some(q => q === w || lev(q, w) <= 1)) mt++; if (mt >= 2 && mt > bs) { bs = mt; best = e; } } return best; };
+  // Từ KHUNG CÂU (không bao giờ là tên người) — loại trước khi dò tên "mờ", tránh khớp nhầm kiểu
+  // "trong tháng nay ai" → "Trương Thanh Tài" (trong≈Trương, tháng≈Thanh, ai≈Tài).
+  const NAME_STOP = new Set(["toi", "co", "giao", "viec", "cho", "ai", "trong", "thang", "nay", "chua", "cua", "la", "gi", "va", "voi", "phong", "nhiem", "vu", "cong", "de", "cac", "mot", "nguoi", "nhan", "vien", "quy", "nam", "diem", "so", "sanh", "hon", "duoi", "nhat", "nhieu", "it", "sao", "the", "nao", "hoan", "dang", "lam", "xong", "tre", "han", "muon", "xem", "tim", "bao", "cao", "con", "ma", "thi", "nhu", "hay", "giup", "di", "moi", "ban", "roi", "duoc", "khong", "hom", "thoi", "tiet"]);
+  const fuzzyPerson = qn => { const qt = qn.split(/[^a-z0-9]+/).filter(w => w.length >= 2 && !NAME_STOP.has(w)); let best = null, bs = 1; for (const e of (employees || [])) { const nt = strip(e.name).split(" ").filter(Boolean); let mt = 0; for (const w of nt) if (qt.some(q => q === w || (w.length >= 4 && lev(q, w) <= 1))) mt++; if (mt >= 2 && mt > bs) { bs = mt; best = e; } } return best; };
   const findDept = qn => (DEPTS || []).find(d => qn.includes(strip(d)));
 
   const rankMap = (map, dir = "desc") => Object.entries(map).sort((a, b) => dir === "desc" ? b[1] - a[1] : a[1] - b[1]);
@@ -145,6 +148,15 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
 
     if (K === "guide") { const g = searchGuide(qn); if (g) return g; }
     if (K === "create") return { text: "Mở form tạo việc mới cho bạn — điền thông tin rồi bấm lưu nhé.", action: "create" };
+    // "việc DO TÔI giao cho ai" — lọc việc mình là người giao (created_by_name === họ tên đang đăng nhập), gộp theo người nhận
+    if (K === "my_assigned") {
+      const meN = strip(me || "");
+      const mine = computed.filter(t => both(t) && strip(t.created_by_name || "") === meN);
+      if (!mine.length) return U({ text: `Bạn chưa giao việc nào${period ? ` (${period.label})` : " trong kỳ này"}.` });
+      const map = {}; for (const t of mine) { if (t.eid) map[t.eid] = (map[t.eid] || 0) + 1; }
+      const bars = Object.entries(map).sort((a, b) => b[1] - a[1]).map(([id, v]) => ({ label: nm(id), value: v }));
+      return U({ text: `📤 Việc bạn đã giao${period ? ` (${period.label})` : ""} — ${mine.length} việc cho ${bars.length} người:`, bars });
+    }
     if (K === "compare" && persons.length >= 2) { const [a, b] = persons; const sa = personStats(a, period), sb = personStats(b, period); return U({ text: `⚖️ So sánh${sc}:`, list: [`Số việc: ${a.name} ${sa.total} · ${b.name} ${sb.total}`, `Trễ/quá hạn: ${a.name} ${sa.late} · ${b.name} ${sb.late}`, `Đúng hạn (lịch sử): ${a.name} ${sa.onTime ?? "—"}% · ${b.name} ${sb.onTime ?? "—"}%`, `Điểm tháng ${sa.mi + 1}: ${a.name} ${sa.score ?? "—"} · ${b.name} ${sb.score ?? "—"}`, `Đang mở: ${a.name} ${sa.openN} · ${b.name} ${sb.openN}`] }); }
     if (K === "list") { const st = sl.status || (sl.late ? "overdue" : null); if (st === "pending_approval") return U(statusList("Việc đang chờ duyệt", t => t.status === "pending_approval")); if (st === "overdue") return U(statusList("Việc quá hạn", t => t.status === "overdue")); if (st === "completed") return U(statusList("Việc đã hoàn thành", t => isCompletedStatus(t.status))); if (st === "in_progress") return U(statusList("Việc đang thực hiện", t => !isCompletedStatus(t.status) && t.status !== "pending_approval")); const r = doSearch(); if (r) return r; }
     if (K === "upcoming") { const res = computed.filter(t => deptOk(t) && !isCompletedStatus(t.status) && !t.completion_requested && t.status !== "overdue" && dleftOf(t) >= 0 && dleftOf(t) <= 3 && (t.progress || 0) < 60).sort((a, b) => dleftOf(a) - dleftOf(b)).slice(0, 7); if (!res.length) return { text: `Không có việc nào sắp trễ${dept ? ` ở phòng ${dept}` : ""}. 👍` }; return U({ text: `⚠️ ${res.length} việc sắp trễ${dept ? ` (phòng ${dept})` : ""}:`, tasks: res }); }

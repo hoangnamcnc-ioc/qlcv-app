@@ -113,6 +113,11 @@ const CASES = [
   ["ai có nhiều việc quá hạn nhất", {}, "rank_people", { status: "overdue" }],
   ["việc quá hạn phòng HCTH do ai phụ trách", { hasDept: true }, "rank_people", { status: "overdue" }],
   ["ai đang làm nhiều việc nhất", {}, "rank_people", { status: "in_progress" }],
+
+  // ══ Việc DO TÔI giao ══
+  ["tôi có giao việc cho ai trong tháng này chưa", {}, "my_assigned"],
+  ["việc tôi giao tháng 7", {}, "my_assigned"],
+  ["mình đã giao việc cho những ai", {}, "my_assigned"],
 ];
 
 for (const [q, ctx, kind, slotCheck] of CASES) {

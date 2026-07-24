@@ -72,6 +72,8 @@ export function extractSlots(raw) {
     upcoming: has(qn, ...LEX.upcoming),
     superl: has(qn, ...LEX.superl),
     hasViec: has(qn, "viec", "nhiem vu"),
+    // "việc DO TÔI giao" — hỏi mình đã giao việc cho những ai (khác với "ai giao cho tôi")
+    myAssigned: has(qn, "toi giao", "toi co giao", "toi da giao", "viec toi giao", "minh giao", "minh da giao", "minh co giao", "do toi giao", "toi phan cong", "minh phan cong", "toi giao cho", "toi giao viec", "minh giao viec"),
   };
 }
 
@@ -103,6 +105,7 @@ export function scoreSlots(s, ctx = {}) {
 
   if (s.guide) add("guide", 12);
   if (s.create) add("create", 12);
+  if (s.myAssigned) add("my_assigned", 12); // "việc tôi giao cho ai" — rất riêng, ưu tiên cao
   if (s.compare && personCount >= 2) add("compare", 12);
 
   // LIỆT KÊ theo trạng thái
