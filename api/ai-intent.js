@@ -53,6 +53,15 @@ export default async function handler(req, res) {
     const key = process.env.GEMINI_API_KEY;
     if (!key) { res.status(200).json({ slots: null, error: "missing GEMINI_API_KEY" }); return; }
 
+    // Chẩn đoán: liệt kê model key này được phép dùng (chỉ dùng tạm để chọn model đúng).
+    if (question === "__models__") {
+      const lr = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=100`);
+      const ld = await lr.json().catch(() => ({}));
+      const names = (ld.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent")).map(m => m.name.replace("models/", ""));
+      res.status(200).json({ slots: null, models: names });
+      return;
+    }
+
     // Model dùng gói FREE. Có thể đổi qua biến môi trường GEMINI_MODEL nếu 1 model bị hết hạn ngạch.
     const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
