@@ -104,6 +104,9 @@ const CASES = [
   ["tôi phải làm gì để giao việc", {}, "guide"],
   // Xếp hạng phòng — từ mới
   ["phòng nào xuất sắc nhất", {}, "rank_dept_rate"],
+  ["phòng nào dạo này làm ăn bết bát nhất", {}, "rank_dept_rate", { order: "asc" }],
+  ["phòng nào yếu kém nhất", {}, "rank_dept_rate", { order: "asc" }],
+  ["ai đang sa sút nhất", {}, "rank_people", { order: "asc" }],
 
   // ══ GHÉP ĐIỀU KIỆN (trạng thái + xếp hạng người) ══
   ["ai nhiều việc chờ duyệt nhất", {}, "rank_people", { status: "pending_approval" }],
