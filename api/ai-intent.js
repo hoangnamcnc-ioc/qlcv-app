@@ -63,7 +63,7 @@ export default async function handler(req, res) {
     }
 
     // Model dùng gói FREE. Có thể đổi qua biến môi trường GEMINI_MODEL nếu 1 model bị hết hạn ngạch.
-    const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const model = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
     const r = await fetch(url, {
       method: "POST",
