@@ -1327,7 +1327,7 @@ export default function App() {
       const tips={
         staff:["📋 Xem \"Công việc của tôi\" — việc gấp/ưu tiên đã tự đưa lên đầu.","📈 Cập nhật % tiến độ (hoặc tick checklist con) để quản lý nắm được.","📨 Xong việc → bấm \"Yêu cầu hoàn thành\" để Trưởng phòng duyệt & chấm điểm.","➕ Có việc tự phát? Bấm \"Tự tạo việc\" để ghi nhận.","🖨 Cuối tháng bấm \"Tự đánh giá\" để in bản tổng kết của mình."],
         manager:["📊 Tổng quan có bảng Nhân sự — bấm 1 người để mở hồ sơ đánh giá.","➕ Khi giao việc, ô \"Giao cho\" hiện luôn ai đang rảnh / ai quá tải.","✅ Duyệt & chấm điểm việc nhân viên gửi (mục 🗂️ Việc chờ xử lý / 🔔).","🩺 Để ý thẻ Sức khỏe dữ liệu & ⚠️ Nguy cơ trễ để chấn chỉnh kịp thời.","🔔 Việc chậm? Bấm \"Nhắc việc\" để đôn đốc (có ghi lịch sử)."],
-        director:["📊 Tổng hợp điều hành: chọn 📅 Kỳ và đặt 🎯 Chỉ tiêu KPI (dùng chung).","🚩 Xem thẻ \"Cần chú ý\" — phòng/người đang đi xuống nhiều tháng.","📑 Báo cáo → Xếp loại: chốt sổ điểm & in phiếu bình xét thi đua.","🏛️ Điểm điều hành xếp hạng RIÊNG cho Trưởng/Phó phòng.","📜 Nhật ký: tra cứu toàn bộ thao tác, lọc theo người/ngày & xuất CSV."],
+        director:["📊 Tổng hợp điều hành: chọn 📅 Kỳ và đặt 🎯 Chỉ tiêu KPI (dùng chung).","🚩 Thẻ \"Cần chú ý\" (cuộn xuống ở Tổng quan) TỰ hiện khi có phòng/người đi xuống — không thấy nghĩa là đang ổn.","📑 Báo cáo → Xếp loại: chốt sổ điểm & in phiếu bình xét thi đua.","🏛️ Điểm điều hành xếp hạng RIÊNG cho Trưởng/Phó phòng.","📜 Nhật ký: tra cứu toàn bộ thao tác, lọc theo người/ngày & xuất CSV."],
       };
       const role=currentUser.role;
       const list=role==="staff"?tips.staff:["admin","director"].includes(role)?tips.director:tips.manager;
