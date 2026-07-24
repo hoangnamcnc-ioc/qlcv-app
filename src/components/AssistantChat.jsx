@@ -175,9 +175,11 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     if (K === "dept_profile" && dept) { const dt = computed.filter(t => t.dept === dept && inPeriod(t)); const done = dt.filter(t => isCompletedStatus(t.status)).length; return U({ text: `🏢 Phòng ${dept}${period ? ` (${period.label})` : ""}`, list: [`Tổng việc: ${dt.length} · Hoàn thành: ${done} (${dt.length ? Math.round(done / dt.length * 100) : 0}%)`, `Quá hạn: ${dt.filter(t => t.status === "overdue").length} · Đang mở: ${dt.filter(t => !isCompletedStatus(t.status)).length}`] }); }
     if (K === "search") { const r = doSearch(); if (r) return r; return { text: "Không tìm thấy nhiệm vụ nào khớp từ khoá đó." }; }
 
-    // Không rõ ý → thử tìm theo từ khoá, rồi báo chưa hiểu (send() sẽ gợi ý "Ý bạn là…?")
-    const sfb = doSearch(); if (sfb) return sfb;
-    return { text: "Mình chưa rõ ý. Thử: tên một người/phòng (+ tháng/quý), \"so sánh A với B\", \"ai có hơn 10 việc\", \"danh sách việc chờ duyệt\", hoặc \"tìm việc <từ khoá>\".", unsure: true };
+    // Không rõ ý → CHỈ tìm theo từ khoá nếu câu có vẻ hỏi VỀ VIỆC (có "việc"/"nhiệm vụ" hoặc ý tìm kiếm).
+    // Câu lạc đề (VD "hôm nay thời tiết thế nào") không được trả về nhiệm vụ bừa — báo chưa rõ ý để
+    // send() nhờ AI hiểu giúp (nếu bật) hoặc gợi ý "Ý bạn là…?".
+    if (sl.hasViec || sl.search) { const sfb = doSearch(); if (sfb) return sfb; }
+    return { text: "Mình là trợ lý tra cứu công việc, chưa rõ ý câu này. Thử hỏi: tên một người/phòng (+ tháng/quý), \"so sánh A với B\", \"ai có hơn 10 việc\", \"danh sách việc chờ duyệt\", hoặc \"tìm việc <từ khoá>\".", unsure: true };
   };
 
   const answerKind = a => a.guide ? "guide" : a.unsure ? "unknown" : a.clarify ? "clarify" : a.tasks ? "tasks" : a.bars ? "rank" : a.profileEid ? "profile" : a.list ? "info" : "text";
