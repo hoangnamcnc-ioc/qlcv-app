@@ -98,7 +98,9 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   // Từ KHUNG CÂU (không bao giờ là tên người) — loại trước khi dò tên "mờ", tránh khớp nhầm kiểu
   // "trong tháng nay ai" → "Trương Thanh Tài" (trong≈Trương, tháng≈Thanh, ai≈Tài).
   const NAME_STOP = new Set(["toi", "co", "giao", "viec", "cho", "ai", "trong", "thang", "nay", "chua", "cua", "la", "gi", "va", "voi", "phong", "nhiem", "vu", "cong", "de", "cac", "mot", "nguoi", "nhan", "vien", "quy", "nam", "diem", "so", "sanh", "hon", "duoi", "nhat", "nhieu", "it", "sao", "the", "nao", "hoan", "dang", "lam", "xong", "tre", "han", "muon", "xem", "tim", "bao", "cao", "con", "ma", "thi", "nhu", "hay", "giup", "di", "moi", "ban", "roi", "duoc", "khong", "hom", "thoi", "tiet"]);
-  const fuzzyPerson = qn => { const qt = qn.split(/[^a-z0-9]+/).filter(w => w.length >= 2 && !NAME_STOP.has(w)); let best = null, bs = 1; for (const e of (employees || [])) { const nt = strip(e.name).split(" ").filter(Boolean); let mt = 0; for (const w of nt) if (qt.some(q => q === w || (w.length >= 4 && lev(q, w) <= 1))) mt++; if (mt >= 2 && mt > bs) { bs = mt; best = e; } } return best; };
+  // Yêu cầu ≥2 từ trong tên khớp CHÍNH XÁC (tránh nhầm các âm tiết lệch 1 ký tự: Xuân↔Tuấn, Quang↔Quân,
+  // Toàn↔Tuấn…). Chỉ cho lệch ≤1 ký tự như điểm CỘNG THÊM trên âm dài (≥5), không tính vào 2 khớp bắt buộc.
+  const fuzzyPerson = qn => { const qt = qn.split(/[^a-z0-9]+/).filter(w => w.length >= 2 && !NAME_STOP.has(w)); let best = null, bs = 1; for (const e of (employees || [])) { const nt = strip(e.name).split(" ").filter(Boolean); let ex = 0, fz = 0; for (const w of nt) { if (qt.some(q => q === w)) ex++; else if (w.length >= 5 && qt.some(q => q.length >= 5 && lev(q, w) <= 1)) fz++; } const mt = ex + fz; if (ex >= 2 && mt > bs) { bs = mt; best = e; } } return best; };
   const findDept = qn => (DEPTS || []).find(d => qn.includes(strip(d)));
 
   const rankMap = (map, dir = "desc") => Object.entries(map).sort((a, b) => dir === "desc" ? b[1] - a[1] : a[1] - b[1]);
