@@ -110,6 +110,9 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
 
   const answer = (raw, aiSlots) => {
     const qn = strip(raw);
+    // YÊU CẦU SOẠN/VIẾT VĂN BẢN → nhường cho AI viết (câu thường chứa tên phòng/ngày như "phòng HT-NTS,
+    // nghỉ 2 ngày" khiến bộ dữ liệu tưởng nhầm là hồ sơ phòng). Đánh dấu unsure để send() gọi AI.
+    if (!aiSlots && has(qn, "viet giup", "viet ho", "viet cho toi", "viet mot", "viet don", "viet email", "viet to trinh", "viet cong van", "viet bao cao", "viet thong bao", "viet ke hoach", "viet ban", "soan giup", "soan ho", "soan cho toi", "soan mot", "soan thao", "soan don", "soan email", "soan van ban", "giup toi viet", "giup toi soan", "thao giup")) return { unsure: true, wantWrite: true };
     // #1 — ngữ cảnh follow-up
     const fu = has(qn, "the con", "con ", "vay con", "con lai", "vay thi", "the thi", "thi sao", "con nua");
     // Tên gõ ĐẦY ĐỦ (findPersons) → nhận ngay. Tên ĐOÁN MỜ (fuzzyPerson) chỉ nhận khi câu thực sự hỏi
