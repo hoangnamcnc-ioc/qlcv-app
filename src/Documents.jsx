@@ -168,6 +168,8 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
   const counts=useMemo(()=>({den:items.filter(isIncoming).length,di:items.filter(d=>!isIncoming(d)).length}),[items]);
   // Dashboard trạng thái văn bản đến: xem theo bước chuyển GẦN NHẤT (ai đang giữ văn bản để xử lý) —
   // đã giao việc = đã có task_id liên kết, bất kể đã chuyển tới ai.
+  // Chỉ tính "đã giao việc" khi nhiệm vụ liên kết CÒN TỒN TẠI (chưa bị xóa) — nhiệm vụ đã xóa coi như chưa giao.
+  const activeTaskIds=useMemo(()=>new Set((tasks||[]).filter(t=>!t.deleted).map(t=>t.id)),[tasks]);
   const docStats=useMemo(()=>{
     const incoming=items.filter(isIncoming);
     let unviewed=0,hasTask=0;
@@ -175,10 +177,10 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
       const chain=parseJSON(d.forwards,[]);
       const last=chain[chain.length-1];
       if(last&&!last.viewed_at)unviewed++;
-      if(d.task_id)hasTask++;
+      if(d.task_id&&activeTaskIds.has(d.task_id))hasTask++;
     }
     return{total:incoming.length,unviewed,viewed:incoming.length-unviewed,hasTask,noTask:incoming.length-hasTask};
-  },[items]);
+  },[items,activeTaskIds]);
 
   return(<div style={{display:"flex",flexDirection:"column",gap:14}}>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:10}}>
@@ -207,7 +209,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
     </div>}
     {loading?<div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>Đang tải…</div>:filtered.length===0?<div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:40,textAlign:"center",color:"#9ca3af"}}><div style={{fontSize:40,marginBottom:8}}>📁</div><div style={{fontSize:14}}>Chưa có văn bản nào</div></div>:
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {filtered.map(d=>{const T=isIncoming(d)?TYPES.den:TYPES.di;const linkedTask=d.task_id?(tasks||[]).find(t=>t.id===d.task_id):null;const atts=d.attachments?(typeof d.attachments==="string"?JSON.parse(d.attachments||"[]"):d.attachments):[];return(
+      {filtered.map(d=>{const T=isIncoming(d)?TYPES.den:TYPES.di;const linkedTask=d.task_id?(tasks||[]).find(t=>t.id===d.task_id&&!t.deleted):null;const atts=d.attachments?(typeof d.attachments==="string"?JSON.parse(d.attachments||"[]"):d.attachments):[];return(
         <div key={d.id} style={{background:"#fff",borderRadius:10,border:"1px solid "+(selectMode&&selected.has(d.id)?"#6366f1":"#e5e7eb"),borderLeft:"4px solid "+T.col,padding:14,display:"flex",gap:10}}>
           {selectMode&&canManageDoc(d)&&<input type="checkbox" checked={selected.has(d.id)} onChange={()=>toggleSelect(d.id)} style={{marginTop:3,flexShrink:0,width:16,height:16,cursor:"pointer"}}/>}
           {selectMode&&!canManageDoc(d)&&<span style={{width:16,flexShrink:0}}/>}
@@ -219,7 +221,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
               <span style={{fontSize:11,color:"#9ca3af"}}>{fmtDate(d.doc_date)}</span>
             </div>
             {canManage&&!selectMode&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {isIncoming(d)&&!d.task_id&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}
+              {isIncoming(d)&&!linkedTask&&onCreateTask&&<button onClick={()=>onCreateTask(d)} style={{padding:"3px 9px",border:"1px solid #93c5fd",borderRadius:6,background:"#eff6ff",cursor:"pointer",fontSize:11,color:"#1d4ed8",fontWeight:500}}>📋 + Tạo nhiệm vụ</button>}
               {atts.some(a=>/\.(pdf|docx|txt)$/i.test(a.name||""))&&<button onClick={()=>openSummary(d,atts)} style={{padding:"3px 9px",border:"1px solid #a5b4fc",borderRadius:6,background:"#eef2ff",cursor:"pointer",fontSize:11,color:"#4338ca",fontWeight:500}}>📝 Tóm tắt</button>}
               {atts.length>0&&projects&&projects.length>0&&<button onClick={()=>openAssign(d,atts)} style={{padding:"3px 9px",border:"1px solid #fcd34d",borderRadius:6,background:"#fffbeb",cursor:"pointer",fontSize:11,color:"#92400e",fontWeight:500}}>💰 Gán ngân sách</button>}
               {isIncoming(d)&&canForwardRole&&forwardTargets.length>0&&<button onClick={()=>openForward(d)} style={{padding:"3px 9px",border:"1px solid #c4b5fd",borderRadius:6,background:"#f5f3ff",cursor:"pointer",fontSize:11,color:"#6d28d9",fontWeight:500}}>↪️ Chuyển</button>}
@@ -232,7 +234,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
           {isIncoming(d)&&(()=>{const chain=parseJSON(d.forwards,[]);const last=chain[chain.length-1];return(
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
               {last&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:8,fontWeight:500,background:last.viewed_at?"#dcfce7":"#fee2e2",color:last.viewed_at?"#15803d":"#b91c1c"}}>{last.viewed_at?"👁️ Đã xem":"🔴 Chưa xem"}</span>}
-              <span style={{fontSize:11,padding:"2px 8px",borderRadius:8,fontWeight:500,background:d.task_id?"#dbeafe":"#fef9c3",color:d.task_id?"#1d4ed8":"#92400e"}}>{d.task_id?"📋 Đã giao việc":"⏳ Chưa giao việc"}</span>
+              <span style={{fontSize:11,padding:"2px 8px",borderRadius:8,fontWeight:500,background:linkedTask?"#dbeafe":"#fef9c3",color:linkedTask?"#1d4ed8":"#92400e"}}>{linkedTask?"📋 Đã giao việc":"⏳ Chưa giao việc"}</span>
             </div>);})()}
           {parseJSON(d.budget_links,[]).length>0&&<div style={{marginTop:4,marginBottom:4,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",fontSize:12,color:"#92400e"}}>💰 Đã gán ngân sách:{parseJSON(d.budget_links,[]).map((b,bi)=><span key={bi} title={b.project_name} style={{background:"#fffbeb",border:"1px solid #fcd34d",padding:"2px 8px",borderRadius:8,fontWeight:500}}>{b.project_name} · Bước {b.step_id}{b.step_content?` — ${b.step_content}`:""}</span>)}</div>}
           {d.sender&&<div style={{fontSize:12,color:"#6b7280",marginBottom:4}}>{isIncoming(d)?"Nơi gửi":"Nơi nhận"}: {d.sender}</div>}
