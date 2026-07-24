@@ -41,10 +41,17 @@ Ví dụ B: {"type":"answer","answer":"Để viết một email xin nghỉ phép
 export default async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ slots: null }); return; }
   try {
-    const question = (req.body && req.body.question) || "";
-    if (!question || typeof question !== "string") { res.status(200).json({ slots: null }); return; }
+    // Đọc body chắc chắn: một số cấu hình Vercel KHÔNG tự parse JSON → req.body là chuỗi (hoặc rỗng).
+    let body = req.body;
+    if (typeof body === "string") { try { body = JSON.parse(body); } catch { body = {}; } }
+    if (!body || typeof body !== "object") {
+      // Đọc thủ công từ stream nếu vẫn chưa có
+      body = await new Promise((resolve) => { let d = ""; req.on("data", c => (d += c)); req.on("end", () => { try { resolve(JSON.parse(d || "{}")); } catch { resolve({}); } }); req.on("error", () => resolve({})); });
+    }
+    const question = (body && body.question) || "";
+    if (!question || typeof question !== "string") { res.status(200).json({ slots: null, error: "empty question" }); return; }
     const key = process.env.GEMINI_API_KEY;
-    if (!key) { res.status(200).json({ slots: null, error: "missing key" }); return; }
+    if (!key) { res.status(200).json({ slots: null, error: "missing GEMINI_API_KEY" }); return; }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
     const r = await fetch(url, {
@@ -56,7 +63,7 @@ export default async function handler(req, res) {
         generationConfig: { temperature: 0, maxOutputTokens: 300, responseMimeType: "application/json" },
       }),
     });
-    if (!r.ok) { res.status(200).json({ slots: null }); return; }
+    if (!r.ok) { const detail = await r.text().catch(() => ""); res.status(200).json({ slots: null, error: "gemini " + r.status, detail: detail.slice(0, 300) }); return; }
     const data = await r.json();
     const text = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
     const m = text.match(/\{[\s\S]*\}/);
