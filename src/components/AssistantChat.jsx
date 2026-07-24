@@ -148,10 +148,16 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
 
     if (K === "guide") { const g = searchGuide(qn); if (g) return g; }
     if (K === "create") return { text: "Mở form tạo việc mới cho bạn — điền thông tin rồi bấm lưu nhé.", action: "create" };
-    // "việc DO TÔI giao cho ai" — lọc việc mình là người giao (created_by_name === họ tên đang đăng nhập), gộp theo người nhận
+    // "việc DO TÔI giao" — lọc việc mình là người giao (created_by_name === họ tên đang đăng nhập).
     if (K === "my_assigned") {
       const meN = strip(me || "");
-      const mine = computed.filter(t => both(t) && strip(t.created_by_name || "") === meN);
+      let mine = computed.filter(t => both(t) && strip(t.created_by_name || "") === meN);
+      // Nếu câu nêu 1 người cụ thể ("... giao việc gì cho Võ Thị Hiền") → lọc riêng người đó & LIỆT KÊ việc.
+      if (person) {
+        mine = mine.filter(t => t.eid === person.id);
+        if (!mine.length) return U({ text: `Bạn chưa giao việc nào cho ${person.name}${period ? ` (${period.label})` : ""}.` });
+        return U({ text: `📤 Việc bạn giao cho ${person.name}${period ? ` (${period.label})` : ""} — ${mine.length} việc:`, tasks: mine.sort((a, b) => new Date(a.deadline) - new Date(b.deadline)).slice(0, 12) });
+      }
       if (!mine.length) return U({ text: `Bạn chưa giao việc nào${period ? ` (${period.label})` : " trong kỳ này"}.` });
       const map = {}; for (const t of mine) { if (t.eid) map[t.eid] = (map[t.eid] || 0) + 1; }
       const bars = Object.entries(map).sort((a, b) => b[1] - a[1]).map(([id, v]) => ({ label: nm(id), value: v }));
