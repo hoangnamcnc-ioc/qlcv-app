@@ -53,7 +53,9 @@ export default async function handler(req, res) {
     const key = process.env.GEMINI_API_KEY;
     if (!key) { res.status(200).json({ slots: null, error: "missing GEMINI_API_KEY" }); return; }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+    // Model dùng gói FREE. Có thể đổi qua biến môi trường GEMINI_MODEL nếu 1 model bị hết hạn ngạch.
+    const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
     const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
