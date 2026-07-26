@@ -1,5 +1,24 @@
-export const DEPTS = ["HCTH","QL-KTDL","HT-NTS"];
-export const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
+// Phòng/Ban — nạp ĐỘNG từ CSDL (bảng departments) lúc khởi động. DEPTS giữ MÃ nội bộ (cái đang lưu trong
+// hồ sơ/nhiệm vụ); DEPT_NAME[mã] = tên hiển thị (tự đặt đầy đủ, VD "Phòng HCTH", "Ban Giám đốc").
+// Các mảng/đối tượng này được GIỮ NGUYÊN THAM CHIẾU và cập nhật NỘI DUNG tại chỗ (setDepartments) để mọi
+// file đã import chúng vẫn thấy dữ liệu mới sau khi re-render — không phải sửa 18 chỗ import.
+export const DEFAULT_DEPARTMENTS = [
+  { code: "HCTH", name: "Phòng HCTH", color: "#6366f1", ord: 1 },
+  { code: "QL-KTDL", name: "Phòng QL-KTDL", color: "#0ea5e9", ord: 2 },
+  { code: "HT-NTS", name: "Phòng HT-NTS", color: "#10b981", ord: 3 },
+];
+export const DEPTS = [];
+export const DEPT_COLOR = {};
+export const DEPT_NAME = {};
+function applyDepartments(list) {
+  DEPTS.length = 0;
+  for (const k of Object.keys(DEPT_COLOR)) delete DEPT_COLOR[k];
+  for (const k of Object.keys(DEPT_NAME)) delete DEPT_NAME[k];
+  for (const d of list) { if (!d || !d.code) continue; DEPTS.push(d.code); DEPT_COLOR[d.code] = d.color || "#6366f1"; DEPT_NAME[d.code] = d.name || d.code; }
+}
+applyDepartments(DEFAULT_DEPARTMENTS); // mặc định để app chạy được ngay cả khi chưa nạp CSDL
+export function setDepartments(list) { if (Array.isArray(list) && list.length) applyDepartments([...list].sort((a, b) => (a.ord ?? 0) - (b.ord ?? 0))); }
+export const deptLabel = code => DEPT_NAME[code] || code; // tên hiển thị của 1 phòng/ban
 export const ROLES_EMP = ["Trưởng phòng","Phó trưởng phòng","Chuyên viên","Nhân viên"];
 export const VI_MONTHS = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
 export const VI_DAYS = ["CN","T2","T3","T4","T5","T6","T7"];

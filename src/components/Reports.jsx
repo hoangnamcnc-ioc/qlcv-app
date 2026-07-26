@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { DEPTS, DEPT_COLOR, VI_MONTHS, RATING } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel, VI_MONTHS, RATING } from "../constants";
 import { fmtDate } from "../helpers";
 import { GradingTab, ExecTab, TaskResultReportTab } from "./ExecReports";
 
@@ -362,7 +362,7 @@ export default function Reports({
               <div style={{ padding: "14px 18px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff" }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 15 }}>🏛️ Vì sao {e.yearly ? e.score : e.perfScore}đ điều hành?</div>
-                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{e.name} · {e.role} · Phòng {e.dept} · {e.yearly ? `Cả năm ${rankYear}` : `${VI_MONTHS[repMonth]}/${repYear}`}</div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{e.name} · {e.role} · {deptLabel(e.dept)} · {e.yearly ? `Cả năm ${rankYear}` : `${VI_MONTHS[repMonth]}/${repYear}`}</div>
                 </div>
                 <button onClick={() => setWhyMgr(null)} style={{ background: "#f3f4f6", border: "none", cursor: "pointer", fontSize: 16, color: "#374151", width: 28, height: 28, borderRadius: "50%" }}>✕</button>
               </div>

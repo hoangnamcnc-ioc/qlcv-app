@@ -1,5 +1,5 @@
 import React from "react";
-import { DEPTS, DEPT_COLOR } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel } from "../constants";
 import { isCompletedStatus } from "../helpers";
 import { parseJSON } from "../helpers";
 
@@ -26,13 +26,13 @@ export default function Employees({
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {(canSeeAll ? DEPTS : userDept ? [userDept] : []).map(d => (
-          <button key={d} onClick={() => setEmpDeptTab(d)} style={{ padding: "7px 16px", border: "2px solid " + (empDeptTab === d ? DEPT_COLOR[d] : "#d1d5db"), borderRadius: 8, background: empDeptTab === d ? DEPT_COLOR[d] + "18" : "#fff", color: empDeptTab === d ? DEPT_COLOR[d] : "#6b7280", fontWeight: empDeptTab === d ? 600 : 400, cursor: "pointer", fontSize: 13 }}>Phòng {d} ({deptEmps(d).length})</button>
+          <button key={d} onClick={() => setEmpDeptTab(d)} style={{ padding: "7px 16px", border: "2px solid " + (empDeptTab === d ? DEPT_COLOR[d] : "#d1d5db"), borderRadius: 8, background: empDeptTab === d ? DEPT_COLOR[d] + "18" : "#fff", color: empDeptTab === d ? DEPT_COLOR[d] : "#6b7280", fontWeight: empDeptTab === d ? 600 : 400, cursor: "pointer", fontSize: 13 }}>{deptLabel(d)} ({deptEmps(d).length})</button>
         ))}
       </div>
 
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f9fafb" }}>
-          <span style={{ fontWeight: 600, fontSize: 13 }}>Phòng {empDeptTab} — {deptEmps(empDeptTab).length} nhân viên</span>
+          <span style={{ fontWeight: 600, fontSize: 13 }}>{deptLabel(empDeptTab)} — {deptEmps(empDeptTab).length} nhân viên</span>
           {canCreate && <button onClick={() => openCreateEmp(empDeptTab)} style={{ background: DEPT_COLOR[empDeptTab], color: "#fff", border: "none", borderRadius: 7, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>+ Thêm</button>}
         </div>
 

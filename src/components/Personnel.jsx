@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { DEPTS, DEPT_COLOR } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel } from "../constants";
 import Employees from "./Employees";
 
 // ── QL Nhân sự: gộp 3 mảng vào 1 mục có tab con ─────────────────────────────────
@@ -31,13 +31,13 @@ function Bars({ data, color = "#6366f1" }) {
 const lbl = { fontSize: 11.5, color: "#6b7280", display: "block", marginBottom: 3 };
 
 export default function Personnel(props) {
-  const { employees, canCreate, isAdmin, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps } = props;
+  const { employees, canCreate, isAdmin, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, deptRows, addDept, updateDept, deleteDept } = props;
   const [tab, setTab] = useState("workload");
   const canEditHr = canCreate; // Trưởng phòng+ mới sửa hồ sơ
 
   const inp = { padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 13, background: "#fff", color: "#111", width: "100%", boxSizing: "border-box" };
   const card = { background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 };
-  const TABS = [["workload", "📋 Khối lượng việc"], ["profile", "👤 Hồ sơ nhân sự"], ["stats", "📊 Cơ cấu nhân sự"]];
+  const TABS = [["workload", "📋 Khối lượng việc"], ["profile", "👤 Hồ sơ nhân sự"], ["stats", "📊 Cơ cấu nhân sự"], ...(isAdmin ? [["depts", "🏢 Phòng/Ban"]] : [])];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -50,6 +50,55 @@ export default function Personnel(props) {
       {tab === "workload" && <Employees {...props} />}
       {tab === "profile" && <ProfileTab {...{ employees, canEditHr, isAdmin, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card }} />}
       {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} />}
+      {tab === "depts" && isAdmin && <DeptTab {...{ deptRows, addDept, updateDept, deleteDept, employees, isMobile, inp, card }} />}
+    </div>
+  );
+}
+
+// ── TAB PHÒNG/BAN (chỉ admin) ────────────────────────────────────────────────
+function DeptTab({ deptRows, addDept, updateDept, deleteDept, employees, isMobile, inp, card }) {
+  const [nn, setNn] = useState("");
+  const [ncode, setNcode] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
+  const [nc, setNc] = useState("#6366f1");
+  const rows = [...(deptRows || [])].sort((a, b) => (a.ord ?? 0) - (b.ord ?? 0));
+  const countIn = code => (employees || []).filter(e => e.dept === code).length;
+  // Gợi ý mã ngắn từ tên (viết tắt chữ cái đầu, bỏ dấu) nếu người dùng chưa tự gõ mã.
+  const suggestCode = name => name.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").split(/\s+/).filter(Boolean).map(w => w[0]).join("").toUpperCase().slice(0, 8);
+  const onName = v => { setNn(v); if (!codeTouched) setNcode(suggestCode(v)); };
+  const create = () => { if (!nn.trim() || !ncode.trim()) return; addDept({ code: ncode.trim(), name: nn.trim(), color: nc }); setNn(""); setNcode(""); setCodeTouched(false); setNc("#6366f1"); };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={card}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>➕ Thêm phòng / ban mới</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div style={{ flex: 1, minWidth: 180 }}><label style={lbl}>Tên đầy đủ (hiển thị)</label><input value={nn} onChange={e => onName(e.target.value)} onKeyDown={e => e.key === "Enter" && create()} placeholder="VD: Ban Giám đốc" style={inp} /></div>
+          <div style={{ width: 110 }}><label style={lbl}>Mã ngắn</label><input value={ncode} onChange={e => { setCodeTouched(true); setNcode(e.target.value); }} onKeyDown={e => e.key === "Enter" && create()} placeholder="BGĐ" style={inp} /></div>
+          <div><label style={lbl}>Màu</label><input type="color" value={nc} onChange={e => setNc(e.target.value)} style={{ width: 48, height: 38, border: "1px solid #d1d5db", borderRadius: 7, cursor: "pointer", background: "#fff", padding: 2 }} /></div>
+          <button onClick={create} style={{ background: "#4f46e5", color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Thêm</button>
+        </div>
+        <div style={{ fontSize: 11.5, color: "#9ca3af", marginTop: 8 }}>Tên đầy đủ hiện ở tiêu đề/menu chọn; mã ngắn hiện ở bảng gọn (như "HCTH"). Mã cố định, không đổi sau khi tạo.</div>
+      </div>
+      <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f9fafb", fontSize: 13, fontWeight: 600 }}>Danh sách phòng / ban ({rows.length})</div>
+        {rows.map(d => <DeptRow key={d.code} d={d} count={countIn(d.code)} onSave={updateDept} onDelete={deleteDept} inp={inp} isMobile={isMobile} />)}
+        {!rows.length && <div style={{ padding: 16, color: "#9ca3af", fontSize: 13 }}>Chưa có phòng/ban.</div>}
+      </div>
+    </div>
+  );
+}
+
+function DeptRow({ d, count, onSave, onDelete, inp, isMobile }) {
+  const [name, setName] = useState(d.name);
+  const [color, setColor] = useState(d.color || "#6366f1");
+  const dirty = name.trim() !== d.name || color !== (d.color || "#6366f1");
+  return (
+    <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 16px", borderBottom: "1px solid #f3f4f6", flexWrap: "wrap" }}>
+      <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: 34, height: 34, border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", background: "#fff", padding: 2, flexShrink: 0 }} />
+      <input value={name} onChange={e => setName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 160 }} />
+      <span style={{ fontSize: 11.5, color: "#6b7280", whiteSpace: "nowrap" }}>{count} người</span>
+      <button disabled={!dirty || !name.trim()} onClick={() => onSave(d.code, { name: name.trim(), color })} style={{ background: dirty ? "#16a34a" : "#e5e7eb", color: dirty ? "#fff" : "#9ca3af", border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: dirty ? "pointer" : "default" }}>💾 Lưu</button>
+      <button onClick={() => onDelete(d.code)} title={count > 0 ? "Còn người thuộc đơn vị này" : "Xóa"} style={{ border: "1px solid #fca5a5", background: "#fff0f0", color: "#dc2626", borderRadius: 7, padding: "6px 9px", fontSize: 12.5, cursor: "pointer" }}>🗑️</button>
     </div>
   );
 }
@@ -91,7 +140,7 @@ function ProfileTab({ employees, canEditHr, canSeeAll, userDept, updateEmployee,
       {/* Danh sách chọn người */}
       <div style={{ ...card, width: isMobile ? "100%" : 240, flexShrink: 0, padding: 0, overflow: "hidden" }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: 10, borderBottom: "1px solid #f1f5f9" }}>
-          {depts.map(d => <button key={d} onClick={() => setEmpDeptTab(d)} style={{ padding: "4px 10px", border: "1px solid " + (empDeptTab === d ? DEPT_COLOR[d] : "#e5e7eb"), borderRadius: 6, background: empDeptTab === d ? DEPT_COLOR[d] + "18" : "#fff", color: empDeptTab === d ? DEPT_COLOR[d] : "#6b7280", fontSize: 12, cursor: "pointer" }}>{d}</button>)}
+          {depts.map(d => <button key={d} onClick={() => setEmpDeptTab(d)} style={{ padding: "4px 10px", border: "1px solid " + (empDeptTab === d ? DEPT_COLOR[d] : "#e5e7eb"), borderRadius: 6, background: empDeptTab === d ? DEPT_COLOR[d] + "18" : "#fff", color: empDeptTab === d ? DEPT_COLOR[d] : "#6b7280", fontSize: 12, cursor: "pointer" }}>{deptLabel(d)}</button>)}
         </div>
         <div style={{ maxHeight: 420, overflowY: "auto" }}>
           {list.map(e => { const hr = getHr(e); const done = hr.dob || hr.phone || hr.education; return (
@@ -111,7 +160,7 @@ function ProfileTab({ employees, canEditHr, canSeeAll, userDept, updateEmployee,
         ) : (<>
           <div style={card}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>{sel.name} <span style={{ fontSize: 12, fontWeight: 400, color: "#6b7280" }}>· {sel.role} · Phòng {sel.dept}</span></div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{sel.name} <span style={{ fontSize: 12, fontWeight: 400, color: "#6b7280" }}>· {sel.role} · {deptLabel(sel.dept)}</span></div>
               {canEditHr && <button onClick={save} disabled={saving} style={{ background: saved ? "#16a34a" : "#4f46e5", color: "#fff", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{saving ? "Đang lưu…" : saved ? "✓ Đã lưu" : "💾 Lưu hồ sơ"}</button>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 10 }}>

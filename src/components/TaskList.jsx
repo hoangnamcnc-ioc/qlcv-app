@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { DEPTS, DEPT_COLOR, RATING } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel, RATING } from "../constants";
 import { RatingBadge, Chip, PChip } from "./ui";
 import { pendingApprovalDays, fmtDate } from "../helpers";
 
@@ -43,7 +43,7 @@ export default function TaskList({
         <select value={fStatus} onChange={e => setFStatus(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}>
           <option value="all">Tất cả TT</option><option value="on_time">Trong hạn</option><option value="nearly_due">Sắp HH</option><option value="overdue">Quá hạn</option><option value="pending_approval">Chờ duyệt</option><option value="completed_late">HT quá hạn</option><option value="completed">Hoàn thành</option>
         </select>
-        {canSeeAll && <select value={fDept} onChange={e => setFDept(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}><option value="all">Tất cả phòng</option>{DEPTS.map(d => <option key={d} value={d}>{d}</option>)}</select>}
+        {canSeeAll && <select value={fDept} onChange={e => setFDept(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}><option value="all">Tất cả phòng</option>{DEPTS.map(d => <option key={d} value={d}>{deptLabel(d)}</option>)}</select>}
         {canCreate && <select value={fEid} onChange={e => setFEid(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}><option value="all">Tất cả NV</option>{(employees || []).filter(e => canSeeAll || e.dept === userDept).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select>}
         <select value={fSort} onChange={e => setFSort(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12, borderColor: "#6366f1", color: "#4f46e5", fontWeight: 500 }}>
           <option value="urgency">⚡ Ưu tiên</option><option value="deadline_asc">📅 Hạn gần nhất</option><option value="deadline_desc">📅 Hạn xa nhất</option><option value="newest">🆕 Mới nhất</option>
