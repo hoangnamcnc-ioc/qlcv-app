@@ -31,13 +31,14 @@ function Bars({ data, color = "#6366f1" }) {
 const lbl = { fontSize: 11.5, color: "#6b7280", display: "block", marginBottom: 3 };
 
 export default function Personnel(props) {
-  const { employees, canCreate, isAdmin, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, deptRows, addDept, updateDept, deleteDept } = props;
+  const { employees, canCreate, isAdmin, canManageDept, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, deptRows, addDept, updateDept, deleteDept } = props;
+  const canDept = canManageDept ?? isAdmin; // Admin hoặc Ban Giám đốc quản lý cơ cấu phòng/ban
   const [tab, setTab] = useState("workload");
   const canEditHr = canCreate; // Trưởng phòng+ mới sửa hồ sơ
 
   const inp = { padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 13, background: "#fff", color: "#111", width: "100%", boxSizing: "border-box" };
   const card = { background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 };
-  const TABS = [["workload", "📋 Khối lượng việc"], ["profile", "👤 Hồ sơ nhân sự"], ["stats", "📊 Cơ cấu nhân sự"], ...(isAdmin ? [["depts", "🏢 Phòng/Ban"]] : [])];
+  const TABS = [["workload", "📋 Khối lượng việc"], ["profile", "👤 Hồ sơ nhân sự"], ["stats", "📊 Cơ cấu nhân sự"], ...(canDept ? [["depts", "🏢 Phòng/Ban"]] : [])];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -50,7 +51,7 @@ export default function Personnel(props) {
       {tab === "workload" && <Employees {...props} />}
       {tab === "profile" && <ProfileTab {...{ employees, canEditHr, isAdmin, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card }} />}
       {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} />}
-      {tab === "depts" && isAdmin && <DeptTab {...{ deptRows, addDept, updateDept, deleteDept, employees, isMobile, inp, card }} />}
+      {tab === "depts" && canDept && <DeptTab {...{ deptRows, addDept, updateDept, deleteDept, employees, isMobile, inp, card }} />}
     </div>
   );
 }

@@ -849,6 +849,7 @@ export default function App() {
               openCreateEmp={openCreateEmp} openEditEmp={openEditEmp}
               deleteEmployee={deleteEmployee} updateEmployee={updateEmployee}
               deptRows={deptRows} addDept={addDept} updateDept={updateDept} deleteDept={deleteDept}
+              canManageDept={["admin","director"].includes(currentUser?.role)}
             />
           )}
           {view==="activity"&&canSeeAll&&(
