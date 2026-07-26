@@ -25,6 +25,7 @@ import TaskList from "./components/TaskList";
 const Reports = lazy(()=>import("./components/Reports"));
 const KpiTrends = lazy(()=>import("./components/KpiTrends"));
 import Employees from "./components/Employees";
+import Personnel from "./components/Personnel";
 import TaskModal from "./components/TaskModal";
 const ActivityLog = lazy(()=>import("./components/ActivityLog"));
 const AssistantChat = lazy(()=>import("./components/AssistantChat"));
@@ -543,7 +544,7 @@ export default function App() {
   // "Nhiệm vụ định kỳ" là modal (không phải view riêng) nhưng vẫn hiện như 1 tab con trong "Công việc"
   const workExtras=canCreate?[{id:"recurring",icon:"🔄",label:"Nhiệm vụ định kỳ",onClick:()=>setShowRecurring(true)},{id:"bulkhandoff",icon:"🔁",label:"Bàn giao hàng loạt",onClick:openBulkHandoff}]:[];
   const myQueueTotal=myPendingTaskApprovals.length+myPendingExtRequests.length+unratedTasks.length+unreadCommentTasks.length+myPendingApprovals.length+myPendingProjectSteps.length+myPendingProjectExt.length+myPendingProjectStepExt.length+(myPendingCreateApprovals?.length||0);
-  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"myqueue",icon:"🗂️",label:"Việc chờ xử lý",shortLabel:"Chờ xử lý",badge:myQueueTotal},{id:"work",icon:"💼",label:"Công việc"},{id:"calendar",icon:"🗓️",label:"Lịch (Deadline/Trực)",shortLabel:"Lịch"},...(canSeeDocumentsTab?[{id:"documents",icon:"📁",label:"Văn bản",badge:docsNeedingAttentionCount}]:[]),{id:"chat",icon:"💬",label:"Chat"},{id:"reports",icon:"📈",label:"Báo cáo"},...(canSeeAll?[{id:"kpitrends",icon:"📉",label:"KPI & Xu hướng",shortLabel:"KPI"}]:[]),{id:"employees",icon:"👥",label:"Nhân viên"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(["admin","director"].includes(currentUser?.role)?[{id:"chatlearn",icon:"🧠",label:"Trợ lý học"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
+  const navItems=[{id:"dashboard",icon:"📊",label:"Tổng quan"},{id:"myqueue",icon:"🗂️",label:"Việc chờ xử lý",shortLabel:"Chờ xử lý",badge:myQueueTotal},{id:"work",icon:"💼",label:"Công việc"},{id:"calendar",icon:"🗓️",label:"Lịch (Deadline/Trực)",shortLabel:"Lịch"},...(canSeeDocumentsTab?[{id:"documents",icon:"📁",label:"Văn bản",badge:docsNeedingAttentionCount}]:[]),{id:"chat",icon:"💬",label:"Chat"},{id:"reports",icon:"📈",label:"Báo cáo"},...(canSeeAll?[{id:"kpitrends",icon:"📉",label:"KPI & Xu hướng",shortLabel:"KPI"}]:[]),{id:"employees",icon:"👥",label:"QL Nhân sự",shortLabel:"Nhân sự"},{id:"feedback",icon:"💡",label:"Góp ý"},{id:"help",icon:"📘",label:"Hướng dẫn"},...(canSeeAll?[{id:"activity",icon:"📜",label:"Nhật ký"}]:[]),...(["admin","director"].includes(currentUser?.role)?[{id:"chatlearn",icon:"🧠",label:"Trợ lý học"}]:[]),...(currentUser?.role==="admin"?[{id:"security",icon:"🔐",label:"Bảo mật"}]:[])];
   const isWorkView=workSubviews.some(w=>w.id===view);
   const getViewMeta=id=>navItems.find(n=>n.id===id)||workSubviews.find(w=>w.id===id);
   // Nhớ tab con "Công việc" xem gần nhất (theo trình duyệt) để lần sau bấm "Công việc" vào thẳng đó,
@@ -825,9 +826,9 @@ export default function App() {
             <KpiTrends employees={employees} calcMonthPerf={calcMonthPerf} managerPerf={managerPerf} isMobile={isMobile}/>
           )}
 
-          {/* EMPLOYEES */}
+          {/* QL NHÂN SỰ */}
           {view==="employees"&&(
-            <Employees
+            <Personnel
               isMobile={isMobile} inp={inp}
               canSeeAll={canSeeAll} canCreate={canCreate} isAdmin={isAdmin}
               userDept={userDept}
@@ -837,7 +838,7 @@ export default function App() {
               overloadedEmps={overloadedEmps}
               deptEmps={deptEmps}
               openCreateEmp={openCreateEmp} openEditEmp={openEditEmp}
-              deleteEmployee={deleteEmployee}
+              deleteEmployee={deleteEmployee} updateEmployee={updateEmployee}
             />
           )}
           {view==="activity"&&canSeeAll&&(
