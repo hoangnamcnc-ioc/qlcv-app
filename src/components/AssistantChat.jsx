@@ -64,6 +64,37 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const [msgs, setMsgs] = useState([greeting()]);
   const [aiMsgs, setAiMsgs] = useState([{ who: "bot", text: "✨ Đây là Trợ lý AI (Gemini bản miễn phí). Bạn có thể hỏi tự do, nhờ soạn văn bản (đơn từ, email, tờ trình, báo cáo…), hỏi kiến thức chung — hoặc hỏi luôn dữ liệu công việc, mình sẽ tra tại chỗ.\n🔒 Chỉ câu chữ bạn gõ mới được gửi tới Google, không gửi dữ liệu nhiệm vụ/nhân sự." }]);
   const [input, setInput] = useState("");
+  // ── Bong bóng & khung chat: DI CHUYỂN được + CHỈNH KÍCH CỠ được (nhớ vị trí trong localStorage) ──
+  const savedUI = useMemo(() => { try { return JSON.parse(localStorage.getItem("qlcv_chat_ui") || "{}"); } catch { return {}; } }, []);
+  const persistUI = patch => { try { const s = { ...(JSON.parse(localStorage.getItem("qlcv_chat_ui") || "{}")), ...patch }; localStorage.setItem("qlcv_chat_ui", JSON.stringify(s)); } catch { /* ignore */ } };
+  const vw = () => (typeof window !== "undefined" ? window.innerWidth : 1024);
+  const vh = () => (typeof window !== "undefined" ? window.innerHeight : 768);
+  const [bubble, setBubble] = useState(() => savedUI.bubble || { left: vw() - 56 - (isMobile ? 14 : 20), top: vh() - 56 - (isMobile ? 96 : 24) });
+  const [panel, setPanel] = useState(() => {
+    if (savedUI.panel) return savedUI.panel;
+    const w = Math.min(vw() - 20, 400), h = Math.min(vh() - 120, 600);
+    return { left: Math.max(10, vw() - w - (isMobile ? 10 : 20)), top: Math.max(10, vh() - h - 86), w, h };
+  });
+  const posRef = useRef(null);
+  // Kéo thả chung: bắt pointerdown, gọi apply(dx,dy,orig) mỗi lần di chuột, onEnd(đãDiChuyển, vịTríCuối).
+  const startDrag = (e, orig, apply, onEnd) => {
+    if (e.button != null && e.button !== 0) return;
+    const sx = e.clientX, sy = e.clientY; let moved = false; posRef.current = orig;
+    const move = ev => { const dx = ev.clientX - sx, dy = ev.clientY - sy; if (Math.abs(dx) + Math.abs(dy) > 4) moved = true; posRef.current = apply(dx, dy, orig); };
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); onEnd(moved, posRef.current); };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+  };
+  const onBubbleDown = e => { e.preventDefault(); startDrag(e, bubble, (dx, dy, o) => { const p = { left: Math.min(vw() - 56, Math.max(0, o.left + dx)), top: Math.min(vh() - 56, Math.max(0, o.top + dy)) }; setBubble(p); return p; }, (moved, p) => { if (!moved) setOpen(o => !o); else persistUI({ bubble: p }); }); };
+  const onPanelDrag = e => { e.preventDefault(); startDrag(e, panel, (dx, dy, o) => { const p = { ...o, left: Math.min(vw() - 60, Math.max(-o.w + 80, o.left + dx)), top: Math.min(vh() - 40, Math.max(0, o.top + dy)) }; setPanel(p); return p; }, (_moved, p) => persistUI({ panel: p })); };
+  const onPanelResize = e => { e.preventDefault(); e.stopPropagation(); startDrag(e, panel, (dx, dy, o) => { const p = { ...o, w: Math.min(vw() - o.left - 6, Math.max(300, o.w + dx)), h: Math.min(vh() - o.top - 6, Math.max(340, o.h + dy)) }; setPanel(p); return p; }, (_moved, p) => persistUI({ panel: p })); };
+  // Giữ bong bóng/khung trong màn hình khi đổi kích thước cửa sổ (xoay ngang/dọc, thu nhỏ trình duyệt).
+  useEffect(() => {
+    const onResize = () => {
+      setBubble(b => ({ left: Math.min(b.left, vw() - 56), top: Math.min(b.top, vh() - 56) }));
+      setPanel(p => ({ w: Math.min(p.w, vw() - 20), h: Math.min(p.h, vh() - 20), left: Math.min(p.left, vw() - 60), top: Math.min(p.top, vh() - 40) }));
+    };
+    window.addEventListener("resize", onResize); return () => window.removeEventListener("resize", onResize);
+  }, []);
   const [copied, setCopied] = useState(-1);
   const [listening, setListening] = useState(false);
   const [showAc, setShowAc] = useState(false);
@@ -300,11 +331,11 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const curSend = tab === "ai" ? sendAI : send;   // gửi theo đúng tab
   return (
     <>
-      <button onClick={() => setOpen(o => !o)} title="Trợ lý tra cứu" style={{ position: "fixed", right: isMobile ? 14 : 20, bottom: isMobile ? "calc(70px + env(safe-area-inset-bottom,0px))" : 20, zIndex: 210, width: 56, height: 56, borderRadius: "50%", border: "none", background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", fontSize: 26, cursor: "pointer", boxShadow: "0 6px 20px rgba(79,70,229,0.45)" }}>{open ? "✕" : "💬"}</button>
+      <button onPointerDown={onBubbleDown} title="Trợ lý tra cứu (kéo để di chuyển)" style={{ position: "fixed", left: bubble.left, top: bubble.top, zIndex: 210, width: 56, height: 56, borderRadius: "50%", border: "none", background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", fontSize: 26, cursor: "grab", touchAction: "none", boxShadow: "0 6px 20px rgba(79,70,229,0.45)" }}>{open ? "✕" : "💬"}</button>
       {open && (
-        <div style={{ position: "fixed", right: isMobile ? 10 : 20, left: isMobile ? 10 : "auto", bottom: isMobile ? "calc(134px + env(safe-area-inset-bottom,0px))" : 86, zIndex: 210, width: isMobile ? "auto" : "min(400px, calc(100vw - 40px))", height: isMobile ? "calc(100dvh - 150px - env(safe-area-inset-bottom,0px))" : "min(600px, calc(100dvh - 120px))", background: "#fff", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e5e7eb" }}>
-          <div style={{ background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", padding: "12px 16px" }}>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>🤖 Trợ lý</div>
+        <div style={{ position: "fixed", left: panel.left, top: panel.top, zIndex: 210, width: panel.w, height: panel.h, background: "#fff", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e5e7eb" }}>
+          <div onPointerDown={onPanelDrag} title="Kéo tiêu đề để di chuyển khung" style={{ background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", padding: "12px 16px", cursor: "move", touchAction: "none", userSelect: "none" }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>🤖 Trợ lý <span style={{ opacity: 0.6, fontWeight: 400, fontSize: 12 }}>⠿ kéo để di chuyển</span></div>
             <div style={{ fontSize: 11, opacity: 0.9 }}>{tab === "ai" ? "Hỏi tự do · soạn văn bản · kiến thức chung (Gemini)" : "Tra cứu dữ liệu · nhớ ngữ cảnh · biểu đồ · giọng nói · tóm tắt tệp"}</div>
           </div>
           <div style={{ display: "flex", background: "#fff", borderBottom: "1px solid #e5e7eb" }}>
@@ -381,6 +412,8 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
             <input value={input} onChange={e => { setInput(e.target.value); setShowAc(tab === "local"); }} onKeyDown={e => { if (e.key === "Enter") curSend(); }} placeholder={tab === "ai" ? "Hỏi AI tự do, nhờ soạn văn bản…" : "Hỏi, tìm việc, hoặc 📎/🎤…"} style={{ flex: 1, padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 10, fontSize: 13, minWidth: 0 }} />
             <button onClick={() => curSend()} style={{ background: "#4f46e5", color: "#fff", border: "none", borderRadius: 10, padding: "0 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>Gửi</button>
           </div>
+          {/* Góc kéo để đổi kích cỡ khung */}
+          <div onPointerDown={onPanelResize} title="Kéo để đổi kích cỡ" style={{ position: "absolute", right: 2, bottom: 2, width: 18, height: 18, cursor: "nwse-resize", touchAction: "none", zIndex: 5, background: "linear-gradient(135deg, transparent 45%, #a5b4fc 45%, #a5b4fc 55%, transparent 55%, transparent 70%, #a5b4fc 70%, #a5b4fc 80%, transparent 80%)", borderRadius: "0 0 14px 0" }} />
         </div>
       )}
     </>
