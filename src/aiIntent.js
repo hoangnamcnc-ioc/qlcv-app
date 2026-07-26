@@ -46,12 +46,12 @@ export async function parseWithAI(question, history) {
   if (!aiEnabled || !question || !question.trim()) return null;
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000); // soạn văn bản dài cần lâu hơn; chậm quá mới bỏ
+    const timer = setTimeout(() => ctrl.abort(), 22000); // đọc & đánh giá báo cáo dài cần lâu hơn
     const hist = Array.isArray(history) ? history.filter(h => h && h.text).slice(-6).map(h => ({ role: h.role === "model" ? "model" : "user", text: String(h.text).slice(0, 600) })) : [];
     const res = await fetch(PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: question.slice(0, 600), history: hist }),
+      body: JSON.stringify({ question: question.slice(0, 14000), history: hist }), // đủ cho cả bản báo cáo
       signal: ctrl.signal,
     });
     clearTimeout(timer);

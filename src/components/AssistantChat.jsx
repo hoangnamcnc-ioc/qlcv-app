@@ -62,7 +62,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState("local"); // "local" = tra cứu nội bộ · "ai" = hỏi Gemini tự do
   const [msgs, setMsgs] = useState([greeting()]);
-  const [aiMsgs, setAiMsgs] = useState([{ who: "bot", text: "✨ Đây là Trợ lý AI (Gemini bản miễn phí). Bạn có thể hỏi tự do, nhờ soạn văn bản (đơn từ, email, tờ trình, báo cáo…), hỏi kiến thức chung — hoặc hỏi luôn dữ liệu công việc, mình sẽ tra tại chỗ.\n🔒 Chỉ câu chữ bạn gõ mới được gửi tới Google, không gửi dữ liệu nhiệm vụ/nhân sự." }]);
+  const [aiMsgs, setAiMsgs] = useState([{ who: "bot", text: "✨ Đây là Trợ lý AI (Gemini bản miễn phí). Bạn có thể hỏi tự do, nhờ soạn văn bản (đơn từ, email, tờ trình, báo cáo…), hỏi kiến thức chung — hoặc hỏi luôn dữ liệu công việc, mình sẽ tra tại chỗ.\n📎 Bấm kẹp giấy để tải một BÁO CÁO (PDF/Word) lên cho AI đánh giá & góp ý.\n🔒 Chỉ nội dung bạn gõ/tải lên mới được gửi tới Google để xử lý." }]);
   const [input, setInput] = useState("");
   // ── Bong bóng & khung chat: DI CHUYỂN được + CHỈNH KÍCH CỠ được (nhớ vị trí trong localStorage) ──
   const savedUI = useMemo(() => { try { return JSON.parse(localStorage.getItem("qlcv_chat_ui") || "{}"); } catch { return {}; } }, []);
@@ -99,7 +99,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const [listening, setListening] = useState(false);
   const [showAc, setShowAc] = useState(false);
   const ctxRef = useRef({ person: null, dept: null, period: null });
-  const endRef = useRef(null); const fileRef = useRef(null); const recRef = useRef(null);
+  const endRef = useRef(null); const fileRef = useRef(null); const fileRefAI = useRef(null); const recRef = useRef(null);
   useEffect(() => { if (open) endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, open]);
 
   // ── TỰ HỌC (TF-IDF + KNN) ──
@@ -313,6 +313,21 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const clarify = (base, chip) => { const p = strip(chip); const suffix = p.includes("phong hcth") ? " phòng HCTH" : p.includes("ql-ktdl") ? " phòng QL-KTDL" : p.includes("ht-nts") ? " phòng HT-NTS" : p.includes("thang nay") ? " tháng này" : ""; send((base + suffix).trim()); };
 
   const onFile = async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return; setMsgs(m => [...m, { who: "me", text: `📎 ${f.name}` }, { who: "bot", text: "⏳ Đang đọc & tóm tắt tệp…" }]); try { const [{ extractFileText }, { extractiveSummary }] = await Promise.all([import("../fileText"), import("../summarize")]); const text = await extractFileText(f); const r = extractiveSummary(text); const botMsg = r.ok ? { who: "bot", text: `📝 Tóm tắt "${f.name}":`, list: [...r.summarySentences, ...(r.deadlines.length ? ["⏰ Mốc thời gian: " + r.deadlines.join(" · ")] : [])] } : { who: "bot", text: `Không rút được nội dung có ý nghĩa từ "${f.name}".` }; setMsgs(m => { const c = [...m]; c[c.length - 1] = botMsg; return c; }); } catch (err) { setMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", text: `⚠️ ${err.message || "Không đọc được tệp"}` }; return c; }); } };
+  // Tab AI: tải BÁO CÁO/VĂN BẢN lên để AI ĐÁNH GIÁ (đọc nội dung tại chỗ rồi gửi cho Gemini nhận xét).
+  const onFileAI = async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+    if (!aiEnabled) { setAiMsgs(m => [...m, { who: "me", text: `📎 ${f.name}` }, { who: "bot", text: "⚠️ Trợ lý AI chưa được bật nên chưa đánh giá được tệp. Bạn có thể dùng tab 📊 Tra cứu nội bộ để tóm tắt nhanh." }]); return; }
+    setAiMsgs(m => [...m, { who: "me", text: `📎 ${f.name}` }, { who: "bot", text: "⏳ Đang đọc tệp & nhờ AI đánh giá…", pending: true }]);
+    try {
+      const { extractFileText } = await import("../fileText");
+      const text = (await extractFileText(f) || "").trim();
+      if (text.length < 20) { setAiMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", text: `Không đọc được nội dung có ý nghĩa từ "${f.name}" (tệp scan/ảnh thì AI chưa đọc được chữ).` }; return c; }); return; }
+      const prompt = `Hãy ĐÁNH GIÁ bản báo cáo/văn bản dưới đây giúp tôi. Nhận xét theo các mục rõ ràng: (1) Bố cục & trình bày; (2) Nội dung đã đầy đủ/rõ ràng chưa; (3) Điểm mạnh; (4) Điểm cần bổ sung hoặc chỉnh sửa; (5) Lỗi chính tả/diễn đạt (nếu có); (6) Kết luận & gợi ý cải thiện. Trả lời tiếng Việt, đúng mực môi trường công sở nhà nước.\n\n--- NỘI DUNG BÁO CÁO ---\n${text}`;
+      const ai = await parseWithAI(prompt);
+      const ans = (ai && ai.answer) ? { text: ai.answer, viaAI: true } : (ai && ai.slots) ? { text: "Mình đọc được tệp nhưng chưa đánh giá được (AI hiểu nhầm thành câu tra cứu). Bạn thử lại nhé.", viaAI: true } : { text: "⚠️ AI đang bận hoặc đã hết lượt miễn phí. Bạn thử lại sau một chút nhé." };
+      setAiMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", ...ans, intent: "text" }; return c; });
+    } catch (err) { setAiMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", text: `⚠️ ${err.message || "Không đọc được tệp"}` }; return c; }); }
+  };
 
   const copyMsg = (m, i) => { const lines = [m.text, ...(m.list || []), ...((m.bars || []).map(b => `- ${b.label}: ${b.value}`)), ...((m.tasks || []).map(t => `- ${t.title} (${t.dept} · ${nm(t.eid)} · ${fmtDate(t.deadline)})`))]; navigator.clipboard?.writeText(lines.join("\n")).then(() => { setCopied(i); setTimeout(() => setCopied(-1), 1500); }); };
   const exportCsv = (m) => { let rows; if (m.tasks) rows = [["Nhiệm vụ", "Phòng", "Người", "Hạn", "Trạng thái"], ...m.tasks.map(t => [t.title, t.dept, nm(t.eid), fmtDate(t.deadline), STATUS[t.status]?.label || t.status])]; else if (m.bars) rows = [["Tên", "Giá trị"], ...m.bars.map(b => [b.label, b.value])]; else rows = [["Kết quả"], ...(m.list || [m.text]).map(l => [l])]; const csv = "﻿" + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n"); const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" })); const a = document.createElement("a"); a.href = url; a.download = "tra-cuu.csv"; a.click(); URL.revokeObjectURL(url); };
@@ -406,8 +421,11 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
             </div>
           )}
           <div style={{ padding: 10, borderTop: "1px solid #e5e7eb", display: "flex", gap: 6, alignItems: "center" }}>
-            {tab === "local" && <button onClick={() => fileRef.current && fileRef.current.click()} title="Tải tệp PDF/Word để tóm tắt" style={{ background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 10, width: 36, height: 38, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>📎</button>}
+            {tab === "local"
+              ? <button onClick={() => fileRef.current && fileRef.current.click()} title="Tải tệp PDF/Word để tóm tắt" style={{ background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 10, width: 36, height: 38, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>📎</button>
+              : <button onClick={() => fileRefAI.current && fileRefAI.current.click()} title="Tải báo cáo/văn bản để AI đánh giá" style={{ background: "#ecfeff", color: "#0891b2", border: "1px solid #a5f3fc", borderRadius: 10, width: 36, height: 38, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>📎</button>}
             <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={onFile} />
+            <input ref={fileRefAI} type="file" accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={onFileAI} />
             {tab === "local" && SR && <button onClick={startVoice} title="Hỏi bằng giọng nói" style={{ background: listening ? "#fee2e2" : "#eef2ff", color: listening ? "#b91c1c" : "#4338ca", border: "1px solid " + (listening ? "#fecaca" : "#c7d2fe"), borderRadius: 10, width: 36, height: 38, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>{listening ? "🔴" : "🎤"}</button>}
             <input value={input} onChange={e => { setInput(e.target.value); setShowAc(tab === "local"); }} onKeyDown={e => { if (e.key === "Enter") curSend(); }} placeholder={tab === "ai" ? "Hỏi AI tự do, nhờ soạn văn bản…" : "Hỏi, tìm việc, hoặc 📎/🎤…"} style={{ flex: 1, padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 10, fontSize: 13, minWidth: 0 }} />
             <button onClick={() => curSend()} style={{ background: "#4f46e5", color: "#fff", border: "none", borderRadius: 10, padding: "0 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>Gửi</button>

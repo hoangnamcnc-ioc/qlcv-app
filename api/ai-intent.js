@@ -48,6 +48,9 @@ Ví dụ A: {"type":"slots","slots":{"status":"overdue","subject":"people","orde
 Ví dụ B (ngoài phạm vi dữ liệu): "Lê Xuân Quang có đăng nhập phần mềm không?" → {"type":"answer","answer":"Phần mềm quản lý công việc không theo dõi lịch sử đăng nhập nên mình không kiểm tra được việc này. Mình chỉ tra được dữ liệu về nhiệm vụ, tiến độ và điểm điều hành thôi."}
 Ví dụ B: {"type":"answer","answer":"Để viết một email xin nghỉ phép, bạn nên nêu rõ lý do, thời gian nghỉ và người thay thế..."}`;
 
+// Cho phép hàm chạy tới 30s (đọc & đánh giá báo cáo dài) thay vì mặc định 10s của Vercel.
+export const maxDuration = 30;
+
 export default async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ slots: null }); return; }
   try {
@@ -68,14 +71,14 @@ export default async function handler(req, res) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
     // Ghép vài lượt hội thoại trước (nếu có) để AI hiểu câu nối tiếp; role chỉ nhận "user"/"model".
     const hist = Array.isArray(body.history) ? body.history.filter(h => h && typeof h.text === "string" && h.text.trim()).slice(-6).map(h => ({ role: h.role === "model" ? "model" : "user", parts: [{ text: String(h.text).slice(0, 600) }] })) : [];
-    const contents = [...hist, { role: "user", parts: [{ text: String(question).slice(0, 600) }] }];
+    const contents = [...hist, { role: "user", parts: [{ text: String(question).slice(0, 14000) }] }]; // đủ chứa cả bản báo cáo cần đánh giá
     const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: SYS }] },
         contents,
-        generationConfig: { temperature: 0.2, maxOutputTokens: 1400, responseMimeType: "application/json" },
+        generationConfig: { temperature: 0.2, maxOutputTokens: 2200, responseMimeType: "application/json" },
       }),
     });
     if (!r.ok) { const detail = await r.text().catch(() => ""); res.status(200).json({ slots: null, error: "gemini " + r.status, detail: detail.slice(0, 300) }); return; }
