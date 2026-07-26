@@ -60,7 +60,9 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   };
 
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState("local"); // "local" = tra cứu nội bộ · "ai" = hỏi Gemini tự do
   const [msgs, setMsgs] = useState([greeting()]);
+  const [aiMsgs, setAiMsgs] = useState([{ who: "bot", text: "✨ Đây là Trợ lý AI (Gemini bản miễn phí). Bạn có thể hỏi tự do, nhờ soạn văn bản (đơn từ, email, tờ trình, báo cáo…), hỏi kiến thức chung — hoặc hỏi luôn dữ liệu công việc, mình sẽ tra tại chỗ.\n🔒 Chỉ câu chữ bạn gõ mới được gửi tới Google, không gửi dữ liệu nhiệm vụ/nhân sự." }]);
   const [input, setInput] = useState("");
   const [copied, setCopied] = useState(-1);
   const [listening, setListening] = useState(false);
@@ -220,14 +222,20 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const didYouMean = q => { const qs = strip(q); const qt = new Set(qs.split(/[^a-z0-9]+/).filter(w => w.length >= 2)); if (!qt.size) return []; const pool = new Set(acItems); for (const r of rowsRef.current) { if (r.corrected_q) pool.add(r.corrected_q); } const scored = [...pool].map(x => { const xs = strip(x); const xt = new Set(xs.split(/[^a-z0-9]+/).filter(w => w.length >= 2)); let inter = 0; for (const w of qt) if (xt.has(w)) inter++; const jac = inter / (qt.size + xt.size - inter || 1); const lv = 1 - lev(qs, xs) / Math.max(qs.length, xs.length || 1); return { x, s: Math.max(jac, lv * 0.75) }; }).sort((a, b) => b.s - a.s); return scored.filter(v => v.s >= 0.34).slice(0, 3).map(v => v.x); };
   // #2 + #4: chưa hiểu -> gợi ý "ý bạn là" & ghi nhận vào kho để admin biết chỗ trợ lý còn "mù"
   const finalizeUnsure = (q, ans) => { if (ans.unsure) { const dym = didYouMean(q); if (dym.length) ans = { ...ans, suggestions: dym }; logInteraction({ username: me, question: q, intent: "unknown", feedback: 0 }); } return ans; };
+  // TỰ HỌC NGẦM: câu DỮ LIỆU mà AI hiểu đúng -> lưu slots vào kho học dưới dạng "@slots:{...}"; lần sau
+  // câu tương tự sẽ được bộ nội bộ tự chạy answer(q, slots), KHÔNG cần gọi AI nữa (nhanh hơn, đỡ tốn quota).
+  const SLOT_TAG = "@slots:";
+  const learnRoute = (q, slots, routed) => { try { const corrected = SLOT_TAG + JSON.stringify(slots); logInteraction({ username: me, question: q, intent: routed.intent || answerKind(routed), feedback: 1, corrected }); rowsRef.current = [{ question: q, norm_q: normQ(q), corrected_q: corrected, feedback: 1 }, ...rowsRef.current]; rebuild(); } catch { /* ignore */ } };
   const send = async (text) => {
     const q = (text ?? input).trim(); if (!q) return; setShowAc(false); bumpFreq(q); setInput("");
     let ans = answer(q);
     // TỰ HỌC: nếu không hiểu (hoặc có câu đã "dạy lại" rất giống) -> định tuyến sang câu đúng đã học
     const c = classifyLearn(model, q);
     if (c && c.corrected && (c.score >= 0.72 || (ans.unsure && c.score >= 0.42))) {
-      const routed = answer(c.corrected);
-      if (!routed.unsure) ans = { ...routed, learnedFrom: c.corrected };
+      let routed = null;
+      if (c.corrected.startsWith(SLOT_TAG)) { try { routed = answer(q, JSON.parse(c.corrected.slice(SLOT_TAG.length))); } catch { routed = null; } }
+      else routed = answer(c.corrected);
+      if (routed && !routed.unsure) ans = { ...routed, learnedFrom: c.corrected.startsWith(SLOT_TAG) ? "AI (đã học)" : c.corrected };
     }
     // Ý 3: nhờ AI khi nội bộ BÍ (unsure) HOẶC KÉM CHẮC CHẮN (weak = câu mơ hồ), và AI được bật.
     //  - AI trả về slots  → chạy truy vấn TẠI CHỖ với ý AI bóc được (ưu tiên, vì hiểu tốt hơn).
@@ -238,7 +246,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
       // Gửi kèm vài lượt gần nhất để AI hiểu câu nối tiếp ("viết giúp đi", "làm tiếp"…).
       const hist = msgs.slice(-6).filter(m => m.text && !m.pending).map(m => ({ role: m.who === "me" ? "user" : "model", text: m.text }));
       const ai = await parseWithAI(q, hist);
-      if (ai && ai.slots) { const routed = answer(q, ai.slots); if (!routed.unsure) ans = { ...routed, viaAI: true }; }
+      if (ai && ai.slots) { const routed = answer(q, ai.slots); if (!routed.unsure) { ans = { ...routed, viaAI: true }; learnRoute(q, ai.slots, routed); } }
       else if (ai && ai.answer && ans.unsure) { ans = { text: ai.answer, viaAI: true }; }
       ans = finalizeUnsure(q, ans);
       setMsgs(m => { const copy = [...m]; copy[copy.length - 1] = { who: "bot", ...ans, q, intent: ans.intent || answerKind(ans) }; return copy; });
@@ -246,6 +254,26 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     }
     ans = finalizeUnsure(q, ans);
     setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", ...ans, q, intent: ans.intent || answerKind(ans) }]);
+  };
+  // Tab "Trợ lý AI": LUÔN gửi thẳng cho Gemini (kiểu lai — nếu là câu dữ liệu thì tra tại chỗ & tự học ngầm).
+  const sendAI = async (text) => {
+    const q = (text ?? input).trim(); if (!q) return; setShowAc(false); setInput("");
+    if (!aiEnabled) { setAiMsgs(m => [...m, { who: "me", text: q }, { who: "bot", text: "⚠️ Trợ lý AI chưa được bật (máy chủ chưa cấu hình VITE_AI_PROXY_URL). Bạn vẫn dùng tab 📊 Tra cứu nội bộ bình thường." }]); return; }
+    bumpFreq(q);
+    setAiMsgs(m => [...m, { who: "me", text: q }, { who: "bot", text: "⏳ Đang hỏi AI…", pending: true }]);
+    const hist = aiMsgs.slice(-6).filter(mm => mm.text && !mm.pending).map(mm => ({ role: mm.who === "me" ? "user" : "model", text: mm.text }));
+    const ai = await parseWithAI(q, hist);
+    let ans;
+    if (ai && ai.slots) {
+      const routed = answer(q, ai.slots);
+      if (!routed.unsure) { ans = { ...routed, viaAI: true }; learnRoute(q, ai.slots, routed); }
+      else ans = { text: "Mình hiểu đây là câu hỏi về dữ liệu công việc nhưng chưa tra được kết quả phù hợp. Bạn thử diễn đạt rõ hơn, hoặc hỏi ở tab 📊 Tra cứu nội bộ nhé.", viaAI: true };
+    } else if (ai && ai.answer) {
+      ans = { text: ai.answer, viaAI: true };
+    } else {
+      ans = { text: "⚠️ AI đang bận hoặc đã hết lượt miễn phí trong giây lát. Bạn thử lại sau một chút nhé." };
+    }
+    setAiMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", ...ans, intent: ans.intent || answerKind(ans) }; return c; });
   };
   const speak = (m) => { try { const synth = window.speechSynthesis; if (!synth) return; synth.cancel(); const txt = [m.text, ...(m.list || []), ...((m.bars || []).map(b => `${b.label}: ${b.value}`))].join(". "); const u = new SpeechSynthesisUtterance(txt); u.lang = "vi-VN"; synth.speak(u); } catch { /* ignore */ } };
   // Ghi nhận phản hồi 👍 / 👎(+dạy lại) => bổ sung mẫu học & dựng lại mô hình ngay
@@ -268,17 +296,24 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
   const barBlock = bars => { const mx = Math.max(...bars.map(b => b.value), 1); return (<div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>{bars.map((b, k) => (<div key={k} style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 92, fontSize: 11, color: "#374151", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.label}</div><div style={{ flex: 1, height: 8, background: "#eef2ff", borderRadius: 4, overflow: "hidden" }}><div style={{ height: "100%", width: (b.value / mx * 100) + "%", background: "#6366f1" }} /></div><div style={{ width: 34, fontSize: 11, textAlign: "right", color: "#4338ca", fontWeight: 600 }}>{b.value}</div></div>))}</div>); };
   const sparkBlock = pts => { const w = 190, h = 38, pad = 4; const xs = i => pad + i * (w - 2 * pad) / (pts.length - 1); const ys = v => h - pad - (v / 100) * (h - 2 * pad); const d = pts.map((v, i) => v == null ? null : `${xs(i)},${ys(v)}`).filter(Boolean).join(" "); return (<div style={{ marginTop: 6 }}><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 2 }}>Xu hướng điểm 6 tháng</div><svg width={w} height={h} style={{ display: "block" }}><polyline fill="none" stroke="#6366f1" strokeWidth="2" points={d} />{pts.map((v, i) => v != null && <circle key={i} cx={xs(i)} cy={ys(v)} r="2.5" fill="#4338ca" />)}</svg></div>); };
 
+  const view = tab === "ai" ? aiMsgs : msgs;      // danh sách tin nhắn của tab đang mở
+  const curSend = tab === "ai" ? sendAI : send;   // gửi theo đúng tab
   return (
     <>
       <button onClick={() => setOpen(o => !o)} title="Trợ lý tra cứu" style={{ position: "fixed", right: isMobile ? 14 : 20, bottom: isMobile ? "calc(70px + env(safe-area-inset-bottom,0px))" : 20, zIndex: 210, width: 56, height: 56, borderRadius: "50%", border: "none", background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", fontSize: 26, cursor: "pointer", boxShadow: "0 6px 20px rgba(79,70,229,0.45)" }}>{open ? "✕" : "💬"}</button>
       {open && (
         <div style={{ position: "fixed", right: isMobile ? 10 : 20, left: isMobile ? 10 : "auto", bottom: isMobile ? "calc(134px + env(safe-area-inset-bottom,0px))" : 86, zIndex: 210, width: isMobile ? "auto" : "min(400px, calc(100vw - 40px))", height: isMobile ? "calc(100dvh - 150px - env(safe-area-inset-bottom,0px))" : "min(600px, calc(100dvh - 120px))", background: "#fff", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e5e7eb" }}>
           <div style={{ background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", padding: "12px 16px" }}>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>🤖 Trợ lý tra cứu</div>
-            <div style={{ fontSize: 11, opacity: 0.9 }}>Nhớ ngữ cảnh · so sánh · biểu đồ · giọng nói · tóm tắt tệp</div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>🤖 Trợ lý</div>
+            <div style={{ fontSize: 11, opacity: 0.9 }}>{tab === "ai" ? "Hỏi tự do · soạn văn bản · kiến thức chung (Gemini)" : "Tra cứu dữ liệu · nhớ ngữ cảnh · biểu đồ · giọng nói · tóm tắt tệp"}</div>
+          </div>
+          <div style={{ display: "flex", background: "#fff", borderBottom: "1px solid #e5e7eb" }}>
+            {[["local", "📊 Tra cứu nội bộ"], ["ai", "✨ Trợ lý AI"]].map(([k, label]) => (
+              <button key={k} onClick={() => { setTab(k); setShowAc(false); }} style={{ flex: 1, padding: "9px 6px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: "none", background: "none", color: tab === k ? "#4338ca" : "#9ca3af", borderBottom: "2px solid " + (tab === k ? "#4f46e5" : "transparent") }}>{label}</button>
+            ))}
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 10, background: "#f8fafc" }}>
-            {msgs.map((m, i) => (
+            {view.map((m, i) => (
               <div key={i} style={{ alignSelf: m.who === "me" ? "flex-end" : "flex-start", maxWidth: "90%", background: m.who === "me" ? "#4f46e5" : "#fff", color: m.who === "me" ? "#fff" : "#374151", border: m.who === "me" ? "none" : "1px solid #e5e7eb", borderRadius: 12, padding: "8px 12px", fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                 {m.text}
                 {m.learnedFrom && <div style={{ marginTop: 4, fontSize: 11, color: "#7c3aed", fontStyle: "italic" }}>🧠 Hiểu theo câu đã học: "{m.learnedFrom}"</div>}
@@ -288,11 +323,11 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
                 {m.bars && m.bars.length > 0 && barBlock(m.bars)}
                 {m.spark && sparkBlock(m.spark)}
                 {m.tasks && m.tasks.length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }}>{m.tasks.map(t => { const st = STATUS[t.status]; return (<div key={t.id} onClick={() => onOpenTask && onOpenTask(t)} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "6px 9px", cursor: "pointer", background: "#f8fafc" }}><div style={{ fontSize: 12.5, fontWeight: 600, color: "#374151" }}>{t.title}</div><div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{t.dept} · {nm(t.eid)} · {fmtDate(t.deadline)} {st && <span style={{ color: st.col }}>· {st.label}</span>}</div></div>); })}</div>}
-                {m.clarify && <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>{m.clarify.map(c => <button key={c} onClick={() => clarify(msgs[i - 1]?.text || "", c)} style={{ fontSize: 11.5, background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 14, padding: "3px 10px", cursor: "pointer" }}>{c}</button>)}</div>}
+                {m.clarify && <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>{m.clarify.map(c => <button key={c} onClick={() => clarify(view[i - 1]?.text || "", c)} style={{ fontSize: 11.5, background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 14, padding: "3px 10px", cursor: "pointer" }}>{c}</button>)}</div>}
                 {m.explain && (<div style={{ marginTop: 6 }}><button onClick={() => setShowExplain(s => ({ ...s, [i]: !s[i] }))} style={{ fontSize: 11.5, color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "3px 10px", cursor: "pointer", fontWeight: 600 }}>🧮 {showExplain[i] ? "Ẩn cách tính" : "Vì sao điểm này?"}</button>{showExplain[i] && <div style={{ marginTop: 5, display: "flex", flexDirection: "column", gap: 3, background: "#fffdf5", border: "1px solid #fde68a", borderRadius: 8, padding: "7px 10px" }}>{m.explain.map((l, k) => <div key={k} style={{ fontSize: 11.5, color: "#78350f", lineHeight: 1.5 }}>• {l}</div>)}</div>}</div>)}
                 {m.action === "create" && onCreate && <div style={{ marginTop: 8 }}><button onClick={() => { onCreate(); setOpen(false); }} style={{ fontSize: 12, background: "#4f46e5", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontWeight: 600 }}>➕ Mở form tạo việc</button></div>}
-                {m.suggestions && <div style={{ marginTop: 8 }}><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>Ý bạn là:</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{m.suggestions.map(s => <button key={s} onClick={() => send(s)} style={{ fontSize: 11.5, background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 14, padding: "3px 10px", cursor: "pointer" }}>{s}</button>)}</div></div>}
-                {m.followups && <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>{m.followups.map(s => <button key={s} onClick={() => send(s)} style={{ fontSize: 11.5, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 14, padding: "3px 10px", cursor: "pointer" }}>↪ {s}</button>)}</div>}
+                {m.suggestions && <div style={{ marginTop: 8 }}><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>Ý bạn là:</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{m.suggestions.map(s => <button key={s} onClick={() => curSend(s)} style={{ fontSize: 11.5, background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 14, padding: "3px 10px", cursor: "pointer" }}>{s}</button>)}</div></div>}
+                {m.followups && <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>{m.followups.map(s => <button key={s} onClick={() => curSend(s)} style={{ fontSize: 11.5, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 14, padding: "3px 10px", cursor: "pointer" }}>↪ {s}</button>)}</div>}
                 {m.who === "bot" && (m.list || m.bars || m.tasks || m.profileEid) && (
                   <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                     {m.profileEid && onOpenProfile && <button onClick={() => { onOpenProfile(m.profileEid); setOpen(false); }} style={{ fontSize: 11.5, color: "#4338ca", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 8, padding: "3px 10px", cursor: "pointer", fontWeight: 600 }}>👤 Xem chi tiết</button>}
@@ -328,23 +363,23 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
             ))}
             <div ref={endRef} />
           </div>
-          {sugs.length > 0 && (
+          {tab === "local" && sugs.length > 0 && (
             <div style={{ borderTop: "1px solid #f3f4f6", maxHeight: 150, overflowY: "auto", background: "#fff" }}>
               {sugs.map(s => <div key={s} onMouseDown={e => { e.preventDefault(); setInput(s); setShowAc(false); }} style={{ padding: "7px 14px", fontSize: 12.5, cursor: "pointer", borderBottom: "1px solid #f8fafc", color: "#374151" }}>{s}</div>)}
             </div>
           )}
-          {msgs.length <= 1 && topFreq().length > 0 && (
+          {tab === "local" && msgs.length <= 1 && topFreq().length > 0 && (
             <div style={{ borderTop: "1px solid #f3f4f6", background: "#fff", padding: "8px 12px" }}>
               <div style={{ fontSize: 10.5, color: "#9ca3af", marginBottom: 5 }}>⭐ Câu bạn hay hỏi</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{topFreq().map(s => <button key={s} onClick={() => send(s)} style={{ fontSize: 11.5, background: "#f5f3ff", color: "#6d28d9", border: "1px solid #ddd6fe", borderRadius: 14, padding: "3px 10px", cursor: "pointer" }}>{s}</button>)}</div>
             </div>
           )}
           <div style={{ padding: 10, borderTop: "1px solid #e5e7eb", display: "flex", gap: 6, alignItems: "center" }}>
-            <button onClick={() => fileRef.current && fileRef.current.click()} title="Tải tệp PDF/Word để tóm tắt" style={{ background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 10, width: 36, height: 38, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>📎</button>
+            {tab === "local" && <button onClick={() => fileRef.current && fileRef.current.click()} title="Tải tệp PDF/Word để tóm tắt" style={{ background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 10, width: 36, height: 38, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>📎</button>}
             <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={onFile} />
-            {SR && <button onClick={startVoice} title="Hỏi bằng giọng nói" style={{ background: listening ? "#fee2e2" : "#eef2ff", color: listening ? "#b91c1c" : "#4338ca", border: "1px solid " + (listening ? "#fecaca" : "#c7d2fe"), borderRadius: 10, width: 36, height: 38, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>{listening ? "🔴" : "🎤"}</button>}
-            <input value={input} onChange={e => { setInput(e.target.value); setShowAc(true); }} onKeyDown={e => { if (e.key === "Enter") send(); }} placeholder="Hỏi, tìm việc, hoặc 📎/🎤…" style={{ flex: 1, padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 10, fontSize: 13, minWidth: 0 }} />
-            <button onClick={() => send()} style={{ background: "#4f46e5", color: "#fff", border: "none", borderRadius: 10, padding: "0 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>Gửi</button>
+            {tab === "local" && SR && <button onClick={startVoice} title="Hỏi bằng giọng nói" style={{ background: listening ? "#fee2e2" : "#eef2ff", color: listening ? "#b91c1c" : "#4338ca", border: "1px solid " + (listening ? "#fecaca" : "#c7d2fe"), borderRadius: 10, width: 36, height: 38, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>{listening ? "🔴" : "🎤"}</button>}
+            <input value={input} onChange={e => { setInput(e.target.value); setShowAc(tab === "local"); }} onKeyDown={e => { if (e.key === "Enter") curSend(); }} placeholder={tab === "ai" ? "Hỏi AI tự do, nhờ soạn văn bản…" : "Hỏi, tìm việc, hoặc 📎/🎤…"} style={{ flex: 1, padding: "9px 12px", border: "1px solid #d1d5db", borderRadius: 10, fontSize: 13, minWidth: 0 }} />
+            <button onClick={() => curSend()} style={{ background: "#4f46e5", color: "#fff", border: "none", borderRadius: 10, padding: "0 14px", cursor: "pointer", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>Gửi</button>
           </div>
         </div>
       )}
