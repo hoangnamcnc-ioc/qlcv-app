@@ -741,6 +741,7 @@ export default function App() {
           {/* VIỆC CHỜ TÔI XỬ LÝ */}
           {view==="myqueue"&&(
             <MyQueue
+              myPendingCreateApprovals={myPendingCreateApprovals}
               myPendingTaskApprovals={myPendingTaskApprovals} myPendingExtRequests={myPendingExtRequests}
               unratedTasks={unratedTasks} unreadCommentTasks={unreadCommentTasks}
               myPendingApprovals={myPendingApprovals}

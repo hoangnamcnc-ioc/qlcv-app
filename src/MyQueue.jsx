@@ -29,11 +29,12 @@ const Card = ({ onClick, bg, border, title, sub, dept }) => (
 );
 
 export default function MyQueue({
+  myPendingCreateApprovals = [],
   myPendingTaskApprovals, myPendingExtRequests, unratedTasks, unreadCommentTasks,
   myPendingApprovals, myPendingProjectSteps, myPendingProjectExt, myPendingProjectStepExt,
   onOpenTask, onOpenOtherTask, onOpenProject, getEmp,
 }) {
-  const total = myPendingTaskApprovals.length + myPendingExtRequests.length + unratedTasks.length + unreadCommentTasks.length
+  const total = myPendingCreateApprovals.length + myPendingTaskApprovals.length + myPendingExtRequests.length + unratedTasks.length + unreadCommentTasks.length
     + myPendingApprovals.length + myPendingProjectSteps.length + myPendingProjectExt.length + myPendingProjectStepExt.length;
 
   if (total === 0) {
@@ -49,6 +50,10 @@ export default function MyQueue({
   return (
     <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 18 }}>
       <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Tổng hợp mọi thứ đang cần <b>bạn</b> ra tay — duyệt, đánh giá, gia hạn, phản hồi. Bấm vào từng mục để xử lý ngay, xử lý xong sẽ tự biến mất khỏi danh sách.</div>
+
+      <Section icon="🆕" color="#15803d" bg="#bbf7d0" title="Việc nhân viên tự tạo — chờ bạn duyệt" count={myPendingCreateApprovals.length}>
+        {myPendingCreateApprovals.map(t => <Card key={t.id} bg="#f0fdf4" border="#bbf7d0" title={t.title} sub={`${getEmp(t.eid)?.name || t.created_by_name || "–"} tự tạo · Hạn: ${fmtDate(t.deadline)}`} dept={t.dept} onClick={() => onOpenTask(t)} />)}
+      </Section>
 
       <Section icon="📨" color="#92400e" bg="#fde68a" title="Chờ duyệt hoàn thành nhiệm vụ" count={myPendingTaskApprovals.length}>
         {myPendingTaskApprovals.map(t => <Card key={t.id} bg="#fffbeb" border="#fde68a" title={t.title} sub={`${t.requested_by} yêu cầu duyệt lúc ${t.requested_at}${pendingApprovalDays(t) >= 2 ? ` · ⏳ đã chờ ${pendingApprovalDays(t)} ngày — nên duyệt sớm` : ""}`} dept={t.dept} onClick={() => onOpenTask(t)} />)}
