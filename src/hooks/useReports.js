@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { DEPTS, RATING, LATE_REASONS, STATUS_ORDER } from "../constants";
+import { DEPTS, deptLabel, RATING, LATE_REASONS, STATUS_ORDER } from "../constants";
 import { isCompletedStatus, parseJSON, pendingApprovalDays } from "../helpers";
 import { w, sumW, staffScore, managerScore } from "../scoring";
 
@@ -536,7 +536,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const sorted = [...rows].sort((a, b) => b.rate - a.rate);
     const best = sorted[0], worst = sorted[sorted.length - 1];
     const parts = [`Kỳ đang xem: ${totalTasks} nhiệm vụ, tỷ lệ hoàn thành ${rate}%${overdueAll > 0 ? `, còn ${overdueAll} việc quá hạn` : ""}.`];
-    if (best && worst && best.dept !== worst.dept) parts.push(`Phòng ${best.dept} dẫn đầu (${best.rate}%), ${worst.dept} thấp nhất (${worst.rate}%).`);
+    if (best && worst && best.dept !== worst.dept) parts.push(`${deptLabel(best.dept)} dẫn đầu (${best.rate}%), ${deptLabel(worst.dept)} thấp nhất (${worst.rate}%).`);
     if (watchList && watchList.length) { const dd = watchList.filter(a => a.kind === "dept_down"), ee = watchList.filter(a => a.kind === "emp_down"); if (dd.length) parts.push(`⚠️ ${dd.map(x => x.dept).join(", ")} đang có xu hướng đi xuống nhiều tháng.`); if (ee.length) parts.push(`${ee.length} nhân viên rớt điểm mạnh so tháng trước.`); }
     if (staffingAdvice && staffingAdvice.length) { const ov = staffingAdvice.filter(x => x.level === "over").map(x => x.dept), un = staffingAdvice.filter(x => x.level === "under").map(x => x.dept); if (ov.length) parts.push(`Gợi ý điều phối: ${ov.join(", ")} có dấu hiệu thiếu người${un.length ? `, ${un.join(", ")} có thể dư người` : ""}.`); else if (un.length) parts.push(`${un.join(", ")} có thể đang dư người.`); }
     if (dataHealth && dataHealth.total > 0) { const bits = []; if (dataHealth.overdueNoReason.length) bits.push(`${dataHealth.overdueNoReason.length} việc quá hạn chưa nêu lý do`); if (dataHealth.pendingLong.length) bits.push(`${dataHealth.pendingLong.length} việc chờ duyệt lâu`); if (dataHealth.stale.length) bits.push(`${dataHealth.stale.length} việc bỏ hoang`); if (bits.length) parts.push(`Cần chấn chỉnh dữ liệu: ${bits.join(", ")}.`); }

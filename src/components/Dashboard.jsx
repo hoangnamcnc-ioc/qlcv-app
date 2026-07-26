@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { DEPTS, DEPT_COLOR, ROLE_COLORS, FULL_ACCESS, STATUS, STATUS_ORDER, FREQUENCIES, RATING, PRIO, VI_MONTHS } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel, ROLE_COLORS, FULL_ACCESS, STATUS, STATUS_ORDER, FREQUENCIES, RATING, PRIO, VI_MONTHS } from "../constants";
 import { isCompletedStatus, fmtDate } from "../helpers";
 import { RoleBadge, OverloadPopup } from "./ui";
 
@@ -47,7 +47,7 @@ export default function Dashboard({
     const lateRows = p.lateReasons.length ? p.lateReasons.map(r => `<li>${esc(r.label)}: ${r.count} lần</li>`).join("") : "<li>Không có việc bị ghi nhận trễ</li>";
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Ban tu danh gia</title><style>body{font-family:Arial,sans-serif;padding:26px;color:#111}h1{font-size:18px;margin:0 0 4px}h3{font-size:14px;margin:14px 0 4px}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ccc;padding:6px 8px;font-size:13px}.big{font-size:32px;font-weight:800;color:#1e3a8a}.sign td{border:none;text-align:center;padding-top:30px}</style></head><body>
       <h1>BẢN TỰ ĐÁNH GIÁ CÔNG VIỆC</h1>
-      <div style="font-size:13px;color:#444">${esc(p.emp.name)} — Phòng ${esc(p.emp.dept)} · ${esc(p.emp.role)} · Kỳ: tháng ${now.getMonth() + 1}/${now.getFullYear()}</div>
+      <div style="font-size:13px;color:#444">${esc(p.emp.name)} — ${esc(deptLabel(p.emp.dept))} · ${esc(p.emp.role)} · Kỳ: tháng ${now.getMonth() + 1}/${now.getFullYear()}</div>
       <p>Điểm hiệu suất tháng: <span class="big">${p.cur.resolved > 0 ? p.cur.perfScore : "—"}</span>${p.cur.resolved > 0 && !p.cur.eligible ? " (tham khảo — chưa đủ 5 việc đến hạn)" : ""} &nbsp;·&nbsp; Tỷ lệ đúng hạn: <b>${p.onTimeRate}%</b></div>
       ${b ? `<div style="font-size:13px">Cấu thành: Thời hạn ${b.timeliness} + Chất lượng ${b.quality}${b.penalty > 0 ? ` − Phạt ${b.penalty}` : ""}${b.workloadBonus > 0 ? ` + Thưởng KL ${b.workloadBonus}` : ""}${b.prioBonus > 0 ? ` + Thưởng ưu tiên ${b.prioBonus}` : ""}</div>` : ""}
       <div style="font-size:13px;margin-top:6px">Tính chủ động: hoàn thành sớm hạn <b>${p.proactive.earlyRate}%</b> (${p.proactive.early}/${p.proactive.doneOnTime} việc) · Khối lượng phối hợp: ${p.proactive.collabW}</div>
@@ -164,7 +164,7 @@ export default function Dashboard({
               <div key={i} onClick={() => a.kind === "dept_down" ? (setView("tasks"), setFDept(a.dept)) : null} style={{ padding: "10px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", gap: 10, cursor: a.kind === "dept_down" ? "pointer" : "default" }}>
                 <span style={{ fontSize: 18 }}>{a.kind === "dept_down" ? "📉" : "👤"}</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500 }}>{a.kind === "dept_down" ? <>Phòng <span style={{ background: DEPT_COLOR[a.dept] + "22", color: DEPT_COLOR[a.dept], fontWeight: 700, padding: "1px 8px", borderRadius: 8 }}>{a.dept}</span></> : <>{a.name} <span style={{ color: "#9ca3af", fontSize: 11 }}>({a.dept})</span></>}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{a.kind === "dept_down" ? <span style={{ background: DEPT_COLOR[a.dept] + "22", color: DEPT_COLOR[a.dept], fontWeight: 700, padding: "1px 8px", borderRadius: 8 }}>{deptLabel(a.dept)}</span> : <>{a.name} <span style={{ color: "#9ca3af", fontSize: 11 }}>({a.dept})</span></>}</div>
                   <div style={{ fontSize: 11.5, color: "#b91c1c", marginTop: 2 }}>{a.detail}</div>
                 </div>
               </div>
@@ -287,7 +287,7 @@ export default function Dashboard({
       {myTasks && !FULL_ACCESS.includes(currentUser.role) && (
         <div style={{ background: "linear-gradient(135deg,#1e1b4b 0%,#312e81 100%)", borderRadius: 12, padding: 16, color: "#fff" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <div><div style={{ fontWeight: 700, fontSize: 15 }}>👤 {currentUser.full_name}</div><div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{userDept ? `Phòng ${userDept}` : ""}{currentUser.role === "staff" && empProfile && <button onClick={printSelfReview} style={{ marginLeft: 10, background: "rgba(255,255,255,0.18)", color: "#fff", border: "1px solid rgba(255,255,255,0.35)", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontSize: 11 }}>🖨 Tự đánh giá</button>}</div></div>
+            <div><div style={{ fontWeight: 700, fontSize: 15 }}>👤 {currentUser.full_name}</div><div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>{userDept ? deptLabel(userDept) : ""}{currentUser.role === "staff" && empProfile && <button onClick={printSelfReview} style={{ marginLeft: 10, background: "rgba(255,255,255,0.18)", color: "#fff", border: "1px solid rgba(255,255,255,0.35)", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontSize: 11 }}>🖨 Tự đánh giá</button>}</div></div>
             <div style={{ textAlign: "right" }}><div style={{ fontSize: 28, fontWeight: 800, color: "#a5b4fc" }}>{myTasks.rate}%</div><div style={{ fontSize: 11, opacity: 0.7 }}>Tỷ lệ HT</div></div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 8 }}>

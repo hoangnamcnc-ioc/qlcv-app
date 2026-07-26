@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { DEPTS, DEPT_COLOR } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel } from "../constants";
 import { MANAGER_EMP_ROLES } from "../hooks/useReports";
 
 // ── Trang "KPI & Xu hướng": theo dõi điểm nhân viên/phòng qua nhiều tháng, nhân viên tăng/giảm nổi bật,
@@ -95,7 +95,7 @@ export default function KpiTrends({ employees, calcMonthPerf, managerPerf, isMob
 
   const exportPDF = () => {
     const head = `<tr><th>Nhân viên</th><th>Phòng</th>${months.map(mo => `<th>${mo.label}</th>`).join("")}<th>Δ</th></tr>`;
-    const body = shownRows.map(r => `<tr><td>${r.name}${r.mgr ? " 👑" : ""}</td><td>${r.dept}</td>${r.series.map(v => `<td style="text-align:center;color:${scoreColor(v)}">${v == null ? "–" : v}</td>`).join("")}<td style="text-align:center">${r.delta == null ? "mới" : (r.delta > 0 ? "+" : "") + Math.round(r.delta)}</td></tr>`).join("");
+    const body = shownRows.map(r => `<tr><td>${r.name}${r.mgr ? " 👑" : ""}</td><td>${deptLabel(r.dept)}</td>${r.series.map(v => `<td style="text-align:center;color:${scoreColor(v)}">${v == null ? "–" : v}</td>`).join("")}<td style="text-align:center">${r.delta == null ? "mới" : (r.delta > 0 ? "+" : "") + Math.round(r.delta)}</td></tr>`).join("");
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Báo cáo KPI & Xu hướng</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{color:#1e1b4b;font-size:20px;margin-bottom:2px}.meta{color:#6b7280;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#f1f5f9;padding:6px 8px;border:1px solid #e5e7eb;font-size:11px}td{padding:5px 8px;border:1px solid #e5e7eb}tr:nth-child(even){background:#fafafa}@media print{body{padding:0}}</style></head><body><h1>📈 Báo cáo KPI & Xu hướng</h1><div class="meta">Xuất ngày ${today.toLocaleDateString("vi-VN")} · ${nMonths} tháng gần nhất · 👑 = tính theo điểm điều hành</div><table><thead>${head}</thead><tbody>${body}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`;
     const w = window.open("", "_blank"); if (w) { w.document.write(html); w.document.close(); }
   };
@@ -128,7 +128,7 @@ export default function KpiTrends({ employees, calcMonthPerf, managerPerf, isMob
             <tbody>
               {deptRows.map(r => (
                 <tr key={r.dept}>
-                  <td style={td}><span style={{ background: (DEPT_COLOR[r.dept] || "#999") + "22", color: DEPT_COLOR[r.dept] || "#555", padding: "2px 8px", borderRadius: 8, fontSize: 12 }}>{r.dept}</span> <span style={{ fontSize: 11, color: "#9ca3af" }}>· {r.empCount} NV</span></td>
+                  <td style={td}><span style={{ background: (DEPT_COLOR[r.dept] || "#999") + "22", color: DEPT_COLOR[r.dept] || "#555", padding: "2px 8px", borderRadius: 8, fontSize: 12 }}>{deptLabel(r.dept)}</span> <span style={{ fontSize: 11, color: "#9ca3af" }}>· {r.empCount} NV</span></td>
                   <td style={td}><Spark pts={r.series} /></td>
                   <td style={{ ...td, textAlign: "right", fontWeight: 700, color: scoreColor(r.latest) }}>{r.latest ?? "–"}</td>
                   <td style={{ ...td, textAlign: "right" }}><Delta d={r.delta} /></td>
