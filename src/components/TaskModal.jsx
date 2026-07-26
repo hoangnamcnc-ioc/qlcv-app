@@ -70,7 +70,7 @@ export default function TaskModal({
               ["Giao cho", <div>{getEmp(modal.eid)?.name || "–"}{canEditTask(modal) && (modal.viewed_at ? <div title={`Đã xem lúc ${modal.viewed_at}`} style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>👁️ Đã xem lúc {modal.viewed_at}</div> : <div style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>🔴 Chưa xem</div>)}</div>],
               ["Ưu tiên", <PChip p={modal.prio} />],
               ["Hạn chót", <span style={{ color: modal.status === "overdue" ? "#b91c1c" : "#111", fontWeight: modal.status === "overdue" ? 600 : 400 }}>{fmtDate(modal.deadline)}</span>],
-              ["Trạng thái", <Chip s={modal.status} />],
+              ["Trạng thái", modal.pending_create ? <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 12, padding: "2px 8px", borderRadius: 12, whiteSpace: "nowrap" }}>🆕 Chờ duyệt tạo</span> : <Chip s={modal.status} />],
               ["Ngày tạo", fmtDate(modal.created) || "–"],
             ].map(([k, v]) => (
               <div key={k}><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 3 }}>{k}</div><div>{v}</div></div>

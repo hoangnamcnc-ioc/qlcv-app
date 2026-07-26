@@ -3,11 +3,15 @@ import { ROLE_COLORS, ROLE_LABELS, RATING, STATUS, STATUS_ORDER, PRIO } from "..
 import { isCompletedStatus, fmtDate } from "../helpers";
 
 // Nhãn trạng thái nhiệm vụ (chấm màu + tên) — dùng chung toàn app
-export const Chip = ({ s }) => (
-  <span style={{ background: STATUS[s].bg, color: STATUS[s].col, fontSize: 12, padding: "2px 8px", borderRadius: 12, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }}>
-    <span style={{ width: 6, height: 6, borderRadius: "50%", background: STATUS[s].dot, flexShrink: 0 }} />{STATUS[s].label}
-  </span>
-);
+export const Chip = ({ s }) => {
+  // An toàn với trạng thái lạ/thiếu (VD việc pending_create chưa có status) — tránh crash cả modal.
+  const st = STATUS[s] || { bg: "#f3f4f6", col: "#6b7280", dot: "#9ca3af", label: s || "—" };
+  return (
+    <span style={{ background: st.bg, color: st.col, fontSize: 12, padding: "2px 8px", borderRadius: 12, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot, flexShrink: 0 }} />{st.label}
+    </span>
+  );
+};
 
 // Nhãn mức ưu tiên
 export const PChip = ({ p }) => (
