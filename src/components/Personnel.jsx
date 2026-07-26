@@ -177,6 +177,9 @@ function ProfileTab({ employees, canEditHr, canSeeAll, userDept, updateEmployee,
               {F({ k: "education", label: "Trình độ chuyên môn", ph: "Đại học CNTT" })}
               {F({ k: "politics", label: "Lý luận chính trị", ph: "Trung cấp" })}
               {F({ k: "party_date", label: "Ngày vào Đảng", type: "date" })}
+              {F({ k: "salary_grade", label: "Bậc lương hiện hưởng", ph: "Bậc 3" })}
+              {F({ k: "salary_coef", label: "Hệ số lương", ph: "3.00" })}
+              {F({ k: "next_raise", label: "Nâng bậc lương tiếp theo", type: "date" })}
             </div>
           </div>
 
