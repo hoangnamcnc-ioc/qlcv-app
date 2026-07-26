@@ -39,13 +39,13 @@ test("staff: 10 việc 'Xuất sắc' đúng hạn → 100đ (kịch trần ch�
   assert.equal(s.perfScore, 100);
 });
 
-test("staff: có trễ & quá hạn → bị phạt 2đ/việc", () => {
+test("staff: có trễ & quá hạn → phạt theo TỶ LỆ quá hạn, việc trễ vẫn tính chất lượng", () => {
   const s = staffScore([...mk(8, "completed", "tot"), ...mk(2, "completed_late"), ...mk(2, "overdue")]);
   assert.equal(s.resolved, 12);
   assert.equal(s.breakdown.timeliness, 45);   // (8*60+2*30)/12
-  assert.equal(s.breakdown.quality, 20);      // 8*3 / (12*4) * 40
-  assert.equal(s.breakdown.penalty, 8);       // (2+2)*2
-  assert.equal(s.perfScore, 57);
+  assert.equal(s.breakdown.quality, 25);      // (8+2 việc done)*3 / (12*4) * 40 — việc trễ CŨNG tính chất lượng
+  assert.equal(s.breakdown.penalty, 1.7);     // 2 quá hạn / 12 * 10 = 1.67 → 1.7 (tỷ lệ, không còn 2đ/việc)
+  assert.equal(s.perfScore, 68);              // 45 + 25 − 1.7 = 68.3 → 68
 });
 
 test("staff: thưởng khối lượng chỉ tính khi >15 việc, tối đa +10", () => {
@@ -94,15 +94,15 @@ test("manager: rỗng → 0, chưa đủ ĐK", () => {
   assert.equal(m.resolvedW, 0);
 });
 
-test("manager: phòng 6 người, 16 đúng hạn + 2 trễ + 2 quá hạn → 74đ", () => {
+test("manager: phòng 6 người, 16 đúng hạn + 2 trễ + 2 quá hạn → 77đ", () => {
   const m = managerScore([...mk(16, "completed", "tot"), ...mk(2, "completed_late"), ...mk(2, "overdue")], 6);
   assert.equal(m.resolvedW, 20);
   assert.equal(m.onTimeRate, 80);
   assert.equal(m.breakdown.timeliness, 51); // (16*60+2*30)/20
-  assert.equal(m.breakdown.quality, 24);
+  assert.equal(m.breakdown.quality, 27);    // (16+2 việc done)*3 / (20*4) * 40 — việc trễ CŨNG tính chất lượng
   assert.equal(m.breakdown.penalty, 1);     // 2/20*10
   assert.equal(m.breakdown.mgmtBonus, 0);   // perHead 3.33 < 10
-  assert.equal(m.perfScore, 74);
+  assert.equal(m.perfScore, 77);            // 51 + 27 − 1 = 77
 });
 
 test("manager: thưởng khối lượng theo BÌNH QUÂN ĐẦU NGƯỜI (>10 mới thưởng, ≥20 kịch trần)", () => {

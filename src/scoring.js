@@ -3,7 +3,7 @@
 // Tách khỏi useReports.js để (1) tránh trùng lặp công thức, (2) kiểm thử tự động độc lập.
 // Mọi thay đổi công thức chỉ sửa Ở ĐÂY; useReports.js chỉ gọi lại. Có bộ test scoring.test.js đi kèm.
 // ─────────────────────────────────────────────────────────────────────────────
-import { RATING, LATE_COMPLETION_PENALTY } from "./constants.js";
+import { RATING } from "./constants.js";
 
 // Trọng số 1 "việc": mặc định 1; nhiệm vụ định kỳ (ngày 0.25 … năm 3) và hỗ trợ (khó/TB/nhanh) gắn sẵn t.weight.
 export const w = t => t.weight ?? 1;
@@ -14,10 +14,13 @@ const ratingScore = t => (RATING[t.rating] ? RATING[t.rating].score : 2);
 // ── ĐIỂM HIỆU SUẤT CÁ NHÂN ──────────────────────────────────────────────────
 // items = danh sách việc ĐÃ ĐẾN HẠN trong tháng của 1 người, mỗi việc { status, rating, weight }.
 // status: "completed" (đúng hạn), "completed_late" (HT trễ), "overdue" (quá hạn chưa xong).
-//   Điểm = Thời hạn(60) + Chất lượng(40) − Phạt(2đ/việc trễ&quá hạn) + Thưởng khối lượng(+1đ/việc vượt 15, tối đa 10).
+//   Điểm = Thời hạn(60) + Chất lượng(40) − Phạt(tỷ lệ tồn đọng quá hạn, tối đa 10) + Thưởng khối lượng(+1đ/việc vượt 15, tối đa 10).
 //   Chỉ tính trên việc đã đến hạn; đủ điều kiện xếp hạng khi resolved ≥ 5.
+//   Lưu ý công bằng: việc HOÀN THÀNH TRỄ vẫn được tính điểm CHẤT LƯỢNG (đã bị hạ ở phần Thời hạn rồi,
+//   không trừ thêm), và PHẠT tính theo TỶ LỆ quá hạn (giống điểm điều hành) thay vì tuyệt đối 2đ/việc.
 export function staffScore(items) {
   const onTimeTasks = items.filter(t => t.status === "completed");
+  const doneTasks = items.filter(t => t.status === "completed" || t.status === "completed_late"); // cả trễ vẫn tính chất lượng
   const onTime = sumW(onTimeTasks);
   const completedLate = sumW(items.filter(t => t.status === "completed_late"));
   const over = sumW(items.filter(t => t.status === "overdue"));
@@ -27,9 +30,9 @@ export function staffScore(items) {
   let perfScore = 0, breakdown = null;
   if (resolved > 0) {
     const timeliness = (onTime * 60 + completedLate * 30) / resolved;                          // ① 0..60
-    const qualitySum = onTimeTasks.reduce((s, t) => s + ratingScore(t) * w(t), 0);
-    const quality = qualitySum / (resolved * 4) * 40;                                           // ② 0..40
-    const penalty = (over + completedLate) * LATE_COMPLETION_PENALTY;                           // ③ phạt tuyệt đối
+    const qualitySum = doneTasks.reduce((s, t) => s + ratingScore(t) * w(t), 0);
+    const quality = qualitySum / (resolved * 4) * 40;                                           // ② 0..40 (gồm cả việc trễ)
+    const penalty = Math.round(over / resolved * 10 * 10) / 10;                                 // ③ tỷ lệ tồn đọng quá hạn, 0..10
     const workloadBonus = Math.max(0, Math.min((resolved - 15) * 1, 10));                       // ④ thưởng khối lượng cá nhân
     // ⑤ Thưởng ưu tiên: +0.5đ mỗi việc ƯU TIÊN CAO hoàn thành ĐÚNG HẠN, tối đa +5. Chỉ CỘNG THÊM (không phạt mới)
     // — ghi nhận người gánh việc khó/gấp. Việc không đánh dấu ưu tiên (mặc định Trung bình) không ảnh hưởng.
@@ -46,6 +49,7 @@ export function staffScore(items) {
 //        + Thưởng khối lượng điều hành theo BÌNH QUÂN ĐẦU NGƯỜI (>10/người mới thưởng, tối đa +10 khi ≥20/người).
 export function managerScore(items, empCount) {
   const onTimeTasks = items.filter(t => t.status === "completed");
+  const doneTasks = items.filter(t => t.status === "completed" || t.status === "completed_late"); // cả trễ vẫn tính chất lượng
   const onTimeW = sumW(onTimeTasks);
   const lateW = sumW(items.filter(t => t.status === "completed_late"));
   const overW = sumW(items.filter(t => t.status === "overdue"));
@@ -58,8 +62,8 @@ export function managerScore(items, empCount) {
   let perfScore = 0, breakdown = null;
   if (resolvedW > 0) {
     const timeliness = (onTimeW * 60 + lateW * 30) / resolvedW;                                 // ① 0..60
-    const qualitySum = onTimeTasks.reduce((s, t) => s + ratingScore(t) * w(t), 0);
-    const quality = qualitySum / (resolvedW * 4) * 40;                                          // ② 0..40
+    const qualitySum = doneTasks.reduce((s, t) => s + ratingScore(t) * w(t), 0);
+    const quality = qualitySum / (resolvedW * 4) * 40;                                          // ② 0..40 (gồm cả việc trễ)
     const penalty = Math.round(overW / resolvedW * 10 * 10) / 10;                               // ③ tỷ lệ tồn đọng, 0..10
     const mgmtBonus = Math.max(0, Math.min(perHead - 10, 10));                                  // ④ khối lượng bình quân/người
     perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + mgmtBonus)));
