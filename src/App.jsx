@@ -11,7 +11,7 @@ const Documents = lazy(()=>import("./Documents"));
 const SupportCases = lazy(()=>import("./SupportCases"));
 const MyQueue = lazy(()=>import("./MyQueue"));
 const Chat = lazy(()=>import("./Chat"));
-import { DEPTS, DEPT_COLOR, deptLabel, DEFAULT_DEPARTMENTS, setDepartments, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
+import { DEPTS, DEPT_COLOR, deptLabel, isRankable, DEFAULT_DEPARTMENTS, setDepartments, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
 import { addDays, today, todayStr, nowStr, parseNowStr, getNextDate, freqWeight, isCompletedLateByDate, getStatus, isCompletedStatus, isLateStatus, parseJSON, hashPwd, getFileIcon, sanitizeFileName, fmtDate, pendingApprovalDays } from "./helpers";
 import { ProgressBar, RoleBadge, RatingBadge, Chip, PChip } from "./components/ui";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -339,6 +339,7 @@ export default function App() {
   // mJs = tháng theo JS (0-11); trong DB lưu 1-12 cho dễ đọc.
   const snapshotMonth=async(y,mJs,opts={})=>{
     const rows=(employees||[]).map(emp=>{
+      if(!isRankable(emp))return null; // Ban Giám đốc / người khoán KPI: không chốt sổ điểm, không xếp hạng
       // Cấp quản lý (TP/PP) chốt theo ĐIỂM ĐIỀU HÀNH (kết quả phòng); nhân viên theo điểm hiệu suất cá nhân.
       const isMgr=MANAGER_EMP_ROLES.includes(emp.role);
       if(isMgr){

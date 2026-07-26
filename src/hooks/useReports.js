@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { DEPTS, deptLabel, RATING, LATE_REASONS, STATUS_ORDER } from "../constants";
+import { DEPTS, deptLabel, isRankable, EXEC_ROLES, RATING, LATE_REASONS, STATUS_ORDER } from "../constants";
 import { isCompletedStatus, parseJSON, pendingApprovalDays } from "../helpers";
 import { w, sumW, staffScore, managerScore } from "../scoring";
 
@@ -192,7 +192,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     return { total: etWeight, done: s.done, onTime: s.onTime, completedLate: s.completedLate, over: s.over, resolved: s.resolved, completionRate, collabTotal, collabDone, perfScore: s.perfScore, eligible: s.eligible, breakdown: s.breakdown };
   };
 
-  const repEmpData = useMemo(() => (employees || []).filter(e => !MANAGER_EMP_ROLES.includes(e.role) && !e.no_kpi).map(emp => {
+  const repEmpData = useMemo(() => (employees || []).filter(e => !MANAGER_EMP_ROLES.includes(e.role) && isRankable(e)).map(emp => {
     const m = calcMonthPerf(emp.id, repYear, repMonth);
     return { ...emp, ...m, perfScore: m.perfScore };
   }).filter(e => e.total > 0).sort((a, b) => {
@@ -298,7 +298,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
       const collabTotal = monthly.reduce((s, m) => s + (m.collabTotal || 0), 0);
       const collabDone = monthly.reduce((s, m) => s + (m.collabDone || 0), 0);
       return { ...emp, total, resolved, done, completedLate, over, collabTotal, collabDone, eligibleMonths: eligibleMonths.length, rawScore, rate: total ? Math.round(done / total * 100) : 0, monthly };
-    }).filter(e => e.total > 0 && !MANAGER_EMP_ROLES.includes(e.role) && !e.no_kpi);
+    }).filter(e => e.total > 0 && !MANAGER_EMP_ROLES.includes(e.role) && isRankable(e));
 
     // ── Làm công bằng hơn cho người có ÍT tháng đủ điều kiện: dùng "trung bình có điều chỉnh"
     // (Bayesian/weighted average, giống cách IMDB xếp hạng phim) thay vì trung bình cộng thô.
@@ -517,7 +517,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     }
     const prev = new Date(y, m - 1, 1); const py = prev.getFullYear(), pm = prev.getMonth();
     for (const emp of (employees || [])) {
-      if (emp.no_kpi) continue;
+      if (!isRankable(emp)) continue;
       const cur = calcMonthPerf(emp.id, y, m), pr = calcMonthPerf(emp.id, py, pm);
       if (cur.eligible && pr.eligible && (pr.perfScore - cur.perfScore) >= 15) alerts.push({ kind: "emp_down", dept: emp.dept, name: emp.name, detail: `Điểm rớt ${pr.perfScore - cur.perfScore}đ so tháng trước (${pr.perfScore} → ${cur.perfScore})`, drop: pr.perfScore - cur.perfScore });
     }

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { DEPTS, DEPT_COLOR, deptLabel } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel, isRankable } from "../constants";
 import { MANAGER_EMP_ROLES } from "../hooks/useReports";
 
 // ── Trang "KPI & Xu hướng": theo dõi điểm nhân viên/phòng qua nhiều tháng, nhân viên tăng/giảm nổi bật,
@@ -55,7 +55,7 @@ export default function KpiTrends({ employees, calcMonthPerf, managerPerf, isMob
 
   // Điểm từng tháng cho mỗi nhân viên (null nếu tháng đó chưa có việc đến hạn).
   const rows = useMemo(() => {
-    return (employees || []).filter(e => !e.no_kpi).map(e => {
+    return (employees || []).filter(e => isRankable(e)).map(e => {
       const mgr = isMgr(e);
       const series = months.map(({ y, m }) => {
         const p = mgr ? managerPerf(e.id, y, m) : calcMonthPerf(e.id, y, m);
@@ -70,7 +70,7 @@ export default function KpiTrends({ employees, calcMonthPerf, managerPerf, isMob
   // Xu hướng theo phòng = trung bình điểm nhân viên ĐỦ ĐIỀU KIỆN trong phòng mỗi tháng.
   const deptRows = useMemo(() => {
     return DEPTS.map(d => {
-      const emps = (employees || []).filter(e => !e.no_kpi && e.dept === d && !isMgr(e));
+      const emps = (employees || []).filter(e => isRankable(e) && e.dept === d && !isMgr(e));
       const series = months.map(({ y, m }) => {
         const vals = emps.map(e => calcMonthPerf(e.id, y, m)).filter(p => p.eligible).map(p => p.perfScore);
         return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : null;
