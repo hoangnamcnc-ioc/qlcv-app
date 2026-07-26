@@ -19,7 +19,7 @@ function applyDepartments(list) {
 applyDepartments(DEFAULT_DEPARTMENTS); // mặc định để app chạy được ngay cả khi chưa nạp CSDL
 export function setDepartments(list) { if (Array.isArray(list) && list.length) applyDepartments([...list].sort((a, b) => (a.ord ?? 0) - (b.ord ?? 0))); }
 export const deptLabel = code => DEPT_NAME[code] || code; // tên hiển thị của 1 phòng/ban
-export const ROLES_EMP = ["Trưởng phòng","Phó trưởng phòng","Chuyên viên","Nhân viên"];
+export const ROLES_EMP = ["Giám đốc","Phó Giám đốc","Trưởng phòng","Phó trưởng phòng","Chuyên viên","Nhân viên"];
 export const VI_MONTHS = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
 export const VI_DAYS = ["CN","T2","T3","T4","T5","T6","T7"];
 export const ROLE_LABELS = {admin:"Quản trị viên",director:"Ban Giám đốc",manager_hcth:"TP. HCTH",manager:"Trưởng phòng",deputy_manager:"Phó trưởng phòng",staff:"Nhân viên"};
