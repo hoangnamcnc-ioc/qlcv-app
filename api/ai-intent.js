@@ -51,6 +51,12 @@ Ví dụ B: {"type":"answer","answer":"Để viết một email xin nghỉ phép
 // Cho phép hàm chạy tới 30s (đọc & đánh giá báo cáo dài) thay vì mặc định 10s của Vercel.
 export const maxDuration = 30;
 
+// Chế độ TRẢ LỜI TỰ DO (mode="answer"): dùng khi người dùng nhờ SOẠN/ĐÁNH GIÁ văn bản — luôn trả lời,
+// KHÔNG phân loại slots (tránh hiểu nhầm báo cáo thành câu tra cứu dữ liệu).
+const SYS_ANSWER = `Bạn là trợ lý công sở nhà nước (tiếng Việt). Hãy THỰC HIỆN yêu cầu của người dùng: soạn thảo,
+đánh giá/nhận xét văn bản, tóm tắt, giải thích, tư vấn... Trả lời đầy đủ, có bố cục rõ ràng, đúng mực.
+Trả về DUY NHẤT một object JSON dạng {"answer":"<nội dung trả lời, xuống dòng bằng \\n>"}. KHÔNG thêm gì ngoài JSON.`;
+
 export default async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ slots: null }); return; }
   try {
@@ -72,11 +78,12 @@ export default async function handler(req, res) {
     // Ghép vài lượt hội thoại trước (nếu có) để AI hiểu câu nối tiếp; role chỉ nhận "user"/"model".
     const hist = Array.isArray(body.history) ? body.history.filter(h => h && typeof h.text === "string" && h.text.trim()).slice(-6).map(h => ({ role: h.role === "model" ? "model" : "user", parts: [{ text: String(h.text).slice(0, 600) }] })) : [];
     const contents = [...hist, { role: "user", parts: [{ text: String(question).slice(0, 14000) }] }]; // đủ chứa cả bản báo cáo cần đánh giá
+    const answerMode = body.mode === "answer";
     const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYS }] },
+        systemInstruction: { parts: [{ text: answerMode ? SYS_ANSWER : SYS }] },
         contents,
         generationConfig: { temperature: 0.2, maxOutputTokens: 2200, responseMimeType: "application/json" },
       }),
@@ -87,6 +94,8 @@ export default async function handler(req, res) {
     const m = text.match(/\{[\s\S]*\}/);
     let obj = null;
     if (m) { try { obj = JSON.parse(m[0]); } catch { obj = null; } }
+    // Chế độ trả lời tự do (SYS_ANSWER) → luôn là {"answer":"..."}. Nếu model lỡ trả text thô, dùng cả text đó.
+    if (answerMode) { const a = (obj && typeof obj.answer === "string" && obj.answer.trim()) ? obj.answer : text; res.status(200).json({ answer: a || "" }); return; }
     // Kết quả có thể là {type:"slots",slots:{...}} (câu về dữ liệu) hoặc {type:"answer",answer:"..."} (câu chung)
     if (obj && obj.type === "answer" && typeof obj.answer === "string") { res.status(200).json({ answer: obj.answer }); return; }
     const slots = obj && obj.slots ? obj.slots : obj; // chấp nhận cả dạng slots lồng hoặc phẳng (tương thích cũ)

@@ -42,7 +42,8 @@ function normalizeSlots(x) {
 // Trả về { slots, kind } nếu AI hiểu được; null nếu tắt/lỗi/quá thời gian → nơi gọi tự quay về nội bộ.
 // history: vài lượt hội thoại gần nhất [{ role:"user"|"model", text }] để AI hiểu câu nối tiếp
 // (VD "viết giúp đi" sau khi đã bàn về đơn xin nghỉ phép).
-export async function parseWithAI(question, history) {
+// opts.freeform = true → buộc AI TRẢ LỜI TỰ DO (soạn/đánh giá văn bản), KHÔNG bóc slots tra cứu.
+export async function parseWithAI(question, history, opts) {
   if (!aiEnabled || !question || !question.trim()) return null;
   try {
     const ctrl = new AbortController();
@@ -51,7 +52,7 @@ export async function parseWithAI(question, history) {
     const res = await fetch(PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: question.slice(0, 14000), history: hist }), // đủ cho cả bản báo cáo
+      body: JSON.stringify({ question: question.slice(0, 14000), history: hist, mode: opts && opts.freeform ? "answer" : undefined }), // đủ cho cả bản báo cáo
       signal: ctrl.signal,
     });
     clearTimeout(timer);

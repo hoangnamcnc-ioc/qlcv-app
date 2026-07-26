@@ -276,7 +276,8 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
       setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", text: "⏳ Đang hiểu câu hỏi…", pending: true }]);
       // Gửi kèm vài lượt gần nhất để AI hiểu câu nối tiếp ("viết giúp đi", "làm tiếp"…).
       const hist = msgs.slice(-6).filter(m => m.text && !m.pending).map(m => ({ role: m.who === "me" ? "user" : "model", text: m.text }));
-      const ai = await parseWithAI(q, hist);
+      // Câu YÊU CẦU SOẠN/VIẾT (wantWrite) → ép AI trả lời tự do, không bóc slots tra cứu.
+      const ai = await parseWithAI(q, hist, ans.wantWrite ? { freeform: true } : undefined);
       if (ai && ai.slots) { const routed = answer(q, ai.slots); if (!routed.unsure) { ans = { ...routed, viaAI: true }; learnRoute(q, ai.slots, routed); } }
       else if (ai && ai.answer && ans.unsure) { ans = { text: ai.answer, viaAI: true }; }
       ans = finalizeUnsure(q, ans);
@@ -323,8 +324,8 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
       const text = (await extractFileText(f) || "").trim();
       if (text.length < 20) { setAiMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", text: `Không đọc được nội dung có ý nghĩa từ "${f.name}" (tệp scan/ảnh thì AI chưa đọc được chữ).` }; return c; }); return; }
       const prompt = `Hãy ĐÁNH GIÁ bản báo cáo/văn bản dưới đây giúp tôi. Nhận xét theo các mục rõ ràng: (1) Bố cục & trình bày; (2) Nội dung đã đầy đủ/rõ ràng chưa; (3) Điểm mạnh; (4) Điểm cần bổ sung hoặc chỉnh sửa; (5) Lỗi chính tả/diễn đạt (nếu có); (6) Kết luận & gợi ý cải thiện. Trả lời tiếng Việt, đúng mực môi trường công sở nhà nước.\n\n--- NỘI DUNG BÁO CÁO ---\n${text}`;
-      const ai = await parseWithAI(prompt);
-      const ans = (ai && ai.answer) ? { text: ai.answer, viaAI: true } : (ai && ai.slots) ? { text: "Mình đọc được tệp nhưng chưa đánh giá được (AI hiểu nhầm thành câu tra cứu). Bạn thử lại nhé.", viaAI: true } : { text: "⚠️ AI đang bận hoặc đã hết lượt miễn phí. Bạn thử lại sau một chút nhé." };
+      const ai = await parseWithAI(prompt, null, { freeform: true });
+      const ans = (ai && ai.answer) ? { text: ai.answer, viaAI: true } : { text: "⚠️ AI đang bận hoặc đã hết lượt miễn phí. Bạn thử lại sau một chút nhé." };
       setAiMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", ...ans, intent: "text" }; return c; });
     } catch (err) { setAiMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", text: `⚠️ ${err.message || "Không đọc được tệp"}` }; return c; }); }
   };
@@ -349,9 +350,10 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
       <button onPointerDown={onBubbleDown} title="Trợ lý tra cứu (kéo để di chuyển)" style={{ position: "fixed", left: bubble.left, top: bubble.top, zIndex: 210, width: 56, height: 56, borderRadius: "50%", border: "none", background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", fontSize: 26, cursor: "grab", touchAction: "none", boxShadow: "0 6px 20px rgba(79,70,229,0.45)" }}>{open ? "✕" : "💬"}</button>
       {open && (
         <div style={{ position: "fixed", left: panel.left, top: panel.top, zIndex: 210, width: panel.w, height: panel.h, background: "#fff", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e5e7eb" }}>
-          <div onPointerDown={onPanelDrag} title="Kéo tiêu đề để di chuyển khung" style={{ background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", padding: "12px 16px", cursor: "move", touchAction: "none", userSelect: "none" }}>
+          <div onPointerDown={onPanelDrag} title="Kéo tiêu đề để di chuyển khung" style={{ position: "relative", background: "linear-gradient(135deg,#4f46e5,#6366f1)", color: "#fff", padding: "12px 44px 12px 16px", cursor: "move", touchAction: "none", userSelect: "none" }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>🤖 Trợ lý <span style={{ opacity: 0.6, fontWeight: 400, fontSize: 12 }}>⠿ kéo để di chuyển</span></div>
             <div style={{ fontSize: 11, opacity: 0.9 }}>{tab === "ai" ? "Hỏi tự do · soạn văn bản · kiến thức chung (Gemini)" : "Tra cứu dữ liệu · nhớ ngữ cảnh · biểu đồ · giọng nói · tóm tắt tệp"}</div>
+            <button onPointerDown={e => e.stopPropagation()} onClick={() => setOpen(false)} title="Đóng khung chat" style={{ position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.18)", color: "#fff", fontSize: 17, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>✕</button>
           </div>
           <div style={{ display: "flex", background: "#fff", borderBottom: "1px solid #e5e7eb" }}>
             {[["local", "📊 Tra cứu nội bộ"], ["ai", "✨ Trợ lý AI"]].map(([k, label]) => (
