@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 
 const today=new Date();today.setHours(0,0,0,0);
@@ -60,6 +60,38 @@ function parsePasted(text){
   return Object.values(days);
 }
 
+// ── Đọc THẲNG file .docx (mammoth → HTML giữ được ô GỘP rowspan) → tách đúng DC 3 ca + IOC nhiều tên ──
+// Bảng chuẩn 6 cột: [0]Ngày [1]Thứ [2]Trực lãnh đạo [3]Trực DC [4]Trực IOC [5]Ghi chú.
+// Mỗi ngày trải nhiều dòng: ô Ngày/Thứ/LĐ/IOC gộp dọc (rowspan), cột DC mỗi dòng 1 người (theo ca).
+const cellLines = h => { const ps = [...h.matchAll(/<p>([\s\S]*?)<\/p>/g)].map(m => m[1]); const src = ps.length ? ps : [h]; return src.map(x => x.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean); };
+function parseDocxHtml(html) {
+  const tables = [...(html || "").matchAll(/<table[\s\S]*?<\/table>/g)].map(m => m[0]);
+  const tbl = tables.find(t => /Trực lãnh đạo/i.test(t)) || tables[0];
+  if (!tbl) return [];
+  const trs = [...tbl.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map(m => m[1]);
+  const NCOL = 6, active = {}, grid = [];
+  for (const tr of trs) {
+    const cells = [...tr.matchAll(/<t[dh]([^>]*)>([\s\S]*?)<\/t[dh]>/g)].map(m => ({ rs: parseInt((m[1].match(/rowspan="(\d+)"/) || [])[1] || "1", 10), cs: parseInt((m[1].match(/colspan="(\d+)"/) || [])[1] || "1", 10), lines: cellLines(m[2]) }));
+    const row = new Array(NCOL).fill(null); let ci = 0;
+    for (let col = 0; col < NCOL;) {
+      if (active[col]) { active[col]--; if (active[col] <= 0) delete active[col]; col++; continue; } // ô gộp từ trên xuống
+      const cell = cells[ci++]; if (!cell) { col++; continue; }
+      for (let k = 0; k < cell.cs && col + k < NCOL; k++) { row[col + k] = k === 0 ? cell.lines : []; if (cell.rs > 1) active[col + k] = cell.rs - 1; }
+      col += cell.cs;
+    }
+    grid.push(row);
+  }
+  const days = {}; let cur = null;
+  for (const row of grid) {
+    const dm = ((row[0] || []).join(" ")).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (dm) { const date = `${dm[3]}-${pad(dm[2])}-${pad(dm[1])}`; cur = date; days[date] = { date, leader: (row[2] || []).join(" ").trim(), dc: [], ioc: [], note: (row[5] || []).join(" ").trim(), _d: 0, _i: 0 }; }
+    if (!cur) continue;
+    (row[3] || []).forEach(n => days[cur].dc.push({ name: n, shiftIdx: days[cur]._d++ }));
+    (row[4] || []).forEach(n => days[cur].ioc.push({ name: n, shiftIdx: days[cur]._i++ }));
+  }
+  return Object.values(days).map(({ _d, _i, ...d }) => d);
+}
+
 export default function DutySchedule({ currentUser, employees, userDept, isMobile, inp, showToast, canManage }){
   const [schedule,setSchedule]=useState({}); // {date: {leader,dc:[],ioc:[],note}}
   const [holidays,setHolidays]=useState([]);
@@ -68,6 +100,11 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
   const [loading,setLoading]=useState(true);
   const [showImport,setShowImport]=useState(false);
   const [pasteText,setPasteText]=useState("");
+  const [docxDays,setDocxDays]=useState(null);   // kết quả đọc từ file .docx (ưu tiên hơn dán tay)
+  const [docxName,setDocxName]=useState("");
+  const [importing,setImporting]=useState(false);
+  const docxRef=useRef(null);
+  const onDocx=async(e)=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;setImporting(true);setDocxDays(null);setDocxName(f.name);try{const mammoth=await import("mammoth");const buf=await f.arrayBuffer();const{value}=await mammoth.convertToHtml({arrayBuffer:buf});const days=parseDocxHtml(value);setDocxDays(days);if(!days.length)showToast&&showToast("Không tìm thấy bảng lịch trực trong file (kiểm tra bảng có cột Ngày/Trực lãnh đạo/Trực DC/Trực IOC).","error");}catch(err){showToast&&showToast("Lỗi đọc file: "+(err.message||""),"error");setDocxName("");}setImporting(false);};
   const [editDay,setEditDay]=useState(null);
   const [dayDraft,setDayDraft]=useState(null);
 
@@ -85,7 +122,7 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
   // Quyền duyệt 1 swap: Admin/BGĐ toàn quyền; TP/PP chỉ duyệt swap của nhân viên phòng mình
   const canApproveSwap=(sw)=>{if(["admin","director"].includes(currentUser?.role))return true;if(["manager_hcth","manager","deputy_manager"].includes(currentUser?.role)){const d1=findDept(sw.substitute),d2=findDept(sw.absent);return (d1&&d1===userDept)||(d2&&d2===userDept);}return false;};
 
-  const doImport=async()=>{const parsed=parsePasted(pasteText);if(parsed.length===0){showToast&&showToast("Không đọc được dữ liệu. Kiểm tra định dạng dán.","error");return;}const rows=parsed.map(d=>({date:d.date,leader:d.leader,dc:JSON.stringify(d.dc),ioc:JSON.stringify(d.ioc),note:d.note}));const{error}=await supabase.from("duty_schedule").upsert(rows,{onConflict:"date"});if(!error){const map={...schedule};parsed.forEach(d=>map[d.date]=d);setSchedule(map);showToast&&showToast(`Đã nhập ${parsed.length} ngày trực`);setShowImport(false);setPasteText("");}else showToast&&showToast("Lỗi: "+(error.message||""),"error");};
+  const doImport=async()=>{const parsed=(docxDays&&docxDays.length)?docxDays:parsePasted(pasteText);if(parsed.length===0){showToast&&showToast("Không đọc được dữ liệu. Hãy chọn file .docx hoặc kiểm tra định dạng dán.","error");return;}const rows=parsed.map(d=>({date:d.date,leader:d.leader,dc:JSON.stringify(d.dc),ioc:JSON.stringify(d.ioc),note:d.note}));const{error}=await supabase.from("duty_schedule").upsert(rows,{onConflict:"date"});if(!error){const map={...schedule};parsed.forEach(d=>map[d.date]={...d,dc:normPeople(d.dc),ioc:normPeople(d.ioc)});setSchedule(map);showToast&&showToast(`Đã nhập ${parsed.length} ngày trực`);setShowImport(false);setPasteText("");setDocxDays(null);setDocxName("");}else showToast&&showToast("Lỗi: "+(error.message||""),"error");};
 
   const monthDays=useMemo(()=>{const y=cur.getFullYear(),m=cur.getMonth();const first=new Date(y,m,1);const startDow=first.getDay();const daysInMonth=new Date(y,m+1,0).getDate();const cells=[];for(let i=0;i<startDow;i++)cells.push(null);for(let d=1;d<=daysInMonth;d++)cells.push(new Date(y,m,d));return cells;},[cur]);
   const weekDays=useMemo(()=>{const d=new Date(cur);const dow=d.getDay();const monday=new Date(d);monday.setDate(d.getDate()-dow);const arr=[];for(let i=0;i<7;i++){const x=new Date(monday);x.setDate(monday.getDate()+i);arr.push(x);}return arr;},[cur]);
@@ -164,9 +201,14 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
     {showImport&&(<div onClick={()=>setShowImport(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:600,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
       <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>📥 Nhập lịch trực từ Word</span><button onClick={()=>setShowImport(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div>
       <div style={{padding:18}}>
-        <div style={{fontSize:12,color:"#6b7280",marginBottom:10,lineHeight:1.6,background:"#f8fafc",padding:"10px 12px",borderRadius:8}}><b>Cách làm:</b><br/>1. Mở file Word lịch trực<br/>2. Bôi đen toàn bộ <b>bảng</b> (từ dòng ngày đầu đến cuối)<br/>3. Copy (Ctrl+C)<br/>4. Dán (Ctrl+V) vào ô dưới đây<br/>5. Bấm "Phân tích & Nhập"</div>
-        <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} rows={10} placeholder="Dán nội dung bảng lịch trực vào đây…" style={{...inp,resize:"vertical",fontFamily:"monospace",fontSize:12}}/>
-        {pasteText.trim()&&<div style={{fontSize:12,color:"#059669",marginTop:6}}>Phát hiện {parsePasted(pasteText).length} ngày trực</div>}
+        <div style={{fontSize:12,color:"#166534",marginBottom:10,lineHeight:1.6,background:"#f0fdf4",border:"1px solid #bbf7d0",padding:"10px 12px",borderRadius:8}}><b>✅ Cách 1 (khuyên dùng): tải thẳng file Word .docx</b><br/>Đọc chính xác cả DC (3 ca) và IOC (nhiều người) — kể cả khi bảng gộp ô.</div>
+        <input ref={docxRef} type="file" accept=".docx" style={{display:"none"}} onChange={onDocx}/>
+        <button onClick={()=>docxRef.current&&docxRef.current.click()} disabled={importing} style={{width:"100%",padding:"12px",border:"2px dashed #86efac",borderRadius:10,background:"#f7fef9",color:"#15803d",cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:8}}>{importing?"⏳ Đang đọc file…":"📄 Chọn file .docx lịch trực"}</button>
+        {docxName&&!importing&&<div style={{fontSize:12.5,color:docxDays&&docxDays.length?"#059669":"#b91c1c",marginBottom:10}}>{docxName} — {docxDays&&docxDays.length?`đọc được ${docxDays.length} ngày trực (DC ${docxDays.reduce((s,d)=>s+d.dc.length,0)} lượt · IOC ${docxDays.reduce((s,d)=>s+d.ioc.length,0)} lượt)`:"không đọc được bảng"}</div>}
+        <div style={{fontSize:11.5,color:"#9ca3af",textAlign:"center",margin:"4px 0"}}>— hoặc dán bảng từ Word —</div>
+        <div style={{fontSize:11.5,color:"#6b7280",marginBottom:8,lineHeight:1.6,background:"#f8fafc",padding:"8px 12px",borderRadius:8}}><b>Cách 2:</b> Bôi đen bảng trong Word → Copy → dán vào ô dưới. <i>(Lưu ý: cách dán dễ mất cột DC/IOC nếu bảng gộp ô — nên ưu tiên Cách 1.)</i></div>
+        <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} rows={6} placeholder="Dán nội dung bảng lịch trực vào đây…" style={{...inp,resize:"vertical",fontFamily:"monospace",fontSize:12}}/>
+        {pasteText.trim()&&!docxDays&&<div style={{fontSize:12,color:"#059669",marginTop:6}}>Phát hiện {parsePasted(pasteText).length} ngày trực</div>}
       </div>
       <div style={{padding:"0 18px 18px",display:"flex",gap:10,justifyContent:"flex-end"}}><button onClick={()=>setShowImport(false)} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Hủy</button><button onClick={doImport} style={{padding:"8px 16px",background:"#059669",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Phân tích & Nhập</button></div>
     </div></div>)}
