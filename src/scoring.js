@@ -46,8 +46,10 @@ export function staffScore(items) {
 // ── ĐIỂM ĐIỀU HÀNH (Trưởng/Phó phòng) ───────────────────────────────────────
 // items = danh sách việc CẢ PHÒNG đã đến hạn trong tháng; empCount = số người của phòng.
 //   Điểm = Đúng hạn phòng(60) + Chất lượng phòng(40) − Tồn đọng quá hạn(tỷ lệ, tối đa 10)
+//        − Phạt CHẬM DUYỆT hoàn thành (tỷ lệ việc duyệt chậm >1 ngày làm việc, tối đa 10; việc chậm ≥3 ngày tính 1.5 lượt)
 //        + Thưởng khối lượng điều hành theo BÌNH QUÂN ĐẦU NGƯỜI (>10/người mới thưởng, tối đa +10 khi ≥20/người).
-export function managerScore(items, empCount) {
+// approve (tùy chọn) = { slowLoad, totalReq, slowCount }: thống kê duyệt chậm do useReports tính (theo ngày làm việc).
+export function managerScore(items, empCount, approve) {
   const onTimeTasks = items.filter(t => t.status === "completed");
   const doneTasks = items.filter(t => t.status === "completed" || t.status === "completed_late"); // cả trễ vẫn tính chất lượng
   const onTimeW = sumW(onTimeTasks);
@@ -66,8 +68,10 @@ export function managerScore(items, empCount) {
     const quality = qualitySum / (resolvedW * 4) * 40;                                          // ② 0..40 (gồm cả việc trễ)
     const penalty = Math.round(overW / resolvedW * 10 * 10) / 10;                               // ③ tỷ lệ tồn đọng, 0..10
     const mgmtBonus = Math.max(0, Math.min(perHead - 10, 10));                                  // ④ khối lượng bình quân/người
-    perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + mgmtBonus)));
-    breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, mgmtBonus: Math.round(mgmtBonus * 10) / 10 };
+    // ⑤ Phạt CHẬM DUYỆT: tỷ lệ lượt duyệt chậm / tổng lượt cần duyệt × 10 (tối đa 10).
+    const slowPenalty = (approve && approve.totalReq > 0) ? Math.round(Math.min(10, approve.slowLoad / approve.totalReq * 10) * 10) / 10 : 0;
+    perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty - slowPenalty + mgmtBonus)));
+    breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, slowPenalty, slowCount: approve?.slowCount || 0, reqCount: approve?.totalReq || 0, mgmtBonus: Math.round(mgmtBonus * 10) / 10 };
   }
   return { onTimeW, lateW, overW, doneW, resolvedW, eligible, perHead: Math.round(perHead * 10) / 10, onTimeRate, perfScore, breakdown };
 }

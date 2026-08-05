@@ -372,7 +372,8 @@ export default function Reports({
                   <MRow icon="①" label="Đúng hạn phòng" sub={`(${r2(e.onTimeW)} đúng hạn ×60 + ${r2(e.lateW)} trễ ×30) ÷ ${r2(e.resolvedW)} việc phòng đã đến hạn · tối đa 60`} val={e.breakdown.timeliness} />
                   <MRow icon="②" label="Chất lượng phòng" sub={`Trung bình nghiệm thu ${r2(e.onTimeW)} việc đúng hạn của phòng (chưa ĐG = Trung bình) · tối đa 40`} val={e.breakdown.quality} />
                   <MRow icon="③" label="Tồn đọng quá hạn" sub={`Tỷ lệ việc phòng còn quá hạn chưa xong: ${r2(e.overW)}/${r2(e.resolvedW)} · tối đa −10`} val={e.breakdown.penalty} neg />
-                  <MRow icon="④" label="Thưởng khối lượng điều hành" sub={`Phòng ${e.empCount} người xử lý ${r2(e.resolvedW)} việc đã đến hạn → bình quân ${r2(e.perHead)}/người (thưởng khi >10, tối đa +10 khi ≥20/người)`} val={e.breakdown.mgmtBonus} />
+                  {(e.breakdown.reqCount > 0) && <MRow icon="④" label="Chậm duyệt hoàn thành" sub={`${e.breakdown.slowCount}/${e.breakdown.reqCount} lượt duyệt CHẬM quá 1 ngày làm việc (việc chậm ≥3 ngày tính 1.5 lượt) · tối đa −10`} val={e.breakdown.slowPenalty} neg />}
+                  <MRow icon="⑤" label="Thưởng khối lượng điều hành" sub={`Phòng ${e.empCount} người xử lý ${r2(e.resolvedW)} việc đã đến hạn → bình quân ${r2(e.perHead)}/người (thưởng khi >10, tối đa +10 khi ≥20/người)`} val={e.breakdown.mgmtBonus} />
                 </div>
                 <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f0f9ff", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>Tổng điểm điều hành <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400 }}>(giới hạn 0–100)</span></span>

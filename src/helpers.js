@@ -41,6 +41,18 @@ export const isCompletedLateByDate = t => {
 };
 // Số ngày một yêu cầu duyệt hoàn thành đang bị "ngâm" — để cảnh báo BGĐ/Trưởng phòng duyệt chậm, không đổ lỗi cho nhân viên
 export const pendingApprovalDays = t => { if (!t?.completion_requested || !t?.requested_at) return 0; const ra = parseNowStr(t.requested_at); if (!ra) return 0; ra.setHours(0, 0, 0, 0); return Math.max(0, Math.round((today - ra) / 86400000)); };
+// Số NGÀY LÀM VIỆC (T2–T6, bỏ T7/CN và ngày lễ) tính từ SAU ngày 'from' đến hết ngày 'to'.
+// Dùng đo độ chậm DUYỆT hoàn thành: from = lúc nhân viên xin duyệt, to = lúc TP duyệt (hoặc hôm nay nếu còn chờ).
+export const workingDaysBetween = (from, to, holidays = []) => {
+  if (!from || !to) return 0;
+  const a = new Date(from); a.setHours(0, 0, 0, 0);
+  const b = new Date(to); b.setHours(0, 0, 0, 0);
+  if (b <= a) return 0;
+  const hol = new Set(holidays || []);
+  let n = 0; const d = new Date(a);
+  for (let i = 0; i < 400; i++) { d.setDate(d.getDate() + 1); if (d > b) break; const dow = d.getDay(); if (dow !== 0 && dow !== 6 && !hol.has(toLocalYMD(d))) n++; }
+  return n;
+};
 export const getStatus = t => { const dl = new Date(t.deadline); dl.setHours(0, 0, 0, 0); const d = Math.ceil((dl - today) / 86400000); if (t.completed) { if (t.late_reason || isCompletedLateByDate(t)) return "completed_late"; return "completed"; } if (t.completion_requested) return "pending_approval"; if (d < 0) return "overdue"; if (d <= 3) return "nearly_due"; return "on_time"; };
 export const isCompletedStatus = s => s === "completed" || s === "completed_late";
 export const isLateStatus = s => s === "overdue" || s === "completed_late";

@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { DEPTS, deptLabel, isRankable, EXEC_ROLES, RATING, LATE_REASONS, STATUS_ORDER } from "../constants";
-import { isCompletedStatus, parseJSON, pendingApprovalDays } from "../helpers";
+import { isCompletedStatus, parseJSON, pendingApprovalDays, parseNowStr, workingDaysBetween } from "../helpers";
 import { w, sumW, staffScore, managerScore } from "../scoring";
 
 // Toàn bộ logic tính hiệu suất/báo cáo: tổng hợp theo phòng ban, công thức điểm hiệu suất tháng,
@@ -25,7 +25,7 @@ export const SUPPORT_WEIGHT = { hard: 1, medium: 0.5, easy: 0.25 };
 // Chức danh (nhãn nhân viên) được coi là CẤP QUẢN LÝ — chấm "điểm điều hành" theo kết quả phòng, xếp hạng riêng.
 export const MANAGER_EMP_ROLES = ["Trưởng phòng", "Phó trưởng phòng", "TP. HCTH", "PP. HCTH"];
 
-export default function useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks }) {
+export default function useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks, holidays }) {
   // Báo cáo/xếp hạng dùng dữ liệu TOÀN CỤC để mọi vai trò thấy giống nhau; nếu vì lý do nào đó
   // không truyền computedGlobal thì lùi về computed (an toàn).
   const cg = computedGlobal || computed;
@@ -256,9 +256,21 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const dept = emp.dept;
     const dt = applyExcuse(cg.filter(t => { if (t.dept !== dept) return false; const d = new Date(t.deadline); return d.getFullYear() === year && d.getMonth() === month; }));
     const empCount = (employees || []).filter(e => e.dept === dept && !e.no_kpi).length || 1;
-    // Điểm điều hành tính bằng công thức thuần managerScore (nguồn duy nhất, có test): kết quả cả phòng + khối lượng/người.
-    const m = managerScore(dt, empCount);
-    return { dept, empCount, ...m };
+    // Thống kê CHẬM DUYỆT hoàn thành (theo NGÀY LÀM VIỆC, ân hạn 1 ngày). Việc chậm ≥3 ngày vượt ân hạn tính 1.5 lượt.
+    const now = new Date();
+    let totalReq = 0, slowLoad = 0, slowCount = 0;
+    for (const t of dt) {
+      if (!t.requested_at) continue;                                   // chỉ tính việc có đi qua bước "xin duyệt"
+      const reqD = parseNowStr(t.requested_at); if (!reqD) continue;
+      const endD = (t.completed && t.rated_at) ? parseNowStr(t.rated_at) : (t.completion_requested ? now : null);
+      if (!endD) continue;
+      totalReq++;
+      const exceed = workingDaysBetween(reqD, endD, holidays) - 1;     // trừ 1 ngày ân hạn
+      if (exceed >= 1) { slowLoad += exceed >= 3 ? 1.5 : 1; slowCount++; }
+    }
+    // Điểm điều hành tính bằng công thức thuần managerScore (nguồn duy nhất, có test): kết quả cả phòng + khối lượng/người + phạt chậm duyệt.
+    const m = managerScore(dt, empCount, { slowLoad, totalReq, slowCount });
+    return { dept, empCount, slowCount, reqCount: totalReq, ...m };
   };
 
   // Bảng điểm điều hành THÁNG (xếp hạng riêng cho cấp quản lý)

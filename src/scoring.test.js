@@ -123,6 +123,18 @@ test("manager: CÔNG BẰNG theo quy mô — 45 việc/3 người = 90 việc/6 
   assert.equal(small.perfScore, big.perfScore);
 });
 
+test("manager: phạt CHẬM DUYỆT theo tỷ lệ (việc chậm ≥3 ngày = 1.5 lượt)", () => {
+  const base = [...mk(16, "completed", "tot"), ...mk(2, "completed_late"), ...mk(2, "overdue")]; // như ca 77đ
+  // 10 lượt cần duyệt, 2 lượt chậm thường (2×1) + 1 lượt chậm nặng (1×1.5) = slowLoad 3.5 → 3.5/10*10 = 3.5đ phạt
+  const m = managerScore(base, 6, { slowLoad: 3.5, totalReq: 10, slowCount: 3 });
+  assert.equal(m.breakdown.slowPenalty, 3.5);
+  assert.equal(m.perfScore, 74); // 77 (không phạt) − 3.5 → 73.5 → 74? kiểm lại: 51+27−1−3.5=73.5→74
+  // Không có thống kê → không phạt (tương thích cũ)
+  const m0 = managerScore(base, 6);
+  assert.equal(m0.breakdown.slowPenalty, 0);
+  assert.equal(m0.perfScore, 77);
+});
+
 test("manager: empCount thiếu/0 không chia cho 0", () => {
   const m = managerScore(mk(10, "completed", "tot"), 0);
   assert.equal(Number.isFinite(m.perHead), true);
