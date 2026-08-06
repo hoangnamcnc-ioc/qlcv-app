@@ -49,6 +49,7 @@ export default function App() {
   const [pendingProfileId,setPendingProfileId]=useState(null); // mở Hồ sơ nhân viên từ trợ lý chat
   const [tasks,setTasks]=useState(null); const [employees,setEmployees]=useState(null);
   const [deptRows,setDeptRows]=useState(DEFAULT_DEPARTMENTS); // phòng/ban nạp từ CSDL (cho form quản lý + re-render)
+  const [deptAudit,setDeptAudit]=useState([]); // nhật ký thay đổi phòng/ban (app_config)
   const [otherTasks,setOtherTasks]=useState([]);
   const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false);
   const [modal,setModal]=useState(null); const [taskForm,setTaskForm]=useState(null);
@@ -227,25 +228,35 @@ export default function App() {
 
   // ── Quản lý Phòng/Ban (mã nội bộ cố định; chỉ sửa tên/màu; xóa khi chưa ai thuộc) ──
   const applyDeptRows=rows=>{setDepartments(rows);setDeptRows(rows);};
-  const addDept=async({code,name,color})=>{const nm=(name||"").trim();let cd=(code||"").trim().toUpperCase().replace(/\s+/g," ");if(!nm||!cd)return;if(deptRows.some(d=>d.code.toUpperCase()===cd)){showToast("Mã phòng/ban đã tồn tại","error");return;}const ord=deptRows.reduce((m,d)=>Math.max(m,d.ord||0),0)+1;const row={code:cd,name:nm,color:color||"#6366f1",ord};const{error}=await supabase.from("departments").insert(row);if(error){showToast("Lỗi tạo phòng/ban","error");return;}applyDeptRows([...deptRows,row]);showToast("Đã thêm phòng/ban");};
-  const updateDept=async(code,patch)=>{const{error}=await supabase.from("departments").update(patch).eq("code",code);if(error){showToast("Lỗi cập nhật","error");return;}applyDeptRows(deptRows.map(d=>d.code===code?{...d,...patch}:d));showToast("Đã lưu");};
-  const deleteDept=async(code)=>{const used=(employees||[]).some(e=>e.dept===code)||(tasks||[]).some(t=>t.dept===code)||(recurringTemplates||[]).some(t=>t.dept===code)||(projectsForScoring||[]).some(p=>p.dept===code);if(used){showToast("Không xóa được: vẫn còn nhân sự/nhiệm vụ/dự án thuộc đơn vị này","error");return;}if(!window.confirm("Xóa phòng/ban này?"))return;const{error}=await supabase.from("departments").delete().eq("code",code);if(error){showToast("Lỗi xóa","error");return;}applyDeptRows(deptRows.filter(d=>d.code!==code));showToast("Đã xóa");};
+  // Nhật ký thay đổi phòng/ban (ai làm, khi nào) — lưu trong app_config key="dept_audit", không cần bảng mới.
+  const logDept=async(action)=>{const entry={by:currentUser?.full_name||"—",at:new Date().toLocaleString("vi-VN"),action};const next=[...deptAudit,entry].slice(-100);setDeptAudit(next);try{await supabase.from("app_config").upsert({key:"dept_audit",value:JSON.stringify(next)},{onConflict:"key"});}catch{/* ignore */}};
+  const addDept=async({code,name,color})=>{const nm=(name||"").trim();let cd=(code||"").trim().toUpperCase().replace(/\s+/g," ");if(!nm||!cd)return;if(deptRows.some(d=>d.code.toUpperCase()===cd)){showToast("Mã phòng/ban đã tồn tại","error");return;}const ord=deptRows.reduce((m,d)=>Math.max(m,d.ord||0),0)+1;const row={code:cd,name:nm,color:color||"#6366f1",ord};const{error}=await supabase.from("departments").insert(row);if(error){showToast("Lỗi tạo phòng/ban","error");return;}applyDeptRows([...deptRows,row]);logDept(`Thêm phòng/ban "${nm}" (${cd})`);showToast("Đã thêm phòng/ban");};
+  const updateDept=async(code,patch)=>{const before=deptRows.find(d=>d.code===code);const{error}=await supabase.from("departments").update(patch).eq("code",code);if(error){showToast("Lỗi cập nhật","error");return;}applyDeptRows(deptRows.map(d=>d.code===code?{...d,...patch}:d));logDept(`Sửa phòng/ban ${code}: ${before?.name!==patch.name?`đổi tên "${before?.name}" → "${patch.name}"`:"đổi màu"}`);showToast("Đã lưu");};
+  const deleteDept=async(code)=>{const used=(employees||[]).some(e=>e.dept===code)||(tasks||[]).some(t=>t.dept===code)||(recurringTemplates||[]).some(t=>t.dept===code)||(projectsForScoring||[]).some(p=>p.dept===code);if(used){showToast("Không xóa được: vẫn còn nhân sự/nhiệm vụ/dự án thuộc đơn vị này","error");return;}if(!window.confirm("Xóa phòng/ban này?"))return;const nm=deptRows.find(d=>d.code===code)?.name;const{error}=await supabase.from("departments").delete().eq("code",code);if(error){showToast("Lỗi xóa","error");return;}applyDeptRows(deptRows.filter(d=>d.code!==code));logDept(`Xóa phòng/ban "${nm}" (${code})`);showToast("Đã xóa");};
 
-  useEffect(()=>{
+  // Tải toàn bộ dữ liệu. background=true → KHÔNG hiện màn "đang tải" (dùng khi tự làm mới ngầm).
+  const lastLoadRef=useRef(0);
+  const [refreshing,setRefreshing]=useState(false);
+  const loadAllData=async(background=false)=>{
     if(!currentUser)return;
-    (async()=>{
-      setLoading(true);
-      try{
-        const[{data:ed},{data:td},{data:ud},{data:rtd},{data:otd},{data:pjd},{data:scd},{data:cmd},{data:dgd},{data:msd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false}),supabase.from("projects").select("id,name,dept,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time,deadline,ext_proposed,ext_reason,ext_requested_by,ext_requested_at"),supabase.from("support_cases").select("id,eid,collab_eids,difficulty,created,content,category").eq("deleted",false),supabase.from("comments").select("task_id,user_name,created_at"),supabase.from("approval_delegations").select("*").order("start_date",{ascending:false}),supabase.from("monthly_scores").select("*")]);
-        if(!ed||ed.length===0){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}else setEmployees(ed);
-        setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);setProjectsForScoring(pjd||[]);setSupportCasesForScoring(scd||[]);setAllComments(cmd||[]);setDelegations(dgd||[]);setMonthlyScores(msd||[]);
-        try{const{data:acd}=await supabase.from("app_config").select("key,value");const kpi=(acd||[]).find(r=>r.key==="kpi_ontime");if(kpi&&kpi.value!=null&&!isNaN(parseInt(kpi.value))){setKpiOnTime(parseInt(kpi.value));localStorage.setItem("qlcv_kpi_ontime",parseInt(kpi.value));}const hol=(acd||[]).find(r=>r.key==="holidays");if(hol)setHolidays(parseJSON(hol.value,[]));}catch{}
-        // Phòng/Ban: nạp động (seed nếu bảng rỗng). Cập nhật constants TRƯỚC khi render UI chính.
-        try{let{data:dpd}=await supabase.from("departments").select("*").order("ord");if(!dpd||dpd.length===0){await supabase.from("departments").insert(DEFAULT_DEPARTMENTS);dpd=DEFAULT_DEPARTMENTS;}setDepartments(dpd);setDeptRows(dpd);}catch{setDeptRows(DEFAULT_DEPARTMENTS);}
-        if(canSeeAll){try{const{data:docd}=await supabase.from("documents").select("id,type,doc_number,title,created,created_by,forwards");setDocsForLog(docd||[]);}catch{}}
-      }catch{showToast("Lỗi kết nối database","error");setEmployees(DEFAULT_EMPLOYEES);setTasks([]);}
-      setLoading(false);
-    })();
+    if(background)setRefreshing(true);else setLoading(true);
+    try{
+      const[{data:ed},{data:td},{data:ud},{data:rtd},{data:otd},{data:pjd},{data:scd},{data:cmd},{data:dgd},{data:msd}]=await Promise.all([supabase.from("employees").select("*").order("dept"),supabase.from("tasks").select("*").order("created",{ascending:false}),supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false}),supabase.from("projects").select("id,name,dept,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time,deadline,ext_proposed,ext_reason,ext_requested_by,ext_requested_at"),supabase.from("support_cases").select("id,eid,collab_eids,difficulty,created,content,category").eq("deleted",false),supabase.from("comments").select("task_id,user_name,created_at"),supabase.from("approval_delegations").select("*").order("start_date",{ascending:false}),supabase.from("monthly_scores").select("*")]);
+      if(!ed||ed.length===0){if(!background){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}}else setEmployees(ed);
+      setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);setProjectsForScoring(pjd||[]);setSupportCasesForScoring(scd||[]);setAllComments(cmd||[]);setDelegations(dgd||[]);setMonthlyScores(msd||[]);
+      try{const{data:acd}=await supabase.from("app_config").select("key,value");const kpi=(acd||[]).find(r=>r.key==="kpi_ontime");if(kpi&&kpi.value!=null&&!isNaN(parseInt(kpi.value))){setKpiOnTime(parseInt(kpi.value));localStorage.setItem("qlcv_kpi_ontime",parseInt(kpi.value));}const hol=(acd||[]).find(r=>r.key==="holidays");if(hol)setHolidays(parseJSON(hol.value,[]));const da=(acd||[]).find(r=>r.key==="dept_audit");if(da)setDeptAudit(parseJSON(da.value,[]));}catch{}
+      try{let{data:dpd}=await supabase.from("departments").select("*").order("ord");if(!dpd||dpd.length===0){if(!background){await supabase.from("departments").insert(DEFAULT_DEPARTMENTS);dpd=DEFAULT_DEPARTMENTS;}else dpd=null;}if(dpd){setDepartments(dpd);setDeptRows(dpd);}}catch{if(!background)setDeptRows(DEFAULT_DEPARTMENTS);}
+      if(canSeeAll){try{const{data:docd}=await supabase.from("documents").select("id,type,doc_number,title,created,created_by,forwards");setDocsForLog(docd||[]);}catch{}}
+    }catch{if(!background){showToast("Lỗi kết nối database","error");setEmployees(DEFAULT_EMPLOYEES);setTasks([]);}}
+    lastLoadRef.current=Date.now();
+    if(background)setRefreshing(false);else setLoading(false);
+  };
+  useEffect(()=>{ if(currentUser)loadAllData(false); },[currentUser]);
+  // Tự làm mới NGẦM khi quay lại tab (nếu dữ liệu đã cũ > 45s) — tránh thấy trạng thái lỗi thời khi nhiều người dùng.
+  useEffect(()=>{
+    const onVis=()=>{ if(document.visibilityState==="visible"&&currentUser&&Date.now()-lastLoadRef.current>45000)loadAllData(true); };
+    window.addEventListener("visibilitychange",onVis);window.addEventListener("focus",onVis);
+    return()=>{window.removeEventListener("visibilitychange",onVis);window.removeEventListener("focus",onVis);};
   },[currentUser]);
 
   useEffect(()=>{
@@ -535,6 +546,8 @@ export default function App() {
   const toggleCollab=empId=>{const cur=parseJSON(taskForm.data.collab_eids,[]);const next=cur.includes(empId)?cur.filter(i=>i!==empId):[...cur,empId];setTaskForm(f=>({...f,data:{...f.data,collab_eids:JSON.stringify(next)}}));};
   const toggleTemplateCollab=empId=>{const cur=parseJSON(templateForm.data.collab_eids,[]);const next=cur.includes(empId)?cur.filter(i=>i!==empId):[...cur,empId];setTemplateForm(f=>({...f,data:{...f.data,collab_eids:JSON.stringify(next)}}));};
   const submitTask=async()=>{let{data,editId}=taskForm;if(!data.title||!data.deadline)return;
+    // Cảnh báo hạn chót trong QUÁ KHỨ (dễ gõ nhầm ngày) — chỉ khi TẠO MỚI, cho phép xác nhận.
+    if(!editId&&data.deadline<todayStr&&!window.confirm(`Hạn chót ${data.deadline.split("-").reverse().join("/")} đã QUA. Vẫn tạo nhiệm vụ?`))return;
     // Cảnh báo tạo việc TRÙNG theo số văn bản: nếu tiêu đề bắt đầu bằng [số/ký hiệu] mà đã có
     // nhiệm vụ ĐANG MỞ cùng số đó, hỏi lại trước khi tạo (tránh 1 văn bản bị giao thành 2 việc cho 2 người).
     if(!editId){const mm=(data.title||"").match(/^\s*\[([^\]]+)\]/);if(mm){const tok=mm[1].trim().toLowerCase();const dup=computed.find(t=>!t.deleted&&!isCompletedStatus(t.status)&&(t.title||"").toLowerCase().includes("["+tok+"]"));if(dup){const who=getEmp(dup.eid)?.name||"—";if(!window.confirm(`⚠️ Văn bản [${mm[1].trim()}] đã có nhiệm vụ đang mở giao cho ${who}:\n"${dup.title}"\n\nVẫn tạo thêm nhiệm vụ mới này?`))return;}}}
@@ -678,6 +691,7 @@ export default function App() {
             {/* Trên mobile bỏ nút "Aa" (CSS zoom làm modal tràn màn hình); dùng thu phóng của trình duyệt/hệ điều hành */}
             {/* Tìm kiếm toàn hệ thống */}
             <button onClick={()=>{setShowGlobalSearch(true);setGlobalQuery("");}} title="Tìm kiếm mọi mục (Nhiệm vụ, Ngân sách, Khác, Hỗ trợ ND)" style={{background:"none",border:"1px solid #e5e7eb",borderRadius:8,padding:"5px 8px",cursor:"pointer",fontSize:16}}>🔍</button>
+            <button onClick={()=>loadAllData(true)} disabled={refreshing} title="Làm mới dữ liệu (tự làm mới khi quay lại tab)" style={{background:"none",border:"1px solid #e5e7eb",borderRadius:8,padding:"5px 8px",cursor:refreshing?"default":"pointer",fontSize:16,opacity:refreshing?0.5:1}}>{refreshing?"⏳":"↻"}</button>
             {/* Bell notification */}
             <div style={{position:"relative"}}>
               <button onClick={()=>setShowNotif(v=>!v)} style={{position:"relative",background:"none",border:"1px solid #e5e7eb",borderRadius:8,padding:"5px 8px",cursor:"pointer",fontSize:16}}>
@@ -838,7 +852,7 @@ export default function App() {
           {/* QL NHÂN SỰ */}
           {view==="employees"&&(
             <Personnel
-              isMobile={isMobile} inp={inp}
+              isMobile={isMobile} inp={inp} meName={currentUser?.full_name}
               canSeeAll={canSeeAll} canCreate={canCreate} isAdmin={isAdmin}
               userDept={userDept}
               empDeptTab={empDeptTab} setEmpDeptTab={setEmpDeptTab}
@@ -848,7 +862,7 @@ export default function App() {
               deptEmps={deptEmps}
               openCreateEmp={openCreateEmp} openEditEmp={openEditEmp}
               deleteEmployee={deleteEmployee} updateEmployee={updateEmployee}
-              deptRows={deptRows} addDept={addDept} updateDept={updateDept} deleteDept={deleteDept}
+              deptRows={deptRows} addDept={addDept} updateDept={updateDept} deleteDept={deleteDept} deptAudit={deptAudit}
               canManageDept={["admin","director"].includes(currentUser?.role)}
             />
           )}

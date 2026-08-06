@@ -49,15 +49,15 @@ export default function Personnel(props) {
       </div>
 
       {tab === "workload" && <Employees {...props} />}
-      {tab === "profile" && <ProfileTab {...{ employees, canEditHr, isAdmin, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card }} />}
+      {tab === "profile" && <ProfileTab {...{ employees, canEditHr, isAdmin, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName }} />}
       {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} />}
-      {tab === "depts" && canDept && <DeptTab {...{ deptRows, addDept, updateDept, deleteDept, employees, isMobile, inp, card }} />}
+      {tab === "depts" && canDept && <DeptTab {...{ deptRows, addDept, updateDept, deleteDept, deptAudit: props.deptAudit, employees, isMobile, inp, card }} />}
     </div>
   );
 }
 
 // ── TAB PHÒNG/BAN (chỉ admin) ────────────────────────────────────────────────
-function DeptTab({ deptRows, addDept, updateDept, deleteDept, employees, isMobile, inp, card }) {
+function DeptTab({ deptRows, addDept, updateDept, deleteDept, deptAudit = [], employees, isMobile, inp, card }) {
   const [nn, setNn] = useState("");
   const [ncode, setNcode] = useState("");
   const [codeTouched, setCodeTouched] = useState(false);
@@ -85,6 +85,19 @@ function DeptTab({ deptRows, addDept, updateDept, deleteDept, employees, isMobil
         {rows.map(d => <DeptRow key={d.code} d={d} count={countIn(d.code)} onSave={updateDept} onDelete={deleteDept} inp={inp} isMobile={isMobile} />)}
         {!rows.length && <div style={{ padding: 16, color: "#9ca3af", fontSize: 13 }}>Chưa có phòng/ban.</div>}
       </div>
+      {deptAudit.length > 0 && (
+        <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f9fafb", fontSize: 13, fontWeight: 600 }}>🕒 Nhật ký thay đổi phòng/ban</div>
+          <div style={{ maxHeight: 220, overflowY: "auto" }}>
+            {[...deptAudit].reverse().slice(0, 30).map((a, i) => (
+              <div key={i} style={{ padding: "8px 16px", borderBottom: "1px solid #f8fafc", fontSize: 12.5, display: "flex", justifyContent: "space-between", gap: 10 }}>
+                <span style={{ color: "#374151" }}>{a.action}</span>
+                <span style={{ color: "#9ca3af", whiteSpace: "nowrap" }}>{a.by} · {a.at}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -105,7 +118,7 @@ function DeptRow({ d, count, onSave, onDelete, inp, isMobile }) {
 }
 
 // ── TAB HỒ SƠ ───────────────────────────────────────────────────────────────
-function ProfileTab({ employees, canEditHr, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card }) {
+function ProfileTab({ employees, canEditHr, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName }) {
   const [selId, setSelId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -117,7 +130,15 @@ function ProfileTab({ employees, canEditHr, canSeeAll, userDept, updateEmployee,
 
   const open = emp => { setSelId(emp.id); const hr = getHr(emp); setDraft({ ...hr, rewards: hr.rewards || [], leaves: hr.leaves || [] }); setSaved(false); };
   const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
-  const save = async () => { if (!sel) return; setSaving(true); const ok = await updateEmployee(sel.id, { hr: draft }); setSaving(false); if (ok === false) return; setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  const save = async () => {
+    if (!sel) return; setSaving(true);
+    // Ghi NHẬT KÝ cập nhật hồ sơ (ai sửa, lúc nào) ngay trong hr._audit — quy trách nhiệm với dữ liệu cán bộ.
+    const audit = [...(draft._audit || []), { by: meName || "—", at: new Date().toLocaleString("vi-VN") }].slice(-20);
+    const payload = { ...draft, _audit: audit };
+    const ok = await updateEmployee(sel.id, { hr: payload });
+    setSaving(false); if (ok === false) return;
+    setDraft(payload); setSaved(true); setTimeout(() => setSaved(false), 2000);
+  };
 
   const addReward = () => setDraft(d => ({ ...d, rewards: [...(d.rewards || []), { date: "", type: "reward", title: "", note: "" }] }));
   const setReward = (i, k, v) => setDraft(d => ({ ...d, rewards: d.rewards.map((r, j) => j === i ? { ...r, [k]: v } : r) }));
@@ -164,6 +185,7 @@ function ProfileTab({ employees, canEditHr, canSeeAll, userDept, updateEmployee,
               <div style={{ fontSize: 15, fontWeight: 700 }}>{sel.name} <span style={{ fontSize: 12, fontWeight: 400, color: "#6b7280" }}>· {sel.role} · {deptLabel(sel.dept)}</span></div>
               {canEditHr && <button onClick={save} disabled={saving} style={{ background: saved ? "#16a34a" : "#4f46e5", color: "#fff", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{saving ? "Đang lưu…" : saved ? "✓ Đã lưu" : "💾 Lưu hồ sơ"}</button>}
             </div>
+            {(draft._audit || []).length > 0 && <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 10 }} title={(draft._audit || []).slice(-8).reverse().map(a => `${a.by} · ${a.at}`).join("\n")}>🕒 Cập nhật gần nhất: <b style={{ color: "#6b7280" }}>{draft._audit[draft._audit.length - 1].by}</b> lúc {draft._audit[draft._audit.length - 1].at} <span style={{ opacity: 0.7 }}>· {draft._audit.length} lần chỉnh sửa (di chuột để xem)</span></div>}
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 10 }}>
               {F({ k: "dob", label: "Ngày sinh", type: "date" })}
               {F({ k: "gender", label: "Giới tính", opts: [{ v: "", t: "—" }, { v: "nam", t: "Nam" }, { v: "nu", t: "Nữ" }] })}
