@@ -5,9 +5,10 @@ const ROLE_RANK = { "Trưởng phòng": 0, "TP. HCTH": 0, "Phó trưởng phòng
 
 // CRUD nhân viên + form thêm/sửa + sắp xếp danh sách theo phòng ban.
 export default function useEmployees({ employees, setEmployees, showToast, setSaving }) {
-  const addEmployee = async d => { setSaving(true); const e = { ...d, id: `e${Date.now()}` }; await supabase.from("employees").insert(e); setEmployees(p => [...p, e]); showToast("Đã thêm"); setSaving(false); };
-  const updateEmployee = async (id, d) => { setSaving(true); await supabase.from("employees").update(d).eq("id", id); setEmployees(p => p.map(e => e.id === id ? { ...e, ...d } : e)); setSaving(false); };
-  const deleteEmployee = async id => { setSaving(true); await supabase.from("employees").delete().eq("id", id); setEmployees(p => p.filter(e => e.id !== id)); setSaving(false); };
+  // Kiểm tra lỗi ghi (RLS/mạng…) và BÁO người dùng — tránh "đã lưu" giả khi CSDL từ chối. Trả boolean thành/bại.
+  const addEmployee = async d => { setSaving(true); const e = { ...d, id: `e${Date.now()}` }; const { error } = await supabase.from("employees").insert(e); if (error) { showToast("Lỗi: " + (error.message || "không thêm được nhân viên"), "error"); setSaving(false); return false; } setEmployees(p => [...p, e]); showToast("Đã thêm"); setSaving(false); return true; };
+  const updateEmployee = async (id, d) => { setSaving(true); const { error } = await supabase.from("employees").update(d).eq("id", id); if (error) { showToast("Lỗi: " + (error.message || "không lưu được"), "error"); setSaving(false); return false; } setEmployees(p => p.map(e => e.id === id ? { ...e, ...d } : e)); setSaving(false); return true; };
+  const deleteEmployee = async id => { setSaving(true); const { error } = await supabase.from("employees").delete().eq("id", id); if (error) { showToast("Lỗi: " + (error.message || "không xóa được"), "error"); setSaving(false); return false; } setEmployees(p => p.filter(e => e.id !== id)); setSaving(false); return true; };
 
   const [empForm, setEmpForm] = useState(null);
   const [empDeptTab, setEmpDeptTab] = useState("HCTH");

@@ -117,7 +117,7 @@ function ProfileTab({ employees, canEditHr, canSeeAll, userDept, updateEmployee,
 
   const open = emp => { setSelId(emp.id); const hr = getHr(emp); setDraft({ ...hr, rewards: hr.rewards || [], leaves: hr.leaves || [] }); setSaved(false); };
   const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
-  const save = async () => { if (!sel) return; setSaving(true); await updateEmployee(sel.id, { hr: draft }); setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  const save = async () => { if (!sel) return; setSaving(true); const ok = await updateEmployee(sel.id, { hr: draft }); setSaving(false); if (ok === false) return; setSaved(true); setTimeout(() => setSaved(false), 2000); };
 
   const addReward = () => setDraft(d => ({ ...d, rewards: [...(d.rewards || []), { date: "", type: "reward", title: "", note: "" }] }));
   const setReward = (i, k, v) => setDraft(d => ({ ...d, rewards: d.rewards.map((r, j) => j === i ? { ...r, [k]: v } : r) }));
