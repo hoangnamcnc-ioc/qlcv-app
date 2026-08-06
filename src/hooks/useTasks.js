@@ -245,14 +245,15 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     return all.filter(t => { if (!t.deadline) return false; if (dateFrom && t.deadline < dateFrom) return false; if (dateTo && t.deadline > dateTo) return false; return true; });
   }, [tasks, dateFrom, dateTo]);
 
-  const stats = useMemo(() => computed.reduce((a, t) => { a.total += 1; a[t.status] = (a[t.status] || 0) + 1; return a; }, { total: 0, on_time: 0, nearly_due: 0, overdue: 0, pending_approval: 0, completed_late: 0, completed: 0 }), [computed]);
+  const stats = useMemo(() => { const s = computed.reduce((a, t) => { a.total += 1; a[t.status] = (a[t.status] || 0) + 1; return a; }, { total: 0, on_time: 0, nearly_due: 0, overdue: 0, pending_approval: 0, completed_late: 0, completed: 0, pending_create: 0 }); s.pending_create = pendingCreateTasks.length; return s; }, [computed, pendingCreateTasks]);
   // Cùng các chỉ số trên nhưng tính theo TRỌNG SỐ quy đổi (nhiệm vụ định kỳ: ngày 0.25 … năm 3;
   // nhiệm vụ thường = 1) để hiển thị song song với số đầu việc, tránh hiểu nhầm khối lượng.
   const statsW = useMemo(() => {
-    const r = computed.reduce((a, t) => { const wt = t.weight ?? 1; a.total += wt; a[t.status] = (a[t.status] || 0) + wt; return a; }, { total: 0, on_time: 0, nearly_due: 0, overdue: 0, pending_approval: 0, completed_late: 0, completed: 0 });
+    const r = computed.reduce((a, t) => { const wt = t.weight ?? 1; a.total += wt; a[t.status] = (a[t.status] || 0) + wt; return a; }, { total: 0, on_time: 0, nearly_due: 0, overdue: 0, pending_approval: 0, completed_late: 0, completed: 0, pending_create: 0 });
+    r.pending_create = pendingCreateTasks.reduce((s, t) => s + (t.weight ?? 1), 0);
     Object.keys(r).forEach(k => { r[k] = Math.round(r[k] * 100) / 100; });
     return r;
-  }, [computed]);
+  }, [computed, pendingCreateTasks]);
   const deptChart = useMemo(() => DEPTS.map(d => { const dt = computed.filter(t => t.dept === d); return { name: d, "Trong hạn": dt.filter(t => t.status === "on_time").length, "Sắp hết hạn": dt.filter(t => t.status === "nearly_due").length, "Quá hạn": dt.filter(t => t.status === "overdue").length, "Chờ duyệt": dt.filter(t => t.status === "pending_approval").length, "HT quá hạn": dt.filter(t => t.status === "completed_late").length, "Hoàn thành": dt.filter(t => t.status === "completed").length }; }), [computed]);
 
   const [fStatus, setFStatus] = useState("all");

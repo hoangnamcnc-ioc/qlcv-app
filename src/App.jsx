@@ -322,7 +322,7 @@ export default function App() {
     filtered, paged, totalPages,
     notifications, unratedTasks, suspiciousTasks, myPendingTaskApprovals, myPendingExtRequests,
     seenKey, markSeen, myAssignedTasks, myNewTasks, myOverdueTasks, myNewTaskIds,
-    myPendingCreateApprovals, myOwnPendingCreate, approveCreateTask, rejectCreateTask,
+    pendingCreateTasks, myPendingCreateApprovals, myOwnPendingCreate, approveCreateTask, rejectCreateTask,
   } = useTasks({ tasks, setTasks, employees, currentUser, canSeeAll, userDept, canCreate, showToast, getEmp, setModal, setSaving, delegations });
 
   // ── Hiệu suất/Báo cáo (tổng hợp phòng ban, điểm hiệu suất tháng, bảng xếp hạng, thống kê trễ hạn/quá tải) ──
@@ -732,7 +732,7 @@ export default function App() {
             <Dashboard
               currentUser={currentUser} isMobile={isMobile} userDept={userDept}
               execDeptSummary={execDeptSummary} execMonth={execMonth} setExecMonth={setExecMonth} execYear={execYear} setExecYear={setExecYear} staffingAdvice={staffingAdvice} empProfile={empProfile} employees={employees}
-              stats={stats} statsW={statsW} deptChart={deptChart}
+              stats={stats} statsW={statsW} deptChart={deptChart} pendingCreateTasks={pendingCreateTasks}
               myTasks={myTasks} myWorkList={myWorkList} myWorkloadCompare={myWorkloadCompare} myDoneList={myDoneList} myTrend={myTrend}
               atRiskTasks={atRiskTasks} weeklyDigest={weeklyDigest} watchList={watchList} dataHealth={dataHealth} execNarrative={execNarrative} lateInsights={lateInsights}
               computed={computed} overloadedEmps={overloadedEmps}

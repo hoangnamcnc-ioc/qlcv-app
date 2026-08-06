@@ -9,7 +9,7 @@ export default function Dashboard({
   execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, employees,
   stats, statsW, deptChart, myTasks, myWorkList, myWorkloadCompare, myDoneList, myTrend,
   atRiskTasks, weeklyDigest, watchList, dataHealth, execNarrative, lateInsights,
-  computed, overloadedEmps, overloadThreshold, setOverloadThreshold, kpiOnTime, setKpiOnTime,
+  computed, pendingCreateTasks, overloadedEmps, overloadThreshold, setOverloadThreshold, kpiOnTime, setKpiOnTime,
   dateFrom, setDateFrom, dateTo, setDateTo,
   overloadPopup, setOverloadPopup,
   recurringTemplates, setShowRecurring,
@@ -445,8 +445,8 @@ export default function Dashboard({
           </div>
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(7,minmax(0,1fr))", gap: isMobile ? 8 : 8 }}>
-        {[{label:"Tổng",val:stats.total,bg:"#eef2ff",col:"#4338ca",key:"total"},{label:"Trong hạn",val:stats.on_time,bg:"#dcfce7",col:"#15803d",key:"on_time"},{label:"Sắp hết hạn",val:stats.nearly_due,bg:"#fef9c3",col:"#92400e",key:"nearly_due"},{label:"Quá hạn",val:stats.overdue,bg:"#fee2e2",col:"#b91c1c",key:"overdue"},{label:"Chờ duyệt",val:stats.pending_approval,bg:"#fef3c7",col:"#92400e",key:"pending_approval"},{label:"HT quá hạn",val:stats.completed_late,bg:"#fee2e2",col:"#991b1b",key:"completed_late"},{label:"Hoàn thành",val:stats.completed,bg:"#e0e7ff",col:"#4338ca",key:"completed"}].map(c => (
+      <div style={{ order: -2, display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(8,minmax(0,1fr))", gap: isMobile ? 8 : 8 }}>
+        {[{label:"Tổng",val:stats.total,bg:"#eef2ff",col:"#4338ca",key:"total"},{label:"Trong hạn",val:stats.on_time,bg:"#dcfce7",col:"#15803d",key:"on_time"},{label:"Sắp hết hạn",val:stats.nearly_due,bg:"#fef9c3",col:"#92400e",key:"nearly_due"},{label:"Quá hạn",val:stats.overdue,bg:"#fee2e2",col:"#b91c1c",key:"overdue"},{label:"Chờ duyệt HT",val:stats.pending_approval,bg:"#fef3c7",col:"#92400e",key:"pending_approval"},{label:"Chờ duyệt tạo mới",val:stats.pending_create,bg:"#dcfce7",col:"#15803d",key:"pending_create"},{label:"HT quá hạn",val:stats.completed_late,bg:"#fee2e2",col:"#991b1b",key:"completed_late"},{label:"Hoàn thành",val:stats.completed,bg:"#e0e7ff",col:"#4338ca",key:"completed"}].map(c => (
           <div key={c.label} onClick={() => setStatFilter(f => f === c.key ? null : c.key)} style={{ background: c.bg, borderRadius: 9, padding: isMobile ? 10 : "10px 12px", minHeight: isMobile ? 92 : 96, cursor: "pointer", border: "1.5px solid " + (statFilter === c.key ? c.col : "transparent"), transition: "border 0.15s", userSelect: "none", boxSizing: "border-box", overflow: "hidden" }}>
             <div style={{ fontSize: isMobile ? 22 : 24, lineHeight: 1.1, fontWeight: 700, color: c.col }}>{c.val}</div>
             {statsW && <div title="Đã quy đổi theo trọng số nhiệm vụ định kỳ (ngày 0.25 · tuần 1 · 2 tuần 1.5 · tháng 2.5 · quý/6 tháng/năm 3)" style={{ fontSize: isMobile ? 10 : 10.5, color: c.col, opacity: 0.65, lineHeight: 1.3, marginTop: 2, whiteSpace: "nowrap" }}>≈ {statsW[c.key]} quy đổi</div>}
@@ -455,8 +455,8 @@ export default function Dashboard({
           </div>
         ))}
         {statFilter && (() => {
-          const list = statFilter === "total" ? computed : computed.filter(t => t.status === statFilter);
-          const label = { total:"Tất cả",on_time:"Trong hạn",nearly_due:"Sắp hết hạn",overdue:"Quá hạn",pending_approval:"Chờ duyệt",completed_late:"Hoàn thành quá hạn",completed:"Hoàn thành" }[statFilter];
+          const list = statFilter === "pending_create" ? (pendingCreateTasks || []) : statFilter === "total" ? computed : computed.filter(t => t.status === statFilter);
+          const label = { total:"Tất cả",on_time:"Trong hạn",nearly_due:"Sắp hết hạn",overdue:"Quá hạn",pending_approval:"Chờ duyệt hoàn thành",pending_create:"Chờ duyệt việc tạo mới",completed_late:"Hoàn thành quá hạn",completed:"Hoàn thành" }[statFilter];
           return (
             <div style={{ gridColumn: "1 / -1", background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden", marginTop: 4 }}>
               <div style={{ padding: "10px 14px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -465,7 +465,7 @@ export default function Dashboard({
               </div>
               <div style={{ maxHeight: 320, overflowY: "auto", overflowX: "hidden", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)" }}>
                 {list.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: "#9ca3af", fontSize: 13, gridColumn: "1/-1" }}>Không có nhiệm vụ</div> : list.map(t => {
-                  const sc = STATUS[t.status]; const emp = getEmp(t.eid);
+                  const sc = STATUS[t.status] || { bg: "#dcfce7", col: "#15803d", label: "🆕 Chờ duyệt tạo mới" }; const emp = getEmp(t.eid);
                   return (
                     <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minWidth: 0, overflow: "hidden" }} onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                       <div style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden" }}>
@@ -482,7 +482,7 @@ export default function Dashboard({
         })()}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+      <div style={{ order: -1, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
         <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 14 }}>
           <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>Theo phòng ban</div>
           <ResponsiveContainer width="100%" height={160}><BarChart data={deptChart} barSize={10}><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} allowDecimals={false} /><Tooltip /><Bar dataKey="Trong hạn" fill="#16a34a" radius={[3,3,0,0]} /><Bar dataKey="Sắp hết hạn" fill="#ca8a04" radius={[3,3,0,0]} /><Bar dataKey="Quá hạn" fill="#dc2626" radius={[3,3,0,0]} /><Bar dataKey="Chờ duyệt" fill="#f59e0b" radius={[3,3,0,0]} /><Bar dataKey="HT quá hạn" fill="#991b1b" radius={[3,3,0,0]} /><Bar dataKey="Hoàn thành" fill="#6366f1" radius={[3,3,0,0]} /></BarChart></ResponsiveContainer>
