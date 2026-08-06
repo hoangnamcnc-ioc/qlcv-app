@@ -254,7 +254,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     Object.keys(r).forEach(k => { r[k] = Math.round(r[k] * 100) / 100; });
     return r;
   }, [computed, pendingCreateTasks]);
-  const deptChart = useMemo(() => DEPTS.map(d => { const dt = computed.filter(t => t.dept === d); return { name: d, "Trong hạn": dt.filter(t => t.status === "on_time").length, "Sắp hết hạn": dt.filter(t => t.status === "nearly_due").length, "Quá hạn": dt.filter(t => t.status === "overdue").length, "Chờ duyệt": dt.filter(t => t.status === "pending_approval").length, "HT quá hạn": dt.filter(t => t.status === "completed_late").length, "Hoàn thành": dt.filter(t => t.status === "completed").length }; }), [computed]);
+  const deptChart = useMemo(() => DEPTS.map(d => { const dt = computed.filter(t => t.dept === d); return { name: d, "Trong hạn": dt.filter(t => t.status === "on_time").length, "Sắp hết hạn": dt.filter(t => t.status === "nearly_due").length, "Quá hạn": dt.filter(t => t.status === "overdue").length, "Chờ duyệt HT": dt.filter(t => t.status === "pending_approval").length, "Chờ duyệt tạo mới": pendingCreateTasks.filter(t => t.dept === d).length, "HT quá hạn": dt.filter(t => t.status === "completed_late").length, "Hoàn thành": dt.filter(t => t.status === "completed").length }; }), [computed, pendingCreateTasks]);
 
   const [fStatus, setFStatus] = useState("all");
   const [fDept, setFDept] = useState("all");
