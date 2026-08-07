@@ -874,7 +874,7 @@ export default function App() {
               leaderboard={leaderboard} managerBoard={managerBoard} managerLeaderboard={managerLeaderboard}
               lateReasonStats={lateReasonStats}
               getEmp={getEmp} setModal={setModal} loadComments={loadComments} deptLeaderName={deptLeaderName} hideApprovers={(users||[]).filter(u=>u.role==="admin").map(u=>u.full_name).filter(Boolean)}
-              canExec={canCreate} selfOnly={!canCreate} myEid={currentUser?.employee_id} computed={computedGlobal} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} syncManagerSnapshots={syncManagerSnapshots} currentUser={currentUser} overloadThreshold={overloadThreshold} kpiOnTime={kpiOnTime}
+              canExec={true} myEid={currentUser?.employee_id} computed={computedGlobal} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} syncManagerSnapshots={syncManagerSnapshots} currentUser={currentUser} overloadThreshold={overloadThreshold} kpiOnTime={kpiOnTime}
             />
           )}
 

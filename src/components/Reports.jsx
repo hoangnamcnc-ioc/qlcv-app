@@ -16,10 +16,8 @@ export default function Reports({
   leaderboard, managerBoard, managerLeaderboard,
   lateReasonStats,
   getEmp, setModal, loadComments, deptLeaderName, hideApprovers,
-  canExec, selfOnly = false, myEid, computed, monthlyScores, snapshotMonth, syncManagerSnapshots, currentUser, overloadThreshold, kpiOnTime,
+  canExec, myEid, computed, monthlyScores, snapshotMonth, syncManagerSnapshots, currentUser, overloadThreshold, kpiOnTime,
 }) {
-  // Nhân viên thường (selfOnly): chỉ xem KẾT QUẢ CỦA CHÍNH MÌNH, không thấy bảng/điểm của người khác.
-  if (selfOnly) repEmpData = (repEmpData || []).filter(e => e.id === myEid);
   const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm (tháng)
   const [whyYear, setWhyYear] = useState(null); // nhân viên đang xem giải thích điểm (năm/xếp hạng)
   const [whyMgr, setWhyMgr] = useState(null); // quản lý đang xem giải thích điểm điều hành (tháng hoặc năm)
@@ -29,7 +27,7 @@ export default function Reports({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", gap: 8, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 8, overflowX: "auto" }}>
-        {(selfOnly ? [["monthly","📅 Kết quả của tôi"]] : [["monthly","📅 Tháng"],["leaderboard","🏆 Xếp hạng"],["catalog","📋 Danh mục việc"],["late_reasons","📊 Nguyên nhân trễ"],...(canExec?[["grading","📑 Xếp loại"],["exec","🏛️ Điều hành"],["kq_nv","📄 KQ nhiệm vụ"]]:[])]).map(([id, label]) => (
+        {[...(myEid?[["me","👤 Kết quả của tôi"]]:[]),["monthly","📅 Tháng"],["leaderboard","🏆 Xếp hạng"],["catalog","📋 Danh mục việc"],["late_reasons","📊 Nguyên nhân trễ"],...(canExec?[["grading","📑 Xếp loại"],["exec","🏛️ Điều hành"],["kq_nv","📄 KQ nhiệm vụ"]]:[])].map(([id, label]) => (
           <button key={id} onClick={() => setRepTab(id)} style={{ flex: 1, padding: "7px 8px", border: "none", borderRadius: 7, background: repTab === id ? "#4f46e5" : "transparent", color: repTab === id ? "#fff" : "#6b7280", cursor: "pointer", fontSize: isMobile ? 11 : 13, fontWeight: repTab === id ? 600 : 400, whiteSpace: "nowrap" }}>{label}</button>
         ))}
       </div>
@@ -38,6 +36,7 @@ export default function Reports({
       {repTab === "exec" && canExec && <ExecTab isMobile={isMobile} computed={computed} getEmp={getEmp} setModal={setModal} loadComments={loadComments} overloadThreshold={overloadThreshold} deptLeaderName={deptLeaderName} hideApprovers={hideApprovers} />}
       {repTab === "kq_nv" && canExec && <TaskResultReportTab inp={inp} computed={computed} getEmp={getEmp} currentUser={currentUser} />}
       {repTab === "catalog" && <CatalogTab isMobile={isMobile} inp={inp} computed={computed} getEmp={getEmp} repMonth={repMonth} setRepMonth={setRepMonth} repYear={repYear} setRepYear={setRepYear} />}
+      {repTab === "me" && myEid && <MeTab isMobile={isMobile} inp={inp} myEid={myEid} repEmpData={repEmpData} managerBoard={managerBoard} leaderboard={leaderboard} managerLeaderboard={managerLeaderboard} repMonth={repMonth} setRepMonth={setRepMonth} repYear={repYear} setRepYear={setRepYear} rankYear={rankYear} onWhy={setWhyEmp} onWhyMgr={setWhyMgr} onWhyYear={setWhyYear} />}
 
       {repTab === "monthly" && (<>
         <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -45,7 +44,7 @@ export default function Reports({
           <select value={repYear} onChange={e => setRepYear(Number(e.target.value))} style={{ ...inp, width: 90, padding: "6px 10px" }}>{[2023,2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
           <span style={{ fontSize: 13, color: "#6b7280" }}>{repTasks.length} nhiệm vụ</span>
         </div>
-        {!selfOnly && <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(5,1fr)", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(5,1fr)", gap: 12 }}>
           {[{label:"Tổng",val:repStats.total,sub:repStats.totalW,prev:repStatsPrev?.total,bg:"#eef2ff",col:"#4338ca",icon:"📋",goodUp:null},{label:"Hoàn thành",val:repStats.done,sub:repStats.doneW,prev:repStatsPrev?.done,bg:"#dcfce7",col:"#15803d",icon:"✅",goodUp:true},{label:"Quá hạn",val:repStats.over,sub:repStats.overW,prev:repStatsPrev?.over,bg:"#fee2e2",col:"#b91c1c",icon:"❌",goodUp:false},{label:"HT quá hạn",val:repStats.completedLate,sub:repStats.completedLateW,prev:repStatsPrev?.completedLate,bg:"#fff1f2",col:"#991b1b",icon:"⏰",goodUp:false},{label:"Tỷ lệ HT",val:repStats.rate+"%",sub:repStats.rateW+"%",prev:repStatsPrev?.rate,cur:repStats.rate,pct:true,bg:"#fef9c3",col:"#92400e",icon:"⭐",goodUp:true}].map(c => {
             const curN = c.pct ? c.cur : c.val;
             const hasPrev = repStatsPrev && c.prev != null;
@@ -63,8 +62,8 @@ export default function Reports({
               {c.pct && kpiOnTime != null && <div style={{ fontSize: 10.5, marginTop: 3, fontWeight: 700, color: repStats.rate >= kpiOnTime ? "#15803d" : "#b91c1c" }}>🎯 Chỉ tiêu {kpiOnTime}%: {repStats.rate >= kpiOnTime ? "Đạt" : "Chưa đạt"}</div>}
             </div>
           );})}
-        </div>}
-        {!selfOnly && <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
               <span style={{ fontWeight: 600, fontSize: 13 }}>Hiệu suất phòng ban</span>
@@ -83,7 +82,7 @@ export default function Reports({
             </div>
             <ResponsiveContainer width="100%" height={180}><LineChart data={repMonthTrend}><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} allowDecimals={isW} /><Tooltip /><Line type="monotone" dataKey={isW?"totalW":"total"} name="Tổng" stroke="#94a3b8" strokeWidth={2} dot={false} /><Line type="monotone" dataKey={isW?"doneW":"done"} name="HT" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} /></LineChart></ResponsiveContainer>
           </div>
-        </div>}
+        </div>
         {repEmpData.length > 0 && (
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
             <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
@@ -100,7 +99,7 @@ export default function Reports({
               <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                 {repEmpData.map((e, idx) => {
                   const eligibleRank = e.eligible ? repEmpData.filter(x => x.eligible).findIndex(x => x.id === e.id) : -1;
-                  const medal = selfOnly ? "" : eligibleRank === 0 ? "🥇" : eligibleRank === 1 ? "🥈" : eligibleRank === 2 ? "🥉" : "";
+                  const medal = eligibleRank === 0 ? "🥇" : eligibleRank === 1 ? "🥈" : eligibleRank === 2 ? "🥉" : "";
                   return (
                     <div key={e.id} style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6", opacity: e.eligible ? 1 : 0.65 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -136,7 +135,7 @@ export default function Reports({
                   <thead><tr style={{ background: "#f9fafb" }}>{["","Nhân viên","Phòng","Tổng","HT","HT quá hạn","QH","Chưa đến hạn","Phối hợp","Điểm hiệu suất"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{h}</th>)}</tr></thead>
                   <tbody>{repEmpData.map(e => {
                     const eligibleRank = e.eligible ? repEmpData.filter(x => x.eligible).findIndex(x => x.id === e.id) : -1;
-                    const medal = selfOnly ? "" : eligibleRank === 0 ? "🥇" : eligibleRank === 1 ? "🥈" : eligibleRank === 2 ? "🥉" : "";
+                    const medal = eligibleRank === 0 ? "🥇" : eligibleRank === 1 ? "🥈" : eligibleRank === 2 ? "🥉" : "";
                     return (
                       <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6", background: medal ? "#f0fdf4" : "#fff", opacity: e.eligible ? 1 : 0.6 }}>
                         <td style={{ padding: "9px 12px", fontSize: 16 }}>{medal}</td>
@@ -165,7 +164,7 @@ export default function Reports({
             )}
           </div>
         )}
-        {!selfOnly && <ManagerBoard data={managerBoard} isMobile={isMobile} onWhy={setWhyMgr} />}
+        <ManagerBoard data={managerBoard} isMobile={isMobile} onWhy={setWhyMgr} />
       </>)}
 
       {repTab === "leaderboard" && (<>
@@ -438,6 +437,103 @@ export default function Reports({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Tab "KẾT QUẢ CỦA TÔI": mọi người đều thấy điểm & xếp hạng của CHÍNH MÌNH đặt cạnh mặt bằng chung
+// (để tự đối chiếu/so sánh). Không giới hạn quyền — chỉ là lối tắt tới dữ liệu của riêng người đang xem.
+function MeTab({ isMobile, inp, myEid, repEmpData = [], managerBoard = [], leaderboard = [], managerLeaderboard = [], repMonth, setRepMonth, repYear, setRepYear, rankYear, onWhy, onWhyMgr, onWhyYear }) {
+  const asMgr = managerBoard.find(e => e.id === myEid);   // nếu là Trưởng/Phó phòng: dùng bảng điều hành
+  const me = asMgr || repEmpData.find(e => e.id === myEid);
+  const isMgr = !!asMgr;
+  const lbYear = isMgr ? managerLeaderboard : leaderboard;
+  const meYear = lbYear.find(e => e.id === myEid);
+  const card = { background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 };
+  const chip = (bg, col, txt) => <span style={{ background: bg, color: col, fontSize: 12, padding: "3px 9px", borderRadius: 8, fontWeight: 600 }}>{txt}</span>;
+
+  // Xếp hạng THÁNG trong nhóm cùng vai trò (nhân viên / quản lý), chỉ tính người đủ điều kiện
+  const pool = isMgr ? managerBoard : repEmpData;
+  const eligibles = pool.filter(e => e.eligible);
+  const myRank = me?.eligible ? eligibles.findIndex(e => e.id === myEid) + 1 : null;
+  const avg = eligibles.length ? Math.round(eligibles.reduce((s, e) => s + e.perfScore, 0) / eligibles.length) : null;
+  const yearAvg = isMgr
+    ? (() => { const v = lbYear.filter(e => e.score != null); return v.length ? Math.round(v.reduce((s, e) => s + e.score, 0) / v.length) : null; })()
+    : (() => { const v = lbYear.filter(e => e.score != null); return v.length ? Math.round(v.reduce((s, e) => s + e.score, 0) / v.length) : null; })();
+  const myYearScore = meYear ? (isMgr ? meYear.score : meYear.score) : null;
+  const myYearRank = myYearScore != null ? lbYear.filter(e => (e.score != null)).findIndex(e => e.id === myEid) + 1 : null;
+  const yearPoolCount = lbYear.filter(e => e.score != null).length;
+
+  const scoreCol = s => s >= 80 ? "#15803d" : s >= 50 ? "#92400e" : "#b91c1c";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <select value={repMonth} onChange={e => setRepMonth(Number(e.target.value))} style={{ ...inp, width: "auto", padding: "6px 10px" }}>{VI_MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
+        <select value={repYear} onChange={e => setRepYear(Number(e.target.value))} style={{ ...inp, width: 90, padding: "6px 10px" }}>{[2023,2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
+        {me && <span style={{ fontSize: 13, color: "#6b7280" }}>{me.name} · {deptLabel(me.dept)}{isMgr ? " · Điều hành" : ""}</span>}
+      </div>
+
+      {!me ? (
+        <div style={{ ...card, color: "#9ca3af", fontSize: 13 }}>Bạn chưa có nhiệm vụ nào trong {VI_MONTHS[repMonth]}/{repYear} để tính kết quả. Chọn tháng khác để xem.</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
+          {/* Thẻ điểm THÁNG của tôi */}
+          <div style={{ ...card, borderLeft: "4px solid " + (me.eligible ? scoreCol(me.perfScore) : "#cbd5e1") }}>
+            <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 600, marginBottom: 6 }}>📅 {VI_MONTHS[repMonth]}/{repYear} — {isMgr ? "Điểm điều hành" : "Điểm hiệu suất"} của tôi</div>
+            {me.eligible ? (
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 34, fontWeight: 800, color: scoreCol(me.perfScore) }}>{me.perfScore}đ</span>
+                <button onClick={() => isMgr ? onWhyMgr(me) : onWhy(me)} style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>ℹ️ Vì sao điểm này?</button>
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: "#6b7280" }}>{me.perfScore != null && me.resolved > 0 && <b style={{ color: "#6b7280" }}>~{me.perfScore}đ (tham khảo)</b>} · Chưa đủ điều kiện xếp hạng <span style={{ fontSize: 11 }}>(cần ≥5 việc đến hạn, hiện {me.resolved ?? 0})</span></div>
+            )}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
+              {chip("#e0e7ff", "#4338ca", `Tổng: ${r2(me.total)}`)}
+              {chip("#dcfce7", "#15803d", `HT: ${r2((me.done || 0) - (me.completedLate || 0))}`)}
+              {me.completedLate > 0 && chip("#fff1f2", "#991b1b", `⏰ HT trễ: ${me.completedLate}`)}
+              {me.over > 0 && chip("#fee2e2", "#b91c1c", `QH: ${me.over}`)}
+              {me.collabTotal > 0 && chip("#ede9fe", "#7c3aed", `🤝 ${r2(me.collabDone)}/${r2(me.collabTotal)}`)}
+            </div>
+          </div>
+          {/* Thẻ SO SÁNH tháng */}
+          <div style={card}>
+            <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 600, marginBottom: 10 }}>📊 So với {isMgr ? "các quản lý" : "nhân viên"} khác ({VI_MONTHS[repMonth]})</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, color: "#374151" }}>Xếp hạng của tôi</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#111" }}>{myRank ? `#${myRank}` : "—"} <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 400 }}>/ {eligibles.length} người đủ ĐK</span></span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, color: "#374151" }}>Điểm TB chung</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#111" }}>{avg != null ? `${avg}đ` : "—"}</span>
+              </div>
+              {me.eligible && avg != null && (
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: me.perfScore >= avg ? "#15803d" : "#b91c1c" }}>
+                  {me.perfScore >= avg ? `▲ Cao hơn TB chung ${me.perfScore - avg} điểm` : `▼ Thấp hơn TB chung ${avg - me.perfScore} điểm`}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Thẻ điểm NĂM của tôi */}
+      <div style={card}>
+        <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 600, marginBottom: 10 }}>🏆 Cả năm {rankYear} — vị trí của tôi trên bảng xếp hạng</div>
+        {myYearScore == null ? (
+          <div style={{ fontSize: 13, color: "#9ca3af" }}>Chưa đủ dữ liệu năm {rankYear} để xếp hạng.</div>
+        ) : (
+          <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center" }}>
+            <div><div style={{ fontSize: 11, color: "#9ca3af" }}>Điểm TB năm</div><div style={{ fontSize: 26, fontWeight: 800, color: scoreCol(myYearScore) }}>{myYearScore}đ</div></div>
+            <div><div style={{ fontSize: 11, color: "#9ca3af" }}>Xếp hạng</div><div style={{ fontSize: 26, fontWeight: 800, color: "#111" }}>#{myYearRank}<span style={{ fontSize: 13, color: "#9ca3af", fontWeight: 400 }}> / {yearPoolCount}</span></div></div>
+            {yearAvg != null && <div><div style={{ fontSize: 11, color: "#9ca3af" }}>TB chung năm</div><div style={{ fontSize: 26, fontWeight: 800, color: "#6b7280" }}>{yearAvg}đ</div></div>}
+            {yearAvg != null && <div style={{ fontSize: 12.5, fontWeight: 600, color: myYearScore >= yearAvg ? "#15803d" : "#b91c1c" }}>{myYearScore >= yearAvg ? `▲ Trên mặt bằng ${myYearScore - yearAvg}đ` : `▼ Dưới mặt bằng ${yearAvg - myYearScore}đ`}</div>}
+          </div>
+        )}
+        <div style={{ fontSize: 11.5, color: "#9ca3af", marginTop: 10 }}>💡 Muốn xem chi tiết toàn trung tâm để so sánh, mở tab <b>Tháng</b> hoặc <b>Xếp hạng</b>.</div>
+      </div>
     </div>
   );
 }
