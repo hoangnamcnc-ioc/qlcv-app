@@ -15,7 +15,7 @@ export default function Reports({
   repStats, repStatsPrev, repTasks, repDeptData, repEmpData, repMonthTrend,
   leaderboard, managerBoard, managerLeaderboard,
   lateReasonStats,
-  getEmp, setModal, loadComments,
+  getEmp, setModal, loadComments, deptLeaderName,
   canExec, computed, monthlyScores, snapshotMonth, syncManagerSnapshots, currentUser, overloadThreshold, kpiOnTime,
 }) {
   const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm (tháng)
@@ -33,7 +33,7 @@ export default function Reports({
       </div>
 
       {repTab === "grading" && canExec && <GradingTab isMobile={isMobile} inp={inp} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} syncManagerSnapshots={syncManagerSnapshots} currentUser={currentUser} />}
-      {repTab === "exec" && canExec && <ExecTab isMobile={isMobile} computed={computed} getEmp={getEmp} setModal={setModal} loadComments={loadComments} overloadThreshold={overloadThreshold} />}
+      {repTab === "exec" && canExec && <ExecTab isMobile={isMobile} computed={computed} getEmp={getEmp} setModal={setModal} loadComments={loadComments} overloadThreshold={overloadThreshold} deptLeaderName={deptLeaderName} />}
       {repTab === "kq_nv" && canExec && <TaskResultReportTab inp={inp} computed={computed} getEmp={getEmp} currentUser={currentUser} />}
 
       {repTab === "monthly" && (<>

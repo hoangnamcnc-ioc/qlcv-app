@@ -113,7 +113,7 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, syncMa
 }
 
 // ═════════ TAB "ĐIỀU HÀNH" — góc nhìn BGĐ toàn đơn vị ═════════
-export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, overloadThreshold = 5 }) {
+export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, overloadThreshold = 5, deptLeaderName }) {
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
   // So sánh tỷ lệ hoàn thành liên tháng giữa các phòng (6 tháng gần nhất)
@@ -149,13 +149,16 @@ export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, ov
         const r = ensure(t.rated_by); r.count++; r.hours += (b - a) / 3600000;
       }
       if (t.status === "pending_approval") {
-        const owner = t.forwarded_by || t.created_by_name;
-        if (owner) ensure(owner).pending++;
+        // Người DUYỆT (đang treo) = người có thẩm quyền duyệt việc này:
+        //  - việc nhân viên TỰ TẠO → Trưởng phòng của phòng đó (KHÔNG phải người tạo — họ là người xin duyệt);
+        //  - việc thường → người giao việc (created_by_name), hoặc người đã chuyển tiếp.
+        const owner = t.self_created ? (deptLeaderName ? deptLeaderName(t.dept) : null) : (t.forwarded_by || t.created_by_name);
+        if (owner && owner !== "chưa có lãnh đạo phòng") ensure(owner).pending++;
       }
     }
     return Object.values(map).map(r => ({ ...r, avgH: r.count ? r.hours / r.count : null }))
       .sort((a, b) => b.pending - a.pending || (b.avgH ?? 0) - (a.avgH ?? 0));
-  }, [computed]);
+  }, [computed, deptLeaderName]);
   const fmtDur = h => h === null ? "—" : h < 1 ? "< 1 giờ" : h < 48 ? `${Math.round(h)} giờ` : `${Math.round(h / 24 * 10) / 10} ngày`;
 
   // Phân bổ khối lượng đang xử lý theo người — ai đang ôm nhiều việc nhất toàn đơn vị, không cần

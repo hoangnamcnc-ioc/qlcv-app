@@ -862,7 +862,7 @@ export default function App() {
               repStats={repStats} repStatsPrev={repStatsPrev} repTasks={repTasks} repDeptData={repDeptData} repEmpData={repEmpData} repMonthTrend={repMonthTrend}
               leaderboard={leaderboard} managerBoard={managerBoard} managerLeaderboard={managerLeaderboard}
               lateReasonStats={lateReasonStats}
-              getEmp={getEmp} setModal={setModal} loadComments={loadComments}
+              getEmp={getEmp} setModal={setModal} loadComments={loadComments} deptLeaderName={deptLeaderName}
               canExec={true} computed={computedGlobal} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} syncManagerSnapshots={syncManagerSnapshots} currentUser={currentUser} overloadThreshold={overloadThreshold} kpiOnTime={kpiOnTime}
             />
           )}
