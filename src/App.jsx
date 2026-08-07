@@ -50,7 +50,6 @@ export default function App() {
   const [tasks,setTasks]=useState(null); const [employees,setEmployees]=useState(null);
   const [deptRows,setDeptRows]=useState(DEFAULT_DEPARTMENTS); // phòng/ban nạp từ CSDL (cho form quản lý + re-render)
   const [deptAudit,setDeptAudit]=useState([]); // nhật ký thay đổi phòng/ban (app_config)
-  const [deptOversight,setDeptOversight]=useState({}); // { mãPhòng: employee_id của BGĐ phụ trách } (app_config)
   const [otherTasks,setOtherTasks]=useState([]);
   const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false);
   const [modal,setModal]=useState(null); const [taskForm,setTaskForm]=useState(null);
@@ -245,8 +244,17 @@ export default function App() {
   const applyDeptRows=rows=>{setDepartments(rows);setDeptRows(rows);};
   // Nhật ký thay đổi phòng/ban (ai làm, khi nào) — lưu trong app_config key="dept_audit", không cần bảng mới.
   const logDept=async(action)=>{const entry={by:currentUser?.full_name||"—",at:new Date().toLocaleString("vi-VN"),action};const next=[...deptAudit,entry].slice(-100);setDeptAudit(next);try{await supabase.from("app_config").upsert({key:"dept_audit",value:JSON.stringify(next)},{onConflict:"key"});}catch{/* ignore */}};
-  // Gán/bỏ gán 1 thành viên BGĐ phụ trách 1 phòng (lưu app_config, không cần cột CSDL mới).
-  const setDeptOverseer=async(deptCode,empId)=>{const next={...deptOversight};if(empId)next[deptCode]=empId;else delete next[deptCode];setDeptOversight(next);const nm=getEmp(empId)?.name;logDept(empId?`Gán ${nm||"BGĐ"} phụ trách phòng ${deptCode}`:`Bỏ gán BGĐ phụ trách phòng ${deptCode}`);try{await supabase.from("app_config").upsert({key:"dept_oversight",value:JSON.stringify(next)},{onConflict:"key"});}catch{/* ignore */}};
+  // BGĐ phụ trách phòng — LƯU TRONG hr.oversees_dept của chính người BGĐ (bảng employees ghi được, không như app_config bị RLS).
+  const getHr=e=>{let h=e?.hr;if(typeof h==="string"){try{h=JSON.parse(h);}catch{h={};}}return h&&typeof h==="object"?h:{};};
+  const deptOversight=useMemo(()=>{const m={};for(const e of (employees||[])){const od=getHr(e).oversees_dept;if(od)m[od]=e.id;}return m;},[employees]); // { mãPhòng: empId }
+  const deptOverseerName=code=>{const id=deptOversight[code];const e=id&&getEmp(id);return e?e.name:null;};
+  const myOverseenDepts=useMemo(()=>{const od=getHr(getEmp(currentUser?.employee_id)).oversees_dept;return od?[od]:[];},[employees,currentUser]);
+  const setDeptOverseer=async(deptCode,empId)=>{
+    // Bỏ phòng này khỏi người BGĐ khác đang phụ trách (mỗi phòng chỉ 1 người BGĐ).
+    for(const e of (employees||[])){const hr=getHr(e);if(e.id!==empId&&hr.oversees_dept===deptCode)await updateEmployee(e.id,{hr:{...hr,oversees_dept:null}});}
+    if(empId){const e=getEmp(empId);const hr=getHr(e);if(hr.oversees_dept!==deptCode)await updateEmployee(empId,{hr:{...hr,oversees_dept:deptCode}});showToast(`Đã gán ${e?.name||"BGĐ"} phụ trách phòng ${deptCode}`);}
+    else showToast(`Đã bỏ gán BGĐ phụ trách phòng ${deptCode}`);
+  };
   const addDept=async({code,name,color})=>{const nm=(name||"").trim();let cd=(code||"").trim().toUpperCase().replace(/\s+/g," ");if(!nm||!cd)return;if(deptRows.some(d=>d.code.toUpperCase()===cd)){showToast("Mã phòng/ban đã tồn tại","error");return;}const ord=deptRows.reduce((m,d)=>Math.max(m,d.ord||0),0)+1;const row={code:cd,name:nm,color:color||"#6366f1",ord};const{error}=await supabase.from("departments").insert(row);if(error){showToast("Lỗi tạo phòng/ban","error");return;}applyDeptRows([...deptRows,row]);logDept(`Thêm phòng/ban "${nm}" (${cd})`);showToast("Đã thêm phòng/ban");};
   const updateDept=async(code,patch)=>{const before=deptRows.find(d=>d.code===code);const{error}=await supabase.from("departments").update(patch).eq("code",code);if(error){showToast("Lỗi cập nhật","error");return;}applyDeptRows(deptRows.map(d=>d.code===code?{...d,...patch}:d));logDept(`Sửa phòng/ban ${code}: ${before?.name!==patch.name?`đổi tên "${before?.name}" → "${patch.name}"`:"đổi màu"}`);showToast("Đã lưu");};
   const deleteDept=async(code)=>{const used=(employees||[]).some(e=>e.dept===code)||(tasks||[]).some(t=>t.dept===code)||(recurringTemplates||[]).some(t=>t.dept===code)||(projectsForScoring||[]).some(p=>p.dept===code);if(used){showToast("Không xóa được: vẫn còn nhân sự/nhiệm vụ/dự án thuộc đơn vị này","error");return;}if(!window.confirm("Xóa phòng/ban này?"))return;const nm=deptRows.find(d=>d.code===code)?.name;const{error}=await supabase.from("departments").delete().eq("code",code);if(error){showToast("Lỗi xóa","error");return;}applyDeptRows(deptRows.filter(d=>d.code!==code));logDept(`Xóa phòng/ban "${nm}" (${code})`);showToast("Đã xóa");};
@@ -269,7 +277,7 @@ export default function App() {
       const[{data:td},{data:ud},{data:rtd},{data:otd},{data:pjd},{data:scd},{data:cmd},{data:dgd},{data:msd}]=await Promise.all([tasksQ,supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false}),supabase.from("projects").select("id,name,dept,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time,deadline,ext_proposed,ext_reason,ext_requested_by,ext_requested_at"),supabase.from("support_cases").select("id,eid,collab_eids,difficulty,created,content,category").eq("deleted",false),supabase.from("comments").select("task_id,user_name,created_at"),supabase.from("approval_delegations").select("*").order("start_date",{ascending:false}),supabase.from("monthly_scores").select("*")]);
       if(!ed||ed.length===0){if(!background){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}}else setEmployees(ed);
       setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);setProjectsForScoring(pjd||[]);setSupportCasesForScoring(scd||[]);setAllComments(cmd||[]);setDelegations(dgd||[]);setMonthlyScores(msd||[]);
-      try{const{data:acd}=await supabase.from("app_config").select("key,value");const kpi=(acd||[]).find(r=>r.key==="kpi_ontime");if(kpi&&kpi.value!=null&&!isNaN(parseInt(kpi.value))){setKpiOnTime(parseInt(kpi.value));localStorage.setItem("qlcv_kpi_ontime",parseInt(kpi.value));}const hol=(acd||[]).find(r=>r.key==="holidays");if(hol)setHolidays(parseJSON(hol.value,[]));const da=(acd||[]).find(r=>r.key==="dept_audit");if(da)setDeptAudit(parseJSON(da.value,[]));const dov=(acd||[]).find(r=>r.key==="dept_oversight");if(dov)setDeptOversight(parseJSON(dov.value,{}));}catch{}
+      try{const{data:acd}=await supabase.from("app_config").select("key,value");const kpi=(acd||[]).find(r=>r.key==="kpi_ontime");if(kpi&&kpi.value!=null&&!isNaN(parseInt(kpi.value))){setKpiOnTime(parseInt(kpi.value));localStorage.setItem("qlcv_kpi_ontime",parseInt(kpi.value));}const hol=(acd||[]).find(r=>r.key==="holidays");if(hol)setHolidays(parseJSON(hol.value,[]));const da=(acd||[]).find(r=>r.key==="dept_audit");if(da)setDeptAudit(parseJSON(da.value,[]));}catch{}
       try{let{data:dpd}=await supabase.from("departments").select("*").order("ord");if(!dpd||dpd.length===0){if(!background){await supabase.from("departments").insert(DEFAULT_DEPARTMENTS);dpd=DEFAULT_DEPARTMENTS;}else dpd=null;}if(dpd){setDepartments(dpd);setDeptRows(dpd);}}catch{if(!background)setDeptRows(DEFAULT_DEPARTMENTS);}
       if(canSeeAll){try{const{data:docd}=await supabase.from("documents").select("id,type,doc_number,title,created,created_by,forwards");setDocsForLog(docd||[]);}catch{}}
     }catch{if(!background){showToast("Lỗi kết nối database","error");setEmployees(DEFAULT_EMPLOYEES);setTasks([]);}}
@@ -770,7 +778,7 @@ export default function App() {
             <Dashboard
               currentUser={currentUser} isMobile={isMobile} userDept={userDept}
               execDeptSummary={execDeptSummary} execMonth={execMonth} setExecMonth={setExecMonth} execYear={execYear} setExecYear={setExecYear} staffingAdvice={staffingAdvice} empProfile={empProfile} employees={employees}
-              stats={stats} statsW={statsW} deptChart={deptChart} pendingCreateTasks={pendingCreateTasks}
+              stats={stats} statsW={statsW} deptChart={deptChart} pendingCreateTasks={pendingCreateTasks} deptOverseerName={deptOverseerName} myOverseenDepts={myOverseenDepts}
               myTasks={myTasks} myWorkList={myWorkList} myWorkloadCompare={myWorkloadCompare} myDoneList={myDoneList} myTrend={myTrend}
               atRiskTasks={atRiskTasks} weeklyDigest={weeklyDigest} watchList={watchList} dataHealth={dataHealth} execNarrative={execNarrative} lateInsights={lateInsights}
               computed={computed} overloadedEmps={overloadedEmps}

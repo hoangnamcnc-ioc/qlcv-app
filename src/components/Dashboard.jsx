@@ -9,7 +9,7 @@ export default function Dashboard({
   execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, employees,
   stats, statsW, deptChart, myTasks, myWorkList, myWorkloadCompare, myDoneList, myTrend,
   atRiskTasks, weeklyDigest, watchList, dataHealth, execNarrative, lateInsights,
-  computed, pendingCreateTasks, overloadedEmps, overloadThreshold, setOverloadThreshold, kpiOnTime, setKpiOnTime,
+  computed, pendingCreateTasks, deptOverseerName, myOverseenDepts = [], overloadedEmps, overloadThreshold, setOverloadThreshold, kpiOnTime, setKpiOnTime,
   dateFrom, setDateFrom, dateTo, setDateTo,
   overloadPopup, setOverloadPopup,
   recurringTemplates, setShowRecurring,
@@ -74,6 +74,30 @@ export default function Dashboard({
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 12 }} />
         {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>✕ Bỏ lọc</button>}
       </div>
+      {myOverseenDepts.length > 0 && (
+        <div style={{ order: -3, background: "linear-gradient(135deg,#0e7490,#0891b2)", borderRadius: 12, padding: 14, color: "#fff" }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>👔 Phòng bạn phụ trách</div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : `repeat(${Math.min(myOverseenDepts.length, 3)},1fr)`, gap: 10 }}>
+            {myOverseenDepts.map(code => {
+              const d = (execDeptSummary || []).find(x => x.dept === code) || {};
+              const pending = (computed || []).filter(t => t.dept === code && t.status === "pending_approval").length;
+              const pcreate = (pendingCreateTasks || []).filter(t => t.dept === code).length;
+              return (
+                <div key={code} onClick={() => { setView("tasks"); setFDept(code); }} style={{ background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: 12, cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.2)"} onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.12)"}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{deptLabel(code)}</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12 }}>
+                    <span>📋 {d.total || 0} việc</span>
+                    <span style={{ color: (d.overdue || 0) > 0 ? "#fecaca" : "#e2e8f0" }}>⛔ {d.overdue || 0} quá hạn</span>
+                    <span style={{ color: (pending + pcreate) > 0 ? "#fde68a" : "#e2e8f0" }}>⏳ {pending + pcreate} chờ duyệt</span>
+                    <span>🎯 {d.rate || 0}% HT</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 10.5, opacity: 0.85, marginTop: 8 }}>Bấm vào phòng để xem danh sách nhiệm vụ · Bạn được BGĐ phân công theo dõi phòng này.</div>
+        </div>
+      )}
       {["admin","director"].includes(currentUser.role) && (
         <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
           <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -124,7 +148,7 @@ export default function Dashboard({
                 <thead><tr style={{ background: "#f9fafb" }}>{["Phòng ban","Trưởng phòng","Nhân sự","Tổng việc","Quy đổi","Quy đổi/người","Hoàn thành","Quá hạn","HT quá hạn","Sắp hết hạn","Tỷ lệ HT","Quá tải"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
                 <tbody>{execDeptSummary.map(d => (
                   <tr key={d.dept} onClick={() => { setView("tasks"); setFDept(d.dept); }} style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <td style={{ padding: "10px 12px" }}><span style={{ background: DEPT_COLOR[d.dept] + "22", color: DEPT_COLOR[d.dept], fontWeight: 600, padding: "3px 10px", borderRadius: 8 }}>{d.dept}</span></td>
+                    <td style={{ padding: "10px 12px" }}><span style={{ background: DEPT_COLOR[d.dept] + "22", color: DEPT_COLOR[d.dept], fontWeight: 600, padding: "3px 10px", borderRadius: 8 }}>{d.dept}</span>{deptOverseerName && deptOverseerName(d.dept) && <div style={{ fontSize: 10.5, color: "#0891b2", marginTop: 3, whiteSpace: "nowrap" }}>👔 BGĐ: {deptOverseerName(d.dept)}</div>}</td>
                     <td style={{ padding: "10px 12px", color: "#374151" }}>{d.lead}</td>
                     <td style={{ padding: "10px 12px", textAlign: "center" }}>{d.empCount}</td>
                     <td style={{ padding: "10px 12px", fontWeight: 600 }}>{d.total}</td>
