@@ -51,13 +51,15 @@ export default function Personnel(props) {
       {tab === "workload" && <Employees {...props} />}
       {tab === "profile" && <ProfileTab {...{ employees, computed, canEditHr, canManageDept: canDept, isAdmin, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName }} />}
       {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} />}
-      {tab === "depts" && canDept && <DeptTab {...{ deptRows, addDept, updateDept, deleteDept, deptAudit: props.deptAudit, employees, isMobile, inp, card }} />}
+      {tab === "depts" && canDept && <DeptTab {...{ deptRows, addDept, updateDept, deleteDept, deptAudit: props.deptAudit, deptOversight: props.deptOversight, setDeptOverseer: props.setDeptOverseer, employees, isMobile, inp, card }} />}
     </div>
   );
 }
 
 // ── TAB PHÒNG/BAN (chỉ admin) ────────────────────────────────────────────────
-function DeptTab({ deptRows, addDept, updateDept, deleteDept, deptAudit = [], employees, isMobile, inp, card }) {
+const EXEC_ROLES = ["Giám đốc", "Phó Giám đốc"];
+function DeptTab({ deptRows, addDept, updateDept, deleteDept, deptAudit = [], deptOversight = {}, setDeptOverseer, employees, isMobile, inp, card }) {
+  const bgd = (employees || []).filter(e => EXEC_ROLES.includes(e.role)); // thành viên Ban Giám đốc để gán phụ trách
   const [nn, setNn] = useState("");
   const [ncode, setNcode] = useState("");
   const [codeTouched, setCodeTouched] = useState(false);
@@ -82,7 +84,7 @@ function DeptTab({ deptRows, addDept, updateDept, deleteDept, deptAudit = [], em
       </div>
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f9fafb", fontSize: 13, fontWeight: 600 }}>Danh sách phòng / ban ({rows.length})</div>
-        {rows.map(d => <DeptRow key={d.code} d={d} count={countIn(d.code)} onSave={updateDept} onDelete={deleteDept} inp={inp} isMobile={isMobile} />)}
+        {rows.map(d => <DeptRow key={d.code} d={d} count={countIn(d.code)} onSave={updateDept} onDelete={deleteDept} inp={inp} isMobile={isMobile} bgd={bgd} overseerId={deptOversight[d.code] || ""} onSetOverseer={setDeptOverseer} />)}
         {!rows.length && <div style={{ padding: 16, color: "#9ca3af", fontSize: 13 }}>Chưa có phòng/ban.</div>}
       </div>
       {deptAudit.length > 0 && (
@@ -102,17 +104,29 @@ function DeptTab({ deptRows, addDept, updateDept, deleteDept, deptAudit = [], em
   );
 }
 
-function DeptRow({ d, count, onSave, onDelete, inp, isMobile }) {
+function DeptRow({ d, count, onSave, onDelete, inp, isMobile, bgd = [], overseerId = "", onSetOverseer }) {
   const [name, setName] = useState(d.name);
   const [color, setColor] = useState(d.color || "#6366f1");
   const dirty = name.trim() !== d.name || color !== (d.color || "#6366f1");
+  const isBGDdept = bgd.some(e => e.dept === d.code); // phòng Ban Giám đốc thì không gán "BGĐ phụ trách"
   return (
-    <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 16px", borderBottom: "1px solid #f3f4f6", flexWrap: "wrap" }}>
-      <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: 34, height: 34, border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", background: "#fff", padding: 2, flexShrink: 0 }} />
-      <input value={name} onChange={e => setName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 160 }} />
-      <span style={{ fontSize: 11.5, color: "#6b7280", whiteSpace: "nowrap" }}>{count} người</span>
-      <button disabled={!dirty || !name.trim()} onClick={() => onSave(d.code, { name: name.trim(), color })} style={{ background: dirty ? "#16a34a" : "#e5e7eb", color: dirty ? "#fff" : "#9ca3af", border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: dirty ? "pointer" : "default" }}>💾 Lưu</button>
-      <button onClick={() => onDelete(d.code)} title={count > 0 ? "Còn người thuộc đơn vị này" : "Xóa"} style={{ border: "1px solid #fca5a5", background: "#fff0f0", color: "#dc2626", borderRadius: 7, padding: "6px 9px", fontSize: 12.5, cursor: "pointer" }}>🗑️</button>
+    <div style={{ padding: "10px 16px", borderBottom: "1px solid #f3f4f6" }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: 34, height: 34, border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", background: "#fff", padding: 2, flexShrink: 0 }} />
+        <input value={name} onChange={e => setName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 160 }} />
+        <span style={{ fontSize: 11.5, color: "#6b7280", whiteSpace: "nowrap" }}>{count} người</span>
+        <button disabled={!dirty || !name.trim()} onClick={() => onSave(d.code, { name: name.trim(), color })} style={{ background: dirty ? "#16a34a" : "#e5e7eb", color: dirty ? "#fff" : "#9ca3af", border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: dirty ? "pointer" : "default" }}>💾 Lưu</button>
+        <button onClick={() => onDelete(d.code)} title={count > 0 ? "Còn người thuộc đơn vị này" : "Xóa"} style={{ border: "1px solid #fca5a5", background: "#fff0f0", color: "#dc2626", borderRadius: 7, padding: "6px 9px", fontSize: 12.5, cursor: "pointer" }}>🗑️</button>
+      </div>
+      {!isBGDdept && onSetOverseer && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, paddingLeft: 44, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "#6b7280" }}>👔 BGĐ phụ trách:</span>
+          <select value={overseerId} onChange={e => onSetOverseer(d.code, e.target.value)} style={{ ...inp, width: "auto", padding: "5px 8px", fontSize: 12.5 }}>
+            <option value="">— Chưa gán —</option>
+            {bgd.map(e => <option key={e.id} value={e.id}>{e.name} ({e.role})</option>)}
+          </select>
+        </div>
+      )}
     </div>
   );
 }
