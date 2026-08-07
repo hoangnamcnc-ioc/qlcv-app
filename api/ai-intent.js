@@ -61,7 +61,8 @@ Khi soạn văn bản hành chính, tuân thủ thể thức Việt Nam (quốc 
 và TỰ ĐIỀN MẪU chỗ còn thiếu (VD họ tên "Nguyễn Văn A", ngày "…/…/…", phòng "…"). Văn phong đúng mực công sở.
 Trả lời TRỰC TIẾP bằng văn bản thường (KHÔNG JSON, không rào đón thừa), xuống dòng tự nhiên. Dựa vào các lượt hội
 thoại trước để hiểu câu nối tiếp ("viết giúp đi", "ngắn gọn hơn", "dịch sang tiếng Anh", "làm tiếp"…).
-Chỉ từ chối khi yêu cầu vi phạm pháp luật/đạo đức; còn lại luôn cố gắng giúp hết sức.`;
+KHÔNG dùng ký hiệu markdown (không dùng **, ##, \`); trình bày bằng VĂN BẢN THƯỜNG — tiêu đề viết HOA hoặc theo số
+thứ tự, danh sách dùng gạch đầu dòng "- ". Chỉ từ chối khi yêu cầu vi phạm pháp luật/đạo đức; còn lại luôn cố gắng giúp hết sức.`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ slots: null }); return; }
