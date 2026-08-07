@@ -12,9 +12,19 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // ── Phân quyền ──
   // Nhân viên NAY được XEM toàn bộ việc của phòng mình (chỉ xem — sửa/cập nhật/duyệt vẫn giới hạn theo quyền
   // riêng ở canEditTask/canUpdateProgress/canApprove). Cộng tác viên khác phòng vẫn thấy việc mình phối hợp.
-  // Mọi vai trò được XEM mọi việc (để báo cáo/danh sách khớp nhau, phục vụ đối chiếu). Quyền GHI/DUYỆT vẫn
-  // kiểm soát riêng (canEditTask/isAssigner/isDeptManagerOf...). Ranh giới đọc thật sẽ do RLS đảm nhiệm.
-  const canSeeTask = useMemo(() => (t) => !!currentUser, [currentUser]);
+  // Phạm vi hiện trong DANH SÁCH Nhiệm vụ (không ảnh hưởng Báo cáo — báo cáo dùng computedGlobal, đã tải đủ):
+  //  • admin/BGĐ (canSeeAll): thấy mọi việc.
+  //  • Quản lý phòng (canCreate): thấy mọi việc PHÒNG mình.
+  //  • NHÂN VIÊN thường: CHỈ thấy việc của CHÍNH MÌNH + việc PHỐI HỢP (không thấy việc người khác).
+  const canSeeTask = useMemo(() => (t) => {
+    if (!currentUser) return false;
+    if (canSeeAll) return true;
+    const myEid = currentUser.employee_id;
+    if (t.eid === myEid) return true;
+    if (parseJSON(t.collab_eids, []).includes(myEid)) return true;
+    if (canCreate && userDept && t.dept === userDept) return true; // trưởng/phó phòng: cả phòng
+    return false;
+  }, [currentUser, canSeeAll, canCreate, userDept]);
   const canEditTask = useMemo(() => (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; return false; }, [currentUser, userDept]);
   const canDeleteTask = useMemo(() => (t) => { if (!currentUser) return false; if (["admin", "director"].includes(currentUser.role)) return true; if (["manager", "manager_hcth"].includes(currentUser.role)) return t.dept === userDept; return false; }, [currentUser, userDept]);
   // Cập nhật tiến độ: người chủ trì, quản lý, VÀ người phối hợp (họ đóng góp phần việc nên được ghi nhận tiến độ).
