@@ -11,6 +11,18 @@ import { aiEnabled, parseWithAI } from "../aiIntent";
 // gợi ý khi gõ, truy vấn ngưỡng/thống kê, biểu đồ mini, nút hành động, chào bằng điểm nóng, nhập giọng nói.
 const strip = s => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d");
 const has = (qn, ...arr) => arr.some(w => qn.includes(w));
+// Markdown NHẸ → HTML AN TOÀN (escape trước, tránh XSS) cho tin nhắn của trợ lý: **đậm**, *nghiêng*, `code`,
+// tiêu đề #, gạch đầu dòng "- "/"* ". Xuống dòng giữ nguyên nhờ white-space:pre-wrap của khung chứa.
+const escHtml = s => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const mdToHtml = raw => {
+  let s = escHtml(raw);
+  s = s.replace(/^\s{0,3}#{1,6}\s*(.+)$/gm, '<b>$1</b>');                 // tiêu đề #..###### → in đậm
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');                        // **đậm**
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<i>$2</i>');            // *nghiêng*
+  s = s.replace(/`([^`\n]+)`/g, '<code style="background:#f1f5f9;padding:0 4px;border-radius:4px;font-size:0.92em">$1</code>');
+  s = s.replace(/^\s{0,3}[-*]\s+/gm, '• ');                               // gạch đầu dòng → •
+  return s;
+};
 
 // Chỉ mục tài liệu hướng dẫn (dựng 1 lần) để trả lời câu hỏi "cách dùng"
 const GUIDE_INDEX = (() => {
@@ -359,7 +371,7 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
           <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 10, background: "#f8fafc" }}>
             {view.map((m, i) => (
               <div key={i} style={{ alignSelf: m.who === "me" ? "flex-end" : "flex-start", maxWidth: "90%", background: m.who === "me" ? "#4f46e5" : "#fff", color: m.who === "me" ? "#fff" : "#374151", border: m.who === "me" ? "none" : "1px solid #e5e7eb", borderRadius: 12, padding: "8px 12px", fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                {m.text}
+                {m.who === "bot" ? <span dangerouslySetInnerHTML={{ __html: mdToHtml(m.text) }} /> : m.text}
                 {m.learnedFrom && <div style={{ marginTop: 4, fontSize: 11, color: "#7c3aed", fontStyle: "italic" }}>🧠 Hiểu theo câu đã học: "{m.learnedFrom}"</div>}
                 {m.understood && <div style={{ marginTop: 3, fontSize: 10.5, color: "#9ca3af" }}>🎯 Hiểu: {m.understood}</div>}
                 {m.viaAI && <div style={{ marginTop: 3, fontSize: 10.5, color: "#0891b2" }}>✨ Trả lời có hỗ trợ của AI</div>}
