@@ -35,6 +35,8 @@ export default function Dashboard({
   const rosterTotalPages = Math.max(1, Math.ceil(rosterEmps.length / ROSTER_SIZE));
   const rosterPageSafe = Math.min(rosterPage, rosterTotalPages);
   const rosterPaged = rosterEmps.slice((rosterPageSafe - 1) * ROSTER_SIZE, rosterPageSafe * ROSTER_SIZE);
+  // Tên lãnh đạo phòng (người có thẩm quyền DUYỆT) — Trưởng phòng, nếu không có thì Phó trưởng phòng.
+  const deptLeaderName = dept => { const list = (employees || []).filter(e => e.dept === dept); const tp = list.find(e => e.role === "Trưởng phòng"); if (tp) return tp.name; const pp = list.find(e => e.role === "Phó trưởng phòng"); return pp ? pp.name + " (Phó phòng)" : "chưa có lãnh đạo phòng"; };
   // GY4 — Bản tự đánh giá cá nhân (in ra giấy / PDF): một trang tóm tắt điểm, cấu thành, chủ động, xu hướng, trễ.
   const printSelfReview = () => {
     if (!empProfile || !currentUser.employee_id) return;
@@ -470,7 +472,7 @@ export default function Dashboard({
                     <div key={t.id} onClick={() => { setModal(t); loadComments(t.id); }} style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minWidth: 0, overflow: "hidden" }} onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                       <div style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden" }}>
                         <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "normal", wordBreak: "break-word" }}>{t.title}</div>
-                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2, whiteSpace: "normal", wordBreak: "break-word" }}>{t.dept} · {emp?.name || "–"} · Hạn: {fmtDate(t.deadline)}</div>
+                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2, whiteSpace: "normal", wordBreak: "break-word" }}>{t.dept} · {emp?.name || "–"} · Hạn: {fmtDate(t.deadline)}{(statFilter === "pending_approval" || statFilter === "pending_create") && <> · <span style={{ color: "#4338ca", fontWeight: 600 }}>👤 Chờ {deptLeaderName(t.dept)} duyệt</span></>}</div>
                       </div>
                       <span style={{ background: sc.bg, color: sc.col, fontSize: 11, padding: "2px 8px", borderRadius: 8, flexShrink: 0 }}>{sc.label}</span>
                     </div>
