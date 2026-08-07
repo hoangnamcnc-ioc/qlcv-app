@@ -862,7 +862,7 @@ export default function App() {
               repStats={repStats} repStatsPrev={repStatsPrev} repTasks={repTasks} repDeptData={repDeptData} repEmpData={repEmpData} repMonthTrend={repMonthTrend}
               leaderboard={leaderboard} managerBoard={managerBoard} managerLeaderboard={managerLeaderboard}
               lateReasonStats={lateReasonStats}
-              getEmp={getEmp} setModal={setModal} loadComments={loadComments} deptLeaderName={deptLeaderName}
+              getEmp={getEmp} setModal={setModal} loadComments={loadComments} deptLeaderName={deptLeaderName} hideApprovers={(users||[]).filter(u=>u.role==="admin").map(u=>u.full_name).filter(Boolean)}
               canExec={true} computed={computedGlobal} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} syncManagerSnapshots={syncManagerSnapshots} currentUser={currentUser} overloadThreshold={overloadThreshold} kpiOnTime={kpiOnTime}
             />
           )}

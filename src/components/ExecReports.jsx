@@ -113,7 +113,7 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, syncMa
 }
 
 // ═════════ TAB "ĐIỀU HÀNH" — góc nhìn BGĐ toàn đơn vị ═════════
-export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, overloadThreshold = 5, deptLeaderName }) {
+export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, overloadThreshold = 5, deptLeaderName, hideApprovers = [] }) {
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
   // So sánh tỷ lệ hoàn thành liên tháng giữa các phòng (6 tháng gần nhất)
@@ -156,9 +156,10 @@ export function ExecTab({ isMobile, computed, getEmp, setModal, loadComments, ov
         if (owner && owner !== "chưa có lãnh đạo phòng") ensure(owner).pending++;
       }
     }
-    return Object.values(map).map(r => ({ ...r, avgH: r.count ? r.hours / r.count : null }))
+    const hide = new Set(hideApprovers || []);
+    return Object.values(map).filter(r => !hide.has(r.name)).map(r => ({ ...r, avgH: r.count ? r.hours / r.count : null }))
       .sort((a, b) => b.pending - a.pending || (b.avgH ?? 0) - (a.avgH ?? 0));
-  }, [computed, deptLeaderName]);
+  }, [computed, deptLeaderName, hideApprovers]);
   const fmtDur = h => h === null ? "—" : h < 1 ? "< 1 giờ" : h < 48 ? `${Math.round(h)} giờ` : `${Math.round(h / 24 * 10) / 10} ngày`;
 
   // Phân bổ khối lượng đang xử lý theo người — ai đang ôm nhiều việc nhất toàn đơn vị, không cần
