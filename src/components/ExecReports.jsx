@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { DEPTS, DEPT_COLOR, VI_MONTHS, RATING } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel, STATUS, VI_MONTHS, RATING } from "../constants";
 import { isCompletedStatus, parseNowStr, fmtDate } from "../helpers";
 const RATING_KEYS = ["xuat_sac", "tot", "tb", "kem"];
 
@@ -544,4 +544,75 @@ export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
       </div>
     </div>
   </>);
+}
+
+// ── DANH MỤC CÔNG VIỆC (không trùng lặp) ─────────────────────────────────────
+// Gộp các nhiệm vụ theo TÊN (chuẩn hoá: bỏ khoảng trắng thừa, không phân biệt hoa/thường) trong 1 phòng + 1 tháng,
+// để ra "danh mục đầu việc" phòng đã làm — mỗi đầu việc 1 dòng, kèm số lần & người thực hiện. Có xuất CSV.
+const normTitle = s => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+export function CatalogTab({ isMobile, inp, computed, getEmp, repMonth, setRepMonth, repYear, setRepYear }) {
+  const [dept, setDept] = useState(DEPTS[0] || "__all");
+  const rows = useMemo(() => {
+    const inMonth = t => { const d = new Date(t.deadline); return !isNaN(d) && d.getFullYear() === repYear && d.getMonth() === repMonth; };
+    const list = (computed || []).filter(t => (dept === "__all" || t.dept === dept) && inMonth(t));
+    const map = new Map();
+    for (const t of list) {
+      const k = normTitle(t.title); if (!k) continue;
+      let r = map.get(k);
+      if (!r) { r = { title: (t.title || "").trim(), count: 0, people: new Set(), done: 0, over: 0, pending: 0, active: 0 }; map.set(k, r); }
+      r.count++;
+      const nm = getEmp?.(t.eid)?.name; if (nm) r.people.add(nm);
+      if (isCompletedStatus(t.status)) r.done++;
+      else if (t.status === "overdue" || t.status === "completed_late") r.over++;
+      else if (t.status === "pending_approval") r.pending++;
+      else r.active++;
+    }
+    return [...map.values()].sort((a, b) => b.count - a.count || a.title.localeCompare(b.title));
+  }, [computed, dept, repMonth, repYear, getEmp]);
+  const totalTasks = rows.reduce((s, r) => s + r.count, 0);
+  const exportCsv = () => {
+    const header = ["STT", "Tên công việc", "Số việc", "Người thực hiện", "Đã hoàn thành", "Trễ/Quá hạn", "Chờ duyệt", "Đang làm"];
+    const lines = rows.map((r, i) => [i + 1, r.title, r.count, [...r.people].join("; "), r.done, r.over, r.pending, r.active]);
+    const csv = "﻿" + [header, ...lines].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a"); a.href = url; a.download = `danh-muc-cong-viec-${dept === "__all" ? "tat-ca" : dept}-T${repMonth + 1}-${repYear}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
+  const th = { padding: "8px 10px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" };
+  const td = { padding: "8px 10px", fontSize: 13, borderBottom: "1px solid #f3f4f6", verticalAlign: "top" };
+  return (
+    <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 16 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, fontSize: 14 }}>📋 Danh mục công việc</div>
+        <select value={dept} onChange={e => setDept(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}>
+          <option value="__all">Tất cả phòng</option>{DEPTS.map(d => <option key={d} value={d}>{deptLabel(d)}</option>)}
+        </select>
+        <select value={repMonth} onChange={e => setRepMonth(Number(e.target.value))} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}>{VI_MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
+        <select value={repYear} onChange={e => setRepYear(Number(e.target.value))} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}>{[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "#6b7280" }}><b style={{ color: "#4338ca" }}>{rows.length}</b> đầu việc · {totalTasks} nhiệm vụ</span>
+        {rows.length > 0 && <button onClick={exportCsv} style={{ border: "1px solid #c7d2fe", background: "#eef2ff", color: "#4338ca", borderRadius: 8, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>⬇ Xuất CSV</button>}
+      </div>
+      <div style={{ fontSize: 11.5, color: "#9ca3af", marginBottom: 10 }}>Gộp các nhiệm vụ CÙNG TÊN thành 1 đầu việc (theo hạn chót trong tháng). Nhiệm vụ định kỳ / lặp lại chỉ hiện 1 dòng, kèm số lần.</div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+          <thead><tr style={{ background: "#f9fafb" }}>{["#", "Tên công việc", "Số việc", "Người thực hiện", "Tình trạng"].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+          <tbody>
+            {rows.length === 0 ? <tr><td style={td} colSpan={5}><span style={{ color: "#9ca3af" }}>Không có công việc nào trong kỳ này.</span></td></tr> : rows.map((r, i) => (
+              <tr key={i}>
+                <td style={{ ...td, color: "#9ca3af" }}>{i + 1}</td>
+                <td style={{ ...td, fontWeight: 500 }}>{r.title}{r.count > 1 && <span style={{ marginLeft: 6, fontSize: 11, background: "#eef2ff", color: "#4338ca", padding: "1px 7px", borderRadius: 8 }}>×{r.count}</span>}</td>
+                <td style={{ ...td, textAlign: "center" }}>{r.count}</td>
+                <td style={td}><span style={{ fontSize: 12, color: "#374151" }}>{[...r.people].join(", ") || "–"}</span></td>
+                <td style={td}><div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                  {r.done > 0 && <span style={{ fontSize: 11, background: "#dcfce7", color: "#15803d", padding: "1px 7px", borderRadius: 8 }}>✓ {r.done}</span>}
+                  {r.over > 0 && <span style={{ fontSize: 11, background: "#fee2e2", color: "#b91c1c", padding: "1px 7px", borderRadius: 8 }}>trễ {r.over}</span>}
+                  {r.pending > 0 && <span style={{ fontSize: 11, background: "#fef3c7", color: "#92400e", padding: "1px 7px", borderRadius: 8 }}>chờ {r.pending}</span>}
+                  {r.active > 0 && <span style={{ fontSize: 11, background: "#e0e7ff", color: "#4338ca", padding: "1px 7px", borderRadius: 8 }}>đang {r.active}</span>}
+                </div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
