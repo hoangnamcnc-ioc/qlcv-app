@@ -747,7 +747,7 @@ export default function App() {
             </div>
             {view==="tasks"&&canCreate&&<button onClick={()=>setShowRecurring(true)} style={{background:"#f1f5f9",color:"#475569",border:"1px solid #e5e7eb",borderRadius:8,padding:"5px 8px",fontSize:12,cursor:"pointer"}}>🔄</button>}
             {view==="tasks"&&canDeleteTask({dept:userDept})&&trashedTasks.length>0&&<button onClick={()=>setShowTrash(true)} style={{background:"#fef2f2",color:"#dc2626",border:"1px solid #fecaca",borderRadius:8,padding:"5px 8px",fontSize:12,cursor:"pointer"}}>🗑️ {trashedTasks.length}</button>}
-            {view==="employees"&&canCreate&&<button onClick={()=>openCreateEmp(empDeptTab)} style={{background:"#0ea5e9",color:"#fff",border:"none",borderRadius:8,padding:isMobile?"5px 10px":"6px 14px",fontSize:isMobile?12:13,cursor:"pointer"}}>+ NV</button>}
+            {view==="employees"&&["admin","director"].includes(currentUser?.role)&&<button onClick={()=>openCreateEmp(empDeptTab)} style={{background:"#0ea5e9",color:"#fff",border:"none",borderRadius:8,padding:isMobile?"5px 10px":"6px 14px",fontSize:isMobile?12:13,cursor:"pointer"}}>+ NV</button>}
             {["dashboard","tasks","calendar"].includes(view)&&(canCreate||canSelfCreate)&&<button onClick={openCreateTask} style={{background:"#4f46e5",color:"#fff",border:"none",borderRadius:8,padding:isMobile?"5px 10px":"6px 14px",fontSize:isMobile?12:13,cursor:"pointer"}}>+ {canCreate?"Tạo việc":"Tự tạo việc"}</button>}
             {/* Mobile: đổi MK + đăng xuất */}
             {isMobile&&(canCreate||isDelegationAdmin)&&<button onClick={openDelegationModal} style={{background:"none",border:"1px solid #e5e7eb",borderRadius:7,padding:"5px 8px",cursor:"pointer",fontSize:13}} title="Ủy quyền duyệt">🤝</button>}
@@ -885,7 +885,7 @@ export default function App() {
           {/* QL NHÂN SỰ */}
           {view==="employees"&&(
             <Personnel
-              isMobile={isMobile} inp={inp} meName={currentUser?.full_name}
+              isMobile={isMobile} inp={inp} meName={currentUser?.full_name} meId={currentUser?.employee_id} canManageHR={["admin","director"].includes(currentUser?.role)}
               canSeeAll={canSeeAll} canCreate={canCreate} isAdmin={isAdmin}
               userDept={userDept}
               empDeptTab={empDeptTab} setEmpDeptTab={setEmpDeptTab}

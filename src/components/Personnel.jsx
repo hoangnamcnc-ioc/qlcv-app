@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { DEPTS, DEPT_COLOR, deptLabel } from "../constants";
 import Employees from "./Employees";
 
@@ -31,14 +31,18 @@ function Bars({ data, color = "#6366f1" }) {
 const lbl = { fontSize: 11.5, color: "#6b7280", display: "block", marginBottom: 3 };
 
 export default function Personnel(props) {
-  const { employees, computed, canCreate, isAdmin, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, deptRows, addDept, updateDept, deleteDept } = props;
-  const canDept = canManageDept ?? isAdmin; // Admin hoặc Ban Giám đốc quản lý cơ cấu phòng/ban
-  const [tab, setTab] = useState("workload");
-  const canEditHr = canCreate; // Trưởng phòng+ mới sửa hồ sơ
+  const { employees, computed, canManageHR, meId, isAdmin, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, deptRows, addDept, updateDept, deleteDept } = props;
+  // CHỈ Admin/Giám đốc được thêm–sửa–xóa & quản lý cơ cấu. Người khác chỉ XEM hồ sơ của CHÍNH MÌNH.
+  const canDept = !!canManageHR; // quản lý phòng/ban
+  const [tab, setTab] = useState(canManageHR ? "workload" : "profile");
+  const canEditHr = !!canManageHR;
 
   const inp = { padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 13, background: "#fff", color: "#111", width: "100%", boxSizing: "border-box" };
   const card = { background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 };
-  const TABS = [["workload", "📋 Khối lượng việc"], ["profile", "👤 Hồ sơ nhân sự"], ["stats", "📊 Cơ cấu nhân sự"], ...(canDept ? [["depts", "🏢 Phòng/Ban"]] : [])];
+  // Người thường: chỉ 1 tab "Hồ sơ của tôi" (xem thông tin của chính mình). Admin/GĐ: đầy đủ.
+  const TABS = canManageHR
+    ? [["workload", "📋 Khối lượng việc"], ["profile", "👤 Hồ sơ nhân sự"], ["stats", "📊 Cơ cấu nhân sự"], ["depts", "🏢 Phòng/Ban"]]
+    : [["profile", "👤 Hồ sơ của tôi"]];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -48,9 +52,9 @@ export default function Personnel(props) {
         ))}
       </div>
 
-      {tab === "workload" && <Employees {...props} />}
-      {tab === "profile" && <ProfileTab {...{ employees, computed, canEditHr, canManageDept: canDept, isAdmin, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName }} />}
-      {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} />}
+      {tab === "workload" && canManageHR && <Employees {...props} canCreate={true} isAdmin={true} />}
+      {tab === "profile" && <ProfileTab {...{ employees, computed, canEditHr, canManageHR, meId, canManageDept: canDept, isAdmin, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName }} />}
+      {tab === "stats" && canManageHR && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} />}
       {tab === "depts" && canDept && <DeptTab {...{ deptRows, addDept, updateDept, deleteDept, deptAudit: props.deptAudit, deptOversight: props.deptOversight, setDeptOverseer: props.setDeptOverseer, employees, isMobile, inp, card }} />}
     </div>
   );
@@ -132,16 +136,18 @@ function DeptRow({ d, count, onSave, onDelete, inp, isMobile, bgd = [], overseer
 }
 
 // ── TAB HỒ SƠ ───────────────────────────────────────────────────────────────
-function ProfileTab({ employees, computed, canEditHr, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName }) {
-  const [selId, setSelId] = useState(null);
+function ProfileTab({ employees, computed, canEditHr, canManageHR, meId, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName }) {
+  const ownMode = !canManageHR; // Người thường: chỉ xem hồ sơ của CHÍNH MÌNH, chỉ đọc
+  const [selId, setSelId] = useState(ownMode ? meId : null);
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [xfer, setXfer] = useState(null); // { toDept, moveTasks } khi đang mở form chuyển phòng
 
-  const depts = canSeeAll ? DEPTS : userDept ? [userDept] : [];
-  const list = deptEmps(empDeptTab || depts[0]);
+  const depts = ownMode ? [] : (canSeeAll ? DEPTS : userDept ? [userDept] : []);
+  const list = ownMode ? (employees || []).filter(e => e.id === meId) : deptEmps(empDeptTab || depts[0]);
   const sel = employees.find(e => e.id === selId);
+  useEffect(() => { if (ownMode && meId && selId !== meId) setSelId(meId); }, [ownMode, meId]);
 
   const open = emp => { setSelId(emp.id); const hr = getHr(emp); setDraft({ ...hr, rewards: hr.rewards || [], leaves: hr.leaves || [] }); setSaved(false); };
   const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
