@@ -149,6 +149,18 @@ export default function App() {
   const getEmp=id=>(employees||[]).find(e=>e.id===id);
   // Tên lãnh đạo phòng có thẩm quyền DUYỆT (Trưởng phòng; nếu không có thì Phó trưởng phòng).
   const deptLeaderName=dept=>{const list=(employees||[]).filter(e=>e.dept===dept);const tp=list.find(e=>e.role==="Trưởng phòng");if(tp)return tp.name;const pp=list.find(e=>e.role==="Phó trưởng phòng");return pp?pp.name+" (Phó phòng)":"chưa có lãnh đạo phòng";};
+  // Chuyển 1 nhân sự sang phòng khác: ghi NHẬT KÝ (hr._audit) + tùy chọn chuyển luôn các việc ĐANG MỞ sang phòng mới.
+  const transferEmployeeDept=async(empId,newDept,moveOpenTasks)=>{
+    const emp=getEmp(empId); if(!emp||!newDept||emp.dept===newDept) return;
+    const oldDept=emp.dept;
+    let hr=emp.hr; if(typeof hr==="string"){try{hr=JSON.parse(hr);}catch{hr={};}} if(!hr||typeof hr!=="object")hr={};
+    const audit=[...(hr._audit||[]),{by:currentUser?.full_name||"—",at:new Date().toLocaleString("vi-VN"),action:`Chuyển phòng ${oldDept} → ${newDept}`}].slice(-20);
+    const ok=await updateEmployee(empId,{dept:newDept,hr:{...hr,_audit:audit}});
+    if(ok===false)return;
+    let moved=0;
+    if(moveOpenTasks){const open=(tasks||[]).filter(t=>!t.deleted&&!t.pending_create&&t.eid===empId&&!isCompletedStatus(getStatus(t)));for(const t of open){const r=await updateTask(t.id,{dept:newDept},`Chuyển phòng theo nhân sự: ${oldDept} → ${newDept}`,{silent:true});if(r)moved++;}}
+    showToast(`Đã chuyển ${emp.name}: ${oldDept} → ${newDept}${moveOpenTasks?` (kèm ${moved} việc đang mở)`:""}`);
+  };
 
   // ── Bàn giao hàng loạt: khi nhân viên nghỉ phép dài/nghỉ việc, chuyển toàn bộ việc đang mở sang người khác 1 lần,
   // thay vì phải mở từng nhiệm vụ để chuyển tiếp — vẫn ghi lịch sử đầy đủ trên từng nhiệm vụ như chuyển tiếp thường.
@@ -873,6 +885,7 @@ export default function App() {
               openCreateEmp={openCreateEmp} openEditEmp={openEditEmp}
               deleteEmployee={deleteEmployee} updateEmployee={updateEmployee}
               deptRows={deptRows} addDept={addDept} updateDept={updateDept} deleteDept={deleteDept} deptAudit={deptAudit}
+              transferDept={transferEmployeeDept}
               canManageDept={["admin","director"].includes(currentUser?.role)}
             />
           )}

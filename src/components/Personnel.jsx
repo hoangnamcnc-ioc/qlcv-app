@@ -31,7 +31,7 @@ function Bars({ data, color = "#6366f1" }) {
 const lbl = { fontSize: 11.5, color: "#6b7280", display: "block", marginBottom: 3 };
 
 export default function Personnel(props) {
-  const { employees, canCreate, isAdmin, canManageDept, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, deptRows, addDept, updateDept, deleteDept } = props;
+  const { employees, computed, canCreate, isAdmin, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, deptRows, addDept, updateDept, deleteDept } = props;
   const canDept = canManageDept ?? isAdmin; // Admin hoặc Ban Giám đốc quản lý cơ cấu phòng/ban
   const [tab, setTab] = useState("workload");
   const canEditHr = canCreate; // Trưởng phòng+ mới sửa hồ sơ
@@ -49,7 +49,7 @@ export default function Personnel(props) {
       </div>
 
       {tab === "workload" && <Employees {...props} />}
-      {tab === "profile" && <ProfileTab {...{ employees, canEditHr, isAdmin, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName }} />}
+      {tab === "profile" && <ProfileTab {...{ employees, computed, canEditHr, canManageDept: canDept, isAdmin, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName }} />}
       {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} />}
       {tab === "depts" && canDept && <DeptTab {...{ deptRows, addDept, updateDept, deleteDept, deptAudit: props.deptAudit, employees, isMobile, inp, card }} />}
     </div>
@@ -118,11 +118,12 @@ function DeptRow({ d, count, onSave, onDelete, inp, isMobile }) {
 }
 
 // ── TAB HỒ SƠ ───────────────────────────────────────────────────────────────
-function ProfileTab({ employees, canEditHr, canSeeAll, userDept, updateEmployee, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName }) {
+function ProfileTab({ employees, computed, canEditHr, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName }) {
   const [selId, setSelId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [xfer, setXfer] = useState(null); // { toDept, moveTasks } khi đang mở form chuyển phòng
 
   const depts = canSeeAll ? DEPTS : userDept ? [userDept] : [];
   const list = deptEmps(empDeptTab || depts[0]);
@@ -183,9 +184,33 @@ function ProfileTab({ employees, canEditHr, canSeeAll, userDept, updateEmployee,
           <div style={card}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
               <div style={{ fontSize: 15, fontWeight: 700 }}>{sel.name} <span style={{ fontSize: 12, fontWeight: 400, color: "#6b7280" }}>· {sel.role} · {deptLabel(sel.dept)}</span></div>
-              {canEditHr && <button onClick={save} disabled={saving} style={{ background: saved ? "#16a34a" : "#4f46e5", color: "#fff", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{saving ? "Đang lưu…" : saved ? "✓ Đã lưu" : "💾 Lưu hồ sơ"}</button>}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {canManageDept && transferDept && <button onClick={() => setXfer({ toDept: (DEPTS.find(d => d !== sel.dept) || ""), moveTasks: false })} style={{ background: "#fff", color: "#0891b2", border: "1px solid #a5f3fc", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>🔀 Chuyển phòng</button>}
+                {canEditHr && <button onClick={save} disabled={saving} style={{ background: saved ? "#16a34a" : "#4f46e5", color: "#fff", border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{saving ? "Đang lưu…" : saved ? "✓ Đã lưu" : "💾 Lưu hồ sơ"}</button>}
+              </div>
             </div>
-            {(draft._audit || []).length > 0 && <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 10 }} title={(draft._audit || []).slice(-8).reverse().map(a => `${a.by} · ${a.at}`).join("\n")}>🕒 Cập nhật gần nhất: <b style={{ color: "#6b7280" }}>{draft._audit[draft._audit.length - 1].by}</b> lúc {draft._audit[draft._audit.length - 1].at} <span style={{ opacity: 0.7 }}>· {draft._audit.length} lần chỉnh sửa (di chuột để xem)</span></div>}
+            {xfer && (() => {
+              const openCount = (computed || []).filter(t => t.eid === sel.id && !["completed", "completed_late"].includes(t.status)).length;
+              const doXfer = async () => { await transferDept(sel.id, xfer.toDept, xfer.moveTasks); setXfer(null); };
+              return (
+                <div style={{ marginBottom: 12, padding: 12, background: "#ecfeff", border: "1px solid #a5f3fc", borderRadius: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0e7490", marginBottom: 8 }}>🔀 Chuyển {sel.name} sang phòng khác</div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+                    <span style={{ fontSize: 13 }}>{deptLabel(sel.dept)} →</span>
+                    <select value={xfer.toDept} onChange={e => setXfer(x => ({ ...x, toDept: e.target.value }))} style={{ ...inp, width: "auto" }}>{DEPTS.filter(d => d !== sel.dept).map(d => <option key={d} value={d}>{deptLabel(d)}</option>)}</select>
+                  </div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#374151", cursor: "pointer", marginBottom: 10 }}>
+                    <input type="checkbox" checked={xfer.moveTasks} onChange={e => setXfer(x => ({ ...x, moveTasks: e.target.checked }))} style={{ width: 15, height: 15 }} />
+                    Chuyển luôn <b>{openCount}</b> việc đang mở sang phòng mới <span style={{ color: "#9ca3af" }}>(việc đã xong giữ nguyên phòng cũ)</span>
+                  </label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={doXfer} style={{ background: "#0891b2", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Xác nhận chuyển</button>
+                    <button onClick={() => setXfer(null)} style={{ background: "none", color: "#6b7280", border: "1px solid #d1d5db", borderRadius: 8, padding: "7px 14px", fontSize: 13, cursor: "pointer" }}>Hủy</button>
+                  </div>
+                </div>
+              );
+            })()}
+            {(draft._audit || []).length > 0 && <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 10 }} title={(draft._audit || []).slice(-8).reverse().map(a => `${a.action ? a.action + " — " : ""}${a.by} · ${a.at}`).join("\n")}>🕒 Cập nhật gần nhất: <b style={{ color: "#6b7280" }}>{draft._audit[draft._audit.length - 1].by}</b> lúc {draft._audit[draft._audit.length - 1].at} <span style={{ opacity: 0.7 }}>· {draft._audit.length} lần chỉnh sửa (di chuột để xem)</span></div>}
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 10 }}>
               {F({ k: "dob", label: "Ngày sinh", type: "date" })}
               {F({ k: "gender", label: "Giới tính", opts: [{ v: "", t: "—" }, { v: "nam", t: "Nam" }, { v: "nu", t: "Nữ" }] })}
