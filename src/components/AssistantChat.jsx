@@ -305,9 +305,10 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     const q = (text ?? input).trim(); if (!q) return; setShowAc(false); setInput("");
     if (!aiEnabled) { setAiMsgs(m => [...m, { who: "me", text: q }, { who: "bot", text: "⚠️ Trợ lý AI chưa được bật (máy chủ chưa cấu hình VITE_AI_PROXY_URL). Bạn vẫn dùng tab 📊 Tra cứu nội bộ bình thường." }]); return; }
     bumpFreq(q);
-    // 1) Thử tra dữ liệu công việc TẠI CHỖ. Nếu nhận ra ý rõ ràng (không "unsure") → dùng luôn, khỏi gọi AI.
+    // 1) Chỉ tra TẠI CHỖ khi là câu DỮ LIỆU công việc thật (có kết quả tra cứu). KHÔNG chặn bằng "hướng dẫn phần mềm"
+    //    hay "chưa rõ ý" — để câu chung ("cách…", kiến thức, tư vấn) đi thẳng tới AI trả lời đầy đủ.
     const local = answer(q);
-    if (!local.unsure) { setAiMsgs(m => [...m, { who: "me", text: q }, { who: "bot", ...local, intent: answerKind(local) }]); return; }
+    if (!local.unsure && !local.guide && !local.clarify) { setAiMsgs(m => [...m, { who: "me", text: q }, { who: "bot", ...local, intent: answerKind(local) }]); return; }
     // 2) Còn lại → AI trả lời tự do (soạn thảo, tư vấn, kiến thức chung, dịch, tóm tắt…).
     setAiMsgs(m => [...m, { who: "me", text: q }, { who: "bot", text: "⏳ Đang hỏi AI…", pending: true }]);
     const hist = aiMsgs.slice(-8).filter(mm => mm.text && !mm.pending).map(mm => ({ role: mm.who === "me" ? "user" : "model", text: mm.text }));
