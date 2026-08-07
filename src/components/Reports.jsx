@@ -16,8 +16,10 @@ export default function Reports({
   leaderboard, managerBoard, managerLeaderboard,
   lateReasonStats,
   getEmp, setModal, loadComments, deptLeaderName, hideApprovers,
-  canExec, computed, monthlyScores, snapshotMonth, syncManagerSnapshots, currentUser, overloadThreshold, kpiOnTime,
+  canExec, selfOnly = false, myEid, computed, monthlyScores, snapshotMonth, syncManagerSnapshots, currentUser, overloadThreshold, kpiOnTime,
 }) {
+  // Nhân viên thường (selfOnly): chỉ xem KẾT QUẢ CỦA CHÍNH MÌNH, không thấy bảng/điểm của người khác.
+  if (selfOnly) repEmpData = (repEmpData || []).filter(e => e.id === myEid);
   const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm (tháng)
   const [whyYear, setWhyYear] = useState(null); // nhân viên đang xem giải thích điểm (năm/xếp hạng)
   const [whyMgr, setWhyMgr] = useState(null); // quản lý đang xem giải thích điểm điều hành (tháng hoặc năm)
@@ -27,7 +29,7 @@ export default function Reports({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", gap: 8, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 8, overflowX: "auto" }}>
-        {[["monthly","📅 Tháng"],["leaderboard","🏆 Xếp hạng"],["catalog","📋 Danh mục việc"],["late_reasons","📊 Nguyên nhân trễ"],...(canExec?[["grading","📑 Xếp loại"],["exec","🏛️ Điều hành"],["kq_nv","📄 KQ nhiệm vụ"]]:[])].map(([id, label]) => (
+        {(selfOnly ? [["monthly","📅 Kết quả của tôi"]] : [["monthly","📅 Tháng"],["leaderboard","🏆 Xếp hạng"],["catalog","📋 Danh mục việc"],["late_reasons","📊 Nguyên nhân trễ"],...(canExec?[["grading","📑 Xếp loại"],["exec","🏛️ Điều hành"],["kq_nv","📄 KQ nhiệm vụ"]]:[])]).map(([id, label]) => (
           <button key={id} onClick={() => setRepTab(id)} style={{ flex: 1, padding: "7px 8px", border: "none", borderRadius: 7, background: repTab === id ? "#4f46e5" : "transparent", color: repTab === id ? "#fff" : "#6b7280", cursor: "pointer", fontSize: isMobile ? 11 : 13, fontWeight: repTab === id ? 600 : 400, whiteSpace: "nowrap" }}>{label}</button>
         ))}
       </div>
@@ -43,7 +45,7 @@ export default function Reports({
           <select value={repYear} onChange={e => setRepYear(Number(e.target.value))} style={{ ...inp, width: 90, padding: "6px 10px" }}>{[2023,2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
           <span style={{ fontSize: 13, color: "#6b7280" }}>{repTasks.length} nhiệm vụ</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(5,1fr)", gap: 12 }}>
+        {!selfOnly && <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(5,1fr)", gap: 12 }}>
           {[{label:"Tổng",val:repStats.total,sub:repStats.totalW,prev:repStatsPrev?.total,bg:"#eef2ff",col:"#4338ca",icon:"📋",goodUp:null},{label:"Hoàn thành",val:repStats.done,sub:repStats.doneW,prev:repStatsPrev?.done,bg:"#dcfce7",col:"#15803d",icon:"✅",goodUp:true},{label:"Quá hạn",val:repStats.over,sub:repStats.overW,prev:repStatsPrev?.over,bg:"#fee2e2",col:"#b91c1c",icon:"❌",goodUp:false},{label:"HT quá hạn",val:repStats.completedLate,sub:repStats.completedLateW,prev:repStatsPrev?.completedLate,bg:"#fff1f2",col:"#991b1b",icon:"⏰",goodUp:false},{label:"Tỷ lệ HT",val:repStats.rate+"%",sub:repStats.rateW+"%",prev:repStatsPrev?.rate,cur:repStats.rate,pct:true,bg:"#fef9c3",col:"#92400e",icon:"⭐",goodUp:true}].map(c => {
             const curN = c.pct ? c.cur : c.val;
             const hasPrev = repStatsPrev && c.prev != null;
@@ -61,8 +63,8 @@ export default function Reports({
               {c.pct && kpiOnTime != null && <div style={{ fontSize: 10.5, marginTop: 3, fontWeight: 700, color: repStats.rate >= kpiOnTime ? "#15803d" : "#b91c1c" }}>🎯 Chỉ tiêu {kpiOnTime}%: {repStats.rate >= kpiOnTime ? "Đạt" : "Chưa đạt"}</div>}
             </div>
           );})}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
+        </div>}
+        {!selfOnly && <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
               <span style={{ fontWeight: 600, fontSize: 13 }}>Hiệu suất phòng ban</span>
@@ -81,7 +83,7 @@ export default function Reports({
             </div>
             <ResponsiveContainer width="100%" height={180}><LineChart data={repMonthTrend}><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} allowDecimals={isW} /><Tooltip /><Line type="monotone" dataKey={isW?"totalW":"total"} name="Tổng" stroke="#94a3b8" strokeWidth={2} dot={false} /><Line type="monotone" dataKey={isW?"doneW":"done"} name="HT" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} /></LineChart></ResponsiveContainer>
           </div>
-        </div>
+        </div>}
         {repEmpData.length > 0 && (
           <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
             <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
@@ -98,7 +100,7 @@ export default function Reports({
               <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                 {repEmpData.map((e, idx) => {
                   const eligibleRank = e.eligible ? repEmpData.filter(x => x.eligible).findIndex(x => x.id === e.id) : -1;
-                  const medal = eligibleRank === 0 ? "🥇" : eligibleRank === 1 ? "🥈" : eligibleRank === 2 ? "🥉" : "";
+                  const medal = selfOnly ? "" : eligibleRank === 0 ? "🥇" : eligibleRank === 1 ? "🥈" : eligibleRank === 2 ? "🥉" : "";
                   return (
                     <div key={e.id} style={{ padding: "12px 14px", borderBottom: "1px solid #f3f4f6", opacity: e.eligible ? 1 : 0.65 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -134,7 +136,7 @@ export default function Reports({
                   <thead><tr style={{ background: "#f9fafb" }}>{["","Nhân viên","Phòng","Tổng","HT","HT quá hạn","QH","Chưa đến hạn","Phối hợp","Điểm hiệu suất"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{h}</th>)}</tr></thead>
                   <tbody>{repEmpData.map(e => {
                     const eligibleRank = e.eligible ? repEmpData.filter(x => x.eligible).findIndex(x => x.id === e.id) : -1;
-                    const medal = eligibleRank === 0 ? "🥇" : eligibleRank === 1 ? "🥈" : eligibleRank === 2 ? "🥉" : "";
+                    const medal = selfOnly ? "" : eligibleRank === 0 ? "🥇" : eligibleRank === 1 ? "🥈" : eligibleRank === 2 ? "🥉" : "";
                     return (
                       <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6", background: medal ? "#f0fdf4" : "#fff", opacity: e.eligible ? 1 : 0.6 }}>
                         <td style={{ padding: "9px 12px", fontSize: 16 }}>{medal}</td>
@@ -163,7 +165,7 @@ export default function Reports({
             )}
           </div>
         )}
-        <ManagerBoard data={managerBoard} isMobile={isMobile} onWhy={setWhyMgr} />
+        {!selfOnly && <ManagerBoard data={managerBoard} isMobile={isMobile} onWhy={setWhyMgr} />}
       </>)}
 
       {repTab === "leaderboard" && (<>
