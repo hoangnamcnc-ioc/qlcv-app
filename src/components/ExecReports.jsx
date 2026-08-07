@@ -552,51 +552,45 @@ export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
 const normTitle = s => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
 export function CatalogTab({ isMobile, inp, computed, getEmp, repMonth, setRepMonth, repYear, setRepYear }) {
   const [dept, setDept] = useState(DEPTS[0] || "__all");
-  const rows = useMemo(() => {
+  // Gộp theo tên → mỗi đầu việc 1 dòng; đánh dấu "recurring" nếu có nhiệm vụ tự sinh từ mẫu định kỳ (template_id/🔄).
+  const { regular, recurring } = useMemo(() => {
     const inMonth = t => { const d = new Date(t.deadline); return !isNaN(d) && d.getFullYear() === repYear && d.getMonth() === repMonth; };
     const list = (computed || []).filter(t => (dept === "__all" || t.dept === dept) && inMonth(t));
     const map = new Map();
     for (const t of list) {
       const k = normTitle(t.title); if (!k) continue;
       let r = map.get(k);
-      if (!r) { r = { title: (t.title || "").trim(), count: 0, people: new Set(), done: 0, over: 0, pending: 0, active: 0 }; map.set(k, r); }
+      if (!r) { r = { title: (t.title || "").trim(), count: 0, people: new Set(), done: 0, over: 0, pending: 0, active: 0, recurring: false }; map.set(k, r); }
       r.count++;
+      if (t.template_id || /^🔄/.test((t.title || "").trim())) r.recurring = true;
       const nm = getEmp?.(t.eid)?.name; if (nm) r.people.add(nm);
       if (isCompletedStatus(t.status)) r.done++;
       else if (t.status === "overdue" || t.status === "completed_late") r.over++;
       else if (t.status === "pending_approval") r.pending++;
       else r.active++;
     }
-    return [...map.values()].sort((a, b) => b.count - a.count || a.title.localeCompare(b.title));
+    const all = [...map.values()].sort((a, b) => b.count - a.count || a.title.localeCompare(b.title));
+    return { regular: all.filter(r => !r.recurring), recurring: all.filter(r => r.recurring) };
   }, [computed, dept, repMonth, repYear, getEmp]);
-  const totalTasks = rows.reduce((s, r) => s + r.count, 0);
+  const nTasks = arr => arr.reduce((s, r) => s + r.count, 0);
   const exportCsv = () => {
-    const header = ["STT", "Tên công việc", "Số việc", "Người thực hiện", "Đã hoàn thành", "Trễ/Quá hạn", "Chờ duyệt", "Đang làm"];
-    const lines = rows.map((r, i) => [i + 1, r.title, r.count, [...r.people].join("; "), r.done, r.over, r.pending, r.active]);
+    const header = ["STT", "Loại", "Tên công việc", "Số lần", "Người thực hiện", "Đã hoàn thành", "Trễ/Quá hạn", "Chờ duyệt", "Đang làm"];
+    const all = [...regular.map(r => ({ ...r, loai: "Thường" })), ...recurring.map(r => ({ ...r, loai: "Định kỳ" }))];
+    const lines = all.map((r, i) => [i + 1, r.loai, r.title, r.count, [...r.people].join("; "), r.done, r.over, r.pending, r.active]);
     const csv = "﻿" + [header, ...lines].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     const a = document.createElement("a"); a.href = url; a.download = `danh-muc-cong-viec-${dept === "__all" ? "tat-ca" : dept}-T${repMonth + 1}-${repYear}.csv`; a.click(); URL.revokeObjectURL(url);
   };
   const th = { padding: "8px 10px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" };
   const td = { padding: "8px 10px", fontSize: 13, borderBottom: "1px solid #f3f4f6", verticalAlign: "top" };
-  return (
-    <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 16 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, fontSize: 14 }}>📋 Danh mục công việc</div>
-        <select value={dept} onChange={e => setDept(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}>
-          <option value="__all">Tất cả phòng</option>{DEPTS.map(d => <option key={d} value={d}>{deptLabel(d)}</option>)}
-        </select>
-        <select value={repMonth} onChange={e => setRepMonth(Number(e.target.value))} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}>{VI_MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
-        <select value={repYear} onChange={e => setRepYear(Number(e.target.value))} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}>{[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#6b7280" }}><b style={{ color: "#4338ca" }}>{rows.length}</b> đầu việc · {totalTasks} nhiệm vụ</span>
-        {rows.length > 0 && <button onClick={exportCsv} style={{ border: "1px solid #c7d2fe", background: "#eef2ff", color: "#4338ca", borderRadius: 8, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>⬇ Xuất CSV</button>}
-      </div>
-      <div style={{ fontSize: 11.5, color: "#9ca3af", marginBottom: 10 }}>Gộp các nhiệm vụ CÙNG TÊN thành 1 đầu việc (theo hạn chót trong tháng). Nhiệm vụ định kỳ / lặp lại chỉ hiện 1 dòng, kèm số lần.</div>
+  const renderGroup = (title, list, color) => (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 6 }}>{title} <span style={{ fontSize: 11.5, fontWeight: 400, color: "#9ca3af" }}>· {list.length} đầu việc · {nTasks(list)} nhiệm vụ</span></div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
-          <thead><tr style={{ background: "#f9fafb" }}>{["#", "Tên công việc", "Số việc", "Người thực hiện", "Tình trạng"].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+          <thead><tr style={{ background: "#f9fafb" }}>{["#", "Tên công việc", "Số lần", "Người thực hiện", "Tình trạng"].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
           <tbody>
-            {rows.length === 0 ? <tr><td style={td} colSpan={5}><span style={{ color: "#9ca3af" }}>Không có công việc nào trong kỳ này.</span></td></tr> : rows.map((r, i) => (
+            {list.length === 0 ? <tr><td style={td} colSpan={5}><span style={{ color: "#9ca3af" }}>Không có.</span></td></tr> : list.map((r, i) => (
               <tr key={i}>
                 <td style={{ ...td, color: "#9ca3af" }}>{i + 1}</td>
                 <td style={{ ...td, fontWeight: 500 }}>{r.title}{r.count > 1 && <span style={{ marginLeft: 6, fontSize: 11, background: "#eef2ff", color: "#4338ca", padding: "1px 7px", borderRadius: 8 }}>×{r.count}</span>}</td>
@@ -613,6 +607,26 @@ export function CatalogTab({ isMobile, inp, computed, getEmp, repMonth, setRepMo
           </tbody>
         </table>
       </div>
+    </div>
+  );
+  const empty = regular.length === 0 && recurring.length === 0;
+  return (
+    <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 16 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontWeight: 700, fontSize: 14 }}>📋 Danh mục công việc</div>
+        <select value={dept} onChange={e => setDept(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}>
+          <option value="__all">Tất cả phòng</option>{DEPTS.map(d => <option key={d} value={d}>{deptLabel(d)}</option>)}
+        </select>
+        <select value={repMonth} onChange={e => setRepMonth(Number(e.target.value))} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}>{VI_MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
+        <select value={repYear} onChange={e => setRepYear(Number(e.target.value))} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12 }}>{[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "#6b7280" }}><b style={{ color: "#4338ca" }}>{regular.length + recurring.length}</b> đầu việc · {nTasks(regular) + nTasks(recurring)} nhiệm vụ</span>
+        {!empty && <button onClick={exportCsv} style={{ border: "1px solid #c7d2fe", background: "#eef2ff", color: "#4338ca", borderRadius: 8, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>⬇ Xuất CSV</button>}
+      </div>
+      <div style={{ fontSize: 11.5, color: "#9ca3af", marginBottom: 4 }}>Gộp các nhiệm vụ CÙNG TÊN thành 1 đầu việc (theo hạn chót trong tháng), kèm số lần ×N. Tách riêng việc thường & việc định kỳ.</div>
+      {empty ? <div style={{ padding: 20, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>Không có công việc nào trong kỳ này.</div> : (<>
+        {renderGroup("📌 Việc thường (phát sinh/được giao)", regular, "#b45309")}
+        {renderGroup("🔄 Việc định kỳ", recurring, "#4338ca")}
+      </>)}
     </div>
   );
 }
