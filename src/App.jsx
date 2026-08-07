@@ -266,14 +266,11 @@ export default function App() {
     if(!currentUser)return;
     if(background)setRefreshing(true);else setLoading(true);
     try{
-      // GIẢM LỘ DỮ LIỆU (chờ RLS đúng bài): tải nhân viên TRƯỚC để biết phòng người dùng, rồi lọc tasks TẠI MÁY CHỦ.
-      // Nhân viên thường CHỈ tải về việc họ được phép xem (đúng bằng canSeeTask: cùng phòng / được giao / phối hợp)
-      // → không còn tải toàn bộ việc mọi phòng về trình duyệt. Quản lý/BGĐ giữ nguyên (cần dữ liệu điều hành/ủy quyền).
+      // MỌI VAI TRÒ tải TOÀN BỘ công việc để báo cáo/biểu đồ/danh sách khớp nhau (Nhân viên xem như Giám đốc,
+      // phục vụ đối chiếu/so sánh). Ranh giới đọc thật sự sẽ do RLS đảm nhiệm (kế hoạch 2/9). Ghi/duyệt vẫn
+      // được kiểm soát riêng theo vai trò (canEditTask/isAssigner/isDeptManagerOf...).
       const{data:ed}=await supabase.from("employees").select("*").order("dept");
-      const isStaff=!["admin","director","manager","deputy_manager","manager_hcth"].includes(currentUser.role);
-      const myDept=(ed||[]).find(e=>e.id===currentUser.employee_id)?.dept||null;
-      let tasksQ=supabase.from("tasks").select("*").order("created",{ascending:false});
-      if(isStaff&&currentUser.employee_id){const eid=currentUser.employee_id;const c=[`eid.eq.${eid}`,`collab_eids.ilike.*"${eid}"*`];if(myDept)c.push(`dept.eq.${myDept}`);tasksQ=tasksQ.or(c.join(","));}
+      const tasksQ=supabase.from("tasks").select("*").order("created",{ascending:false});
       const[{data:td},{data:ud},{data:rtd},{data:otd},{data:pjd},{data:scd},{data:cmd},{data:dgd},{data:msd}]=await Promise.all([tasksQ,supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false}),supabase.from("projects").select("id,name,dept,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time,deadline,ext_proposed,ext_reason,ext_requested_by,ext_requested_at"),supabase.from("support_cases").select("id,eid,collab_eids,difficulty,created,content,category").eq("deleted",false),supabase.from("comments").select("task_id,user_name,created_at"),supabase.from("approval_delegations").select("*").order("start_date",{ascending:false}),supabase.from("monthly_scores").select("*")]);
       if(!ed||ed.length===0){if(!background){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}}else setEmployees(ed);
       setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);setProjectsForScoring(pjd||[]);setSupportCasesForScoring(scd||[]);setAllComments(cmd||[]);setDelegations(dgd||[]);setMonthlyScores(msd||[]);
