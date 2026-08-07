@@ -287,25 +287,21 @@ export default function AssistantChat({ employees, computed, calcMonthPerf, mana
     ans = finalizeUnsure(q, ans);
     setMsgs(m => [...m, { who: "me", text: q }, { who: "bot", ...ans, q, intent: ans.intent || answerKind(ans) }]);
   };
-  // Tab "Trợ lý AI": LUÔN gửi thẳng cho Gemini (kiểu lai — nếu là câu dữ liệu thì tra tại chỗ & tự học ngầm).
+  // Tab "Trợ lý AI": câu hỏi DỮ LIỆU công việc → tra TẠI CHỖ (nhanh, không tốn quota). MỌI câu còn lại → gửi
+  // Gemini ở chế độ TRẢ LỜI TỰ DO (đầy đủ, không bị "đóng khung" bóc slots) — dùng như một trợ lý AI đa năng.
   const sendAI = async (text) => {
     const q = (text ?? input).trim(); if (!q) return; setShowAc(false); setInput("");
     if (!aiEnabled) { setAiMsgs(m => [...m, { who: "me", text: q }, { who: "bot", text: "⚠️ Trợ lý AI chưa được bật (máy chủ chưa cấu hình VITE_AI_PROXY_URL). Bạn vẫn dùng tab 📊 Tra cứu nội bộ bình thường." }]); return; }
     bumpFreq(q);
+    // 1) Thử tra dữ liệu công việc TẠI CHỖ. Nếu nhận ra ý rõ ràng (không "unsure") → dùng luôn, khỏi gọi AI.
+    const local = answer(q);
+    if (!local.unsure) { setAiMsgs(m => [...m, { who: "me", text: q }, { who: "bot", ...local, intent: answerKind(local) }]); return; }
+    // 2) Còn lại → AI trả lời tự do (soạn thảo, tư vấn, kiến thức chung, dịch, tóm tắt…).
     setAiMsgs(m => [...m, { who: "me", text: q }, { who: "bot", text: "⏳ Đang hỏi AI…", pending: true }]);
-    const hist = aiMsgs.slice(-6).filter(mm => mm.text && !mm.pending).map(mm => ({ role: mm.who === "me" ? "user" : "model", text: mm.text }));
-    const ai = await parseWithAI(q, hist);
-    let ans;
-    if (ai && ai.slots) {
-      const routed = answer(q, ai.slots);
-      if (!routed.unsure) { ans = { ...routed, viaAI: true }; learnRoute(q, ai.slots, routed); }
-      else ans = { text: "Mình hiểu đây là câu hỏi về dữ liệu công việc nhưng chưa tra được kết quả phù hợp. Bạn thử diễn đạt rõ hơn, hoặc hỏi ở tab 📊 Tra cứu nội bộ nhé.", viaAI: true };
-    } else if (ai && ai.answer) {
-      ans = { text: ai.answer, viaAI: true };
-    } else {
-      ans = { text: "⚠️ AI đang bận hoặc đã hết lượt miễn phí trong giây lát. Bạn thử lại sau một chút nhé." };
-    }
-    setAiMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", ...ans, intent: ans.intent || answerKind(ans) }; return c; });
+    const hist = aiMsgs.slice(-8).filter(mm => mm.text && !mm.pending).map(mm => ({ role: mm.who === "me" ? "user" : "model", text: mm.text }));
+    const ai = await parseWithAI(q, hist, { freeform: true });
+    const ans = (ai && ai.answer) ? { text: ai.answer, viaAI: true } : { text: "⚠️ AI đang bận hoặc đã hết lượt miễn phí trong giây lát. Bạn thử lại sau một chút nhé." };
+    setAiMsgs(m => { const c = [...m]; c[c.length - 1] = { who: "bot", ...ans, intent: "text" }; return c; });
   };
   const speak = (m) => { try { const synth = window.speechSynthesis; if (!synth) return; synth.cancel(); const txt = [m.text, ...(m.list || []), ...((m.bars || []).map(b => `${b.label}: ${b.value}`))].join(". "); const u = new SpeechSynthesisUtterance(txt); u.lang = "vi-VN"; synth.speak(u); } catch { /* ignore */ } };
   // Ghi nhận phản hồi 👍 / 👎(+dạy lại) => bổ sung mẫu học & dựng lại mô hình ngay

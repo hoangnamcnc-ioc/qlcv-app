@@ -48,7 +48,7 @@ export async function parseWithAI(question, history, opts) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 22000); // đọc & đánh giá báo cáo dài cần lâu hơn
-    const hist = Array.isArray(history) ? history.filter(h => h && h.text).slice(-6).map(h => ({ role: h.role === "model" ? "model" : "user", text: String(h.text).slice(0, 600) })) : [];
+    const hist = Array.isArray(history) ? history.filter(h => h && h.text).slice(-8).map(h => ({ role: h.role === "model" ? "model" : "user", text: String(h.text).slice(0, 2000) })) : [];
     const res = await fetch(PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

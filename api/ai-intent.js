@@ -51,11 +51,17 @@ Ví dụ B: {"type":"answer","answer":"Để viết một email xin nghỉ phép
 // Cho phép hàm chạy tới 30s (đọc & đánh giá báo cáo dài) thay vì mặc định 10s của Vercel.
 export const maxDuration = 30;
 
-// Chế độ TRẢ LỜI TỰ DO (mode="answer"): dùng khi người dùng nhờ SOẠN/ĐÁNH GIÁ văn bản — luôn trả lời,
-// KHÔNG phân loại slots (tránh hiểu nhầm báo cáo thành câu tra cứu dữ liệu).
-const SYS_ANSWER = `Bạn là trợ lý công sở nhà nước (tiếng Việt). Hãy THỰC HIỆN yêu cầu của người dùng: soạn thảo,
-đánh giá/nhận xét văn bản, tóm tắt, giải thích, tư vấn... Trả lời đầy đủ, có bố cục rõ ràng, đúng mực.
-Trả về DUY NHẤT một object JSON dạng {"answer":"<nội dung trả lời, xuống dòng bằng \\n>"}. KHÔNG thêm gì ngoài JSON.`;
+// Chế độ TRẢ LỜI TỰ DO (mode="answer") — trợ lý AI đa năng. Trả VĂN BẢN THƯỜNG (không ép JSON) để không bị
+// cắt cụt/escaping, cho phép câu trả lời dài, giàu nội dung.
+const SYS_ANSWER = `Bạn là TRỢ LÝ AI thông minh, hữu ích cho cán bộ một cơ quan nhà nước Việt Nam.
+Hãy trả lời/THỰC HIỆN mọi yêu cầu của người dùng một cách ĐẦY ĐỦ, chính xác, có bố cục rõ ràng:
+soạn thảo văn bản (đơn, email, tờ trình, công văn, báo cáo, kế hoạch, thông báo…), đánh giá/góp ý, tóm tắt,
+dịch thuật, giải thích khái niệm, tư vấn nghiệp vụ, gợi ý cách làm, brainstorm, tính toán…
+Khi soạn văn bản hành chính, tuân thủ thể thức Việt Nam (quốc hiệu, tiêu ngữ, kính gửi, nội dung, nơi nhận, ký tên)
+và TỰ ĐIỀN MẪU chỗ còn thiếu (VD họ tên "Nguyễn Văn A", ngày "…/…/…", phòng "…"). Văn phong đúng mực công sở.
+Trả lời TRỰC TIẾP bằng văn bản thường (KHÔNG JSON, không rào đón thừa), xuống dòng tự nhiên. Dựa vào các lượt hội
+thoại trước để hiểu câu nối tiếp ("viết giúp đi", "ngắn gọn hơn", "dịch sang tiếng Anh", "làm tiếp"…).
+Chỉ từ chối khi yêu cầu vi phạm pháp luật/đạo đức; còn lại luôn cố gắng giúp hết sức.`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ slots: null }); return; }
@@ -76,26 +82,32 @@ export default async function handler(req, res) {
     const model = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
     // Ghép vài lượt hội thoại trước (nếu có) để AI hiểu câu nối tiếp; role chỉ nhận "user"/"model".
-    const hist = Array.isArray(body.history) ? body.history.filter(h => h && typeof h.text === "string" && h.text.trim()).slice(-6).map(h => ({ role: h.role === "model" ? "model" : "user", parts: [{ text: String(h.text).slice(0, 600) }] })) : [];
-    const contents = [...hist, { role: "user", parts: [{ text: String(question).slice(0, 14000) }] }]; // đủ chứa cả bản báo cáo cần đánh giá
     const answerMode = body.mode === "answer";
+    // Lịch sử hội thoại: chế độ trả lời cần ngữ cảnh dài hơn (giữ nhiều lượt & nhiều ký tự hơn).
+    const histCap = answerMode ? 2000 : 600;
+    const hist = Array.isArray(body.history) ? body.history.filter(h => h && typeof h.text === "string" && h.text.trim()).slice(-8).map(h => ({ role: h.role === "model" ? "model" : "user", parts: [{ text: String(h.text).slice(0, histCap) }] })) : [];
+    const contents = [...hist, { role: "user", parts: [{ text: String(question).slice(0, 14000) }] }]; // đủ chứa cả bản báo cáo cần đánh giá
+    // Chế độ trả lời: văn bản THƯỜNG, nhiệt độ cao (giàu ý), token cao (câu dài không cụt). Chế độ slots: JSON gọn, deterministic.
+    const genConfig = answerMode
+      ? { temperature: 0.7, topP: 0.95, maxOutputTokens: 8192 }
+      : { temperature: 0, maxOutputTokens: 512, responseMimeType: "application/json" };
     const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: answerMode ? SYS_ANSWER : SYS }] },
         contents,
-        generationConfig: { temperature: 0.2, maxOutputTokens: 2200, responseMimeType: "application/json" },
+        generationConfig: genConfig,
       }),
     });
     if (!r.ok) { const detail = await r.text().catch(() => ""); res.status(200).json({ slots: null, error: "gemini " + r.status, detail: detail.slice(0, 300) }); return; }
     const data = await r.json();
     const text = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+    // Chế độ trả lời tự do → trả THẲNG văn bản (không parse JSON nữa).
+    if (answerMode) { res.status(200).json({ answer: text }); return; }
     const m = text.match(/\{[\s\S]*\}/);
     let obj = null;
     if (m) { try { obj = JSON.parse(m[0]); } catch { obj = null; } }
-    // Chế độ trả lời tự do (SYS_ANSWER) → luôn là {"answer":"..."}. Nếu model lỡ trả text thô, dùng cả text đó.
-    if (answerMode) { const a = (obj && typeof obj.answer === "string" && obj.answer.trim()) ? obj.answer : text; res.status(200).json({ answer: a || "" }); return; }
     // Kết quả có thể là {type:"slots",slots:{...}} (câu về dữ liệu) hoặc {type:"answer",answer:"..."} (câu chung)
     if (obj && obj.type === "answer" && typeof obj.answer === "string") { res.status(200).json({ answer: obj.answer }); return; }
     const slots = obj && obj.slots ? obj.slots : obj; // chấp nhận cả dạng slots lồng hoặc phẳng (tương thích cũ)
