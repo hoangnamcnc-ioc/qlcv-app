@@ -33,16 +33,13 @@ const lbl = { fontSize: 11.5, color: "#6b7280", display: "block", marginBottom: 
 export default function Personnel(props) {
   const { employees, computed, canManageHR, meId, isAdmin, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, deptRows, addDept, updateDept, deleteDept } = props;
   // CHỈ Admin/Giám đốc được thêm–sửa–xóa & quản lý cơ cấu. Người khác chỉ XEM hồ sơ của CHÍNH MÌNH.
-  const canDept = !!canManageHR; // quản lý phòng/ban
-  const [tab, setTab] = useState(canManageHR ? "workload" : "profile");
+  const [tab, setTab] = useState("workload");
   const canEditHr = !!canManageHR;
 
   const inp = { padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 13, background: "#fff", color: "#111", width: "100%", boxSizing: "border-box" };
   const card = { background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 };
-  // Người thường: chỉ 1 tab "Hồ sơ của tôi" (xem thông tin của chính mình). Admin/GĐ: đầy đủ.
-  const TABS = canManageHR
-    ? [["workload", "📋 Khối lượng việc"], ["profile", "👤 Hồ sơ nhân sự"], ["stats", "📊 Cơ cấu nhân sự"], ["depts", "🏢 Phòng/Ban"]]
-    : [["profile", "👤 Hồ sơ của tôi"]];
+  // Mọi người XEM được các tab; chỉ Admin/Giám đốc mới thêm–sửa–xóa. Tab Hồ sơ: người thường chỉ xem của chính mình.
+  const TABS = [["workload", "📋 Khối lượng việc"], ["profile", canManageHR ? "👤 Hồ sơ nhân sự" : "👤 Hồ sơ của tôi"], ["stats", "📊 Cơ cấu nhân sự"], ["depts", "🏢 Phòng/Ban"]];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -52,17 +49,17 @@ export default function Personnel(props) {
         ))}
       </div>
 
-      {tab === "workload" && canManageHR && <Employees {...props} canCreate={true} isAdmin={true} />}
-      {tab === "profile" && <ProfileTab {...{ employees, computed, canEditHr, canManageHR, meId, canManageDept: canDept, isAdmin, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName }} />}
-      {tab === "stats" && canManageHR && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} />}
-      {tab === "depts" && canDept && <DeptTab {...{ deptRows, addDept, updateDept, deleteDept, deptAudit: props.deptAudit, deptOversight: props.deptOversight, setDeptOverseer: props.setDeptOverseer, employees, isMobile, inp, card }} />}
+      {tab === "workload" && <Employees {...props} canCreate={canManageHR} isAdmin={canManageHR} />}
+      {tab === "profile" && <ProfileTab {...{ employees, computed, canEditHr, canManageHR, meId, canManageDept: canManageHR, isAdmin, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName }} />}
+      {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} />}
+      {tab === "depts" && <DeptTab {...{ readOnly: !canManageHR, deptRows, addDept, updateDept, deleteDept, deptAudit: props.deptAudit, deptOversight: props.deptOversight, setDeptOverseer: props.setDeptOverseer, employees, isMobile, inp, card }} />}
     </div>
   );
 }
 
 // ── TAB PHÒNG/BAN (chỉ admin) ────────────────────────────────────────────────
 const EXEC_ROLES = ["Giám đốc", "Phó Giám đốc"];
-function DeptTab({ deptRows, addDept, updateDept, deleteDept, deptAudit = [], deptOversight = {}, setDeptOverseer, employees, isMobile, inp, card }) {
+function DeptTab({ readOnly = false, deptRows, addDept, updateDept, deleteDept, deptAudit = [], deptOversight = {}, setDeptOverseer, employees, isMobile, inp, card }) {
   const bgd = (employees || []).filter(e => EXEC_ROLES.includes(e.role)); // thành viên Ban Giám đốc để gán phụ trách
   const [nn, setNn] = useState("");
   const [ncode, setNcode] = useState("");
@@ -76,7 +73,7 @@ function DeptTab({ deptRows, addDept, updateDept, deleteDept, deptAudit = [], de
   const create = () => { if (!nn.trim() || !ncode.trim()) return; addDept({ code: ncode.trim(), name: nn.trim(), color: nc }); setNn(""); setNcode(""); setCodeTouched(false); setNc("#6366f1"); };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={card}>
+      {!readOnly && <div style={card}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>➕ Thêm phòng / ban mới</div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ flex: 1, minWidth: 180 }}><label style={lbl}>Tên đầy đủ (hiển thị)</label><input value={nn} onChange={e => onName(e.target.value)} onKeyDown={e => e.key === "Enter" && create()} placeholder="VD: Ban Giám đốc" style={inp} /></div>
@@ -85,10 +82,10 @@ function DeptTab({ deptRows, addDept, updateDept, deleteDept, deptAudit = [], de
           <button onClick={create} style={{ background: "#4f46e5", color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Thêm</button>
         </div>
         <div style={{ fontSize: 11.5, color: "#9ca3af", marginTop: 8 }}>Tên đầy đủ hiện ở tiêu đề/menu chọn; mã ngắn hiện ở bảng gọn (như "HCTH"). Mã cố định, không đổi sau khi tạo.</div>
-      </div>
+      </div>}
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f9fafb", fontSize: 13, fontWeight: 600 }}>Danh sách phòng / ban ({rows.length})</div>
-        {rows.map(d => <DeptRow key={d.code} d={d} count={countIn(d.code)} onSave={updateDept} onDelete={deleteDept} inp={inp} isMobile={isMobile} bgd={bgd} overseerId={deptOversight[d.code] || ""} onSetOverseer={setDeptOverseer} />)}
+        {rows.map(d => <DeptRow key={d.code} readOnly={readOnly} d={d} count={countIn(d.code)} onSave={updateDept} onDelete={deleteDept} inp={inp} isMobile={isMobile} bgd={bgd} overseerId={deptOversight[d.code] || ""} onSetOverseer={setDeptOverseer} />)}
         {!rows.length && <div style={{ padding: 16, color: "#9ca3af", fontSize: 13 }}>Chưa có phòng/ban.</div>}
       </div>
       {deptAudit.length > 0 && (
@@ -108,7 +105,7 @@ function DeptTab({ deptRows, addDept, updateDept, deleteDept, deptAudit = [], de
   );
 }
 
-function DeptRow({ d, count, onSave, onDelete, inp, isMobile, bgd = [], overseerId = "", onSetOverseer }) {
+function DeptRow({ readOnly = false, d, count, onSave, onDelete, inp, isMobile, bgd = [], overseerId = "", onSetOverseer }) {
   const [name, setName] = useState(d.name);
   const [color, setColor] = useState(d.color || "#6366f1");
   const dirty = name.trim() !== d.name || color !== (d.color || "#6366f1");
@@ -116,16 +113,16 @@ function DeptRow({ d, count, onSave, onDelete, inp, isMobile, bgd = [], overseer
   return (
     <div style={{ padding: "10px 16px", borderBottom: "1px solid #f3f4f6" }}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: 34, height: 34, border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", background: "#fff", padding: 2, flexShrink: 0 }} />
-        <input value={name} onChange={e => setName(e.target.value)} style={{ ...inp, flex: 1, minWidth: 160 }} />
+        <input type="color" value={color} onChange={e => setColor(e.target.value)} disabled={readOnly} style={{ width: 34, height: 34, border: "1px solid #d1d5db", borderRadius: 6, cursor: readOnly ? "default" : "pointer", background: "#fff", padding: 2, flexShrink: 0 }} />
+        <input value={name} onChange={e => setName(e.target.value)} disabled={readOnly} style={{ ...inp, flex: 1, minWidth: 160 }} />
         <span style={{ fontSize: 11.5, color: "#6b7280", whiteSpace: "nowrap" }}>{count} người</span>
-        <button disabled={!dirty || !name.trim()} onClick={() => onSave(d.code, { name: name.trim(), color })} style={{ background: dirty ? "#16a34a" : "#e5e7eb", color: dirty ? "#fff" : "#9ca3af", border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: dirty ? "pointer" : "default" }}>💾 Lưu</button>
-        <button onClick={() => onDelete(d.code)} title={count > 0 ? "Còn người thuộc đơn vị này" : "Xóa"} style={{ border: "1px solid #fca5a5", background: "#fff0f0", color: "#dc2626", borderRadius: 7, padding: "6px 9px", fontSize: 12.5, cursor: "pointer" }}>🗑️</button>
+        {!readOnly && <button disabled={!dirty || !name.trim()} onClick={() => onSave(d.code, { name: name.trim(), color })} style={{ background: dirty ? "#16a34a" : "#e5e7eb", color: dirty ? "#fff" : "#9ca3af", border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: dirty ? "pointer" : "default" }}>💾 Lưu</button>}
+        {!readOnly && <button onClick={() => onDelete(d.code)} title={count > 0 ? "Còn người thuộc đơn vị này" : "Xóa"} style={{ border: "1px solid #fca5a5", background: "#fff0f0", color: "#dc2626", borderRadius: 7, padding: "6px 9px", fontSize: 12.5, cursor: "pointer" }}>🗑️</button>}
       </div>
       {!isBGDdept && onSetOverseer && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, paddingLeft: 44, flexWrap: "wrap" }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>👔 BGĐ phụ trách:</span>
-          <select value={overseerId} onChange={e => onSetOverseer(d.code, e.target.value)} style={{ ...inp, width: "auto", padding: "5px 8px", fontSize: 12.5 }}>
+          <select value={overseerId} disabled={readOnly} onChange={e => onSetOverseer(d.code, e.target.value)} style={{ ...inp, width: "auto", padding: "5px 8px", fontSize: 12.5 }}>
             <option value="">— Chưa gán —</option>
             {bgd.map(e => <option key={e.id} value={e.id}>{e.name} ({e.role})</option>)}
           </select>
