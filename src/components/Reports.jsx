@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { DEPTS, DEPT_COLOR, deptLabel, VI_MONTHS, RATING } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel, VI_MONTHS, RATING, STATUS } from "../constants";
 import { fmtDate } from "../helpers";
 import { GradingTab, ExecTab, TaskResultReportTab, CatalogTab } from "./ExecReports";
 
@@ -27,7 +27,7 @@ export default function Reports({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", gap: 8, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 8, overflowX: "auto" }}>
-        {[...(myEid?[["me","👤 Kết quả của tôi"]]:[]),["monthly","📅 Tháng"],["leaderboard","🏆 Xếp hạng"],["catalog","📋 Danh mục việc"],["late_reasons","📊 Nguyên nhân trễ"],...(canExec?[["grading","📑 Xếp loại"],["exec","🏛️ Điều hành"],["kq_nv","📄 KQ nhiệm vụ"]]:[])].map(([id, label]) => (
+        {[...(myEid?[["me","👤 Kết quả của tôi"]]:[]),["monthly","📅 Tháng"],["leaderboard","🏆 Xếp hạng"],["catalog","📋 Danh mục việc"],["late_reasons","📊 Nguyên nhân trễ"],["extensions","📅 Gia hạn"],...(canExec?[["grading","📑 Xếp loại"],["exec","🏛️ Điều hành"],["kq_nv","📄 KQ nhiệm vụ"]]:[])].map(([id, label]) => (
           <button key={id} onClick={() => setRepTab(id)} style={{ flex: 1, padding: "7px 8px", border: "none", borderRadius: 7, background: repTab === id ? "#4f46e5" : "transparent", color: repTab === id ? "#fff" : "#6b7280", cursor: "pointer", fontSize: isMobile ? 11 : 13, fontWeight: repTab === id ? 600 : 400, whiteSpace: "nowrap" }}>{label}</button>
         ))}
       </div>
@@ -36,6 +36,7 @@ export default function Reports({
       {repTab === "exec" && canExec && <ExecTab isMobile={isMobile} computed={computed} getEmp={getEmp} setModal={setModal} loadComments={loadComments} overloadThreshold={overloadThreshold} deptLeaderName={deptLeaderName} hideApprovers={hideApprovers} />}
       {repTab === "kq_nv" && canExec && <TaskResultReportTab inp={inp} computed={computed} getEmp={getEmp} currentUser={currentUser} />}
       {repTab === "catalog" && <CatalogTab isMobile={isMobile} inp={inp} computed={computed} getEmp={getEmp} repMonth={repMonth} setRepMonth={setRepMonth} repYear={repYear} setRepYear={setRepYear} />}
+      {repTab === "extensions" && <ExtensionsTab isMobile={isMobile} inp={inp} computed={computed} getEmp={getEmp} setModal={setModal} loadComments={loadComments} />}
       {repTab === "me" && myEid && <MeTab isMobile={isMobile} inp={inp} myEid={myEid} repEmpData={repEmpData} managerBoard={managerBoard} leaderboard={leaderboard} managerLeaderboard={managerLeaderboard} repMonth={repMonth} setRepMonth={setRepMonth} repYear={repYear} setRepYear={setRepYear} rankYear={rankYear} onWhy={setWhyEmp} onWhyMgr={setWhyMgr} onWhyYear={setWhyYear} />}
 
       {repTab === "monthly" && (<>
@@ -437,6 +438,68 @@ export default function Reports({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Tab "GIA HẠN": thống kê các công việc ĐÃ ĐƯỢC DUYỆT gia hạn. Vì khi duyệt xong app xóa cột ext_*
+// và chỉ ghi vào history, ta quét history tìm mục bắt đầu "Duyệt gia hạn" → mỗi mục là 1 lần gia hạn.
+function ExtensionsTab({ isMobile, inp, computed, getEmp, setModal, loadComments }) {
+  const [dept, setDept] = useState("all");
+  const parseVN = s => { const [tm, dt] = String(s || "").split(" "); if (!dt) return 0; const [d, m, y] = dt.split("/").map(Number); const [hh = 0, mi = 0, se = 0] = (tm || "").split(":").map(Number); return new Date(y, (m || 1) - 1, d || 1, hh, mi, se).getTime(); };
+  const events = useMemo(() => {
+    const out = [];
+    for (const t of (computed || [])) {
+      let hist = []; try { hist = JSON.parse(t.history || "[]"); } catch { hist = []; }
+      hist.forEach((h, i) => {
+        const act = h.action || "";
+        if (!/^Duyệt gia hạn/.test(act)) return;
+        const toDate = (act.match(/(\d{4}-\d{2}-\d{2})/) || [])[1] || "";
+        let proposer = "", reason = "";
+        for (let j = i - 1; j >= 0; j--) { const pa = hist[j].action || ""; if (/^Đề xuất gia hạn/.test(pa)) { proposer = hist[j].by || ""; reason = (pa.match(/"([^"]*)"/) || [])[1] || ""; break; } }
+        out.push({ taskId: t.id, title: t.title, dept: t.dept, empName: getEmp(t.eid)?.name || "—", status: t.status, deadline: t.deadline, toDate, shortened: /rút ngắn/.test(act), proposer, reason, approver: h.by || "", at: h.at || "", ts: parseVN(h.at), task: t });
+      });
+    }
+    return out.sort((a, b) => b.ts - a.ts);
+  }, [computed, getEmp]);
+  const rows = dept === "all" ? events : events.filter(e => e.dept === dept);
+  const nTasks = new Set(rows.map(e => e.taskId)).size;
+  const exportCsv = () => {
+    const header = ["Ngày duyệt", "Tiêu đề", "Phòng", "Người thực hiện", "Gia hạn đến", "Rút ngắn", "Người đề xuất", "Lý do", "Người duyệt", "Trạng thái"];
+    const lines = rows.map(e => [e.at, `"${(e.title || "").replace(/"/g, '""')}"`, e.dept, `"${e.empName}"`, e.toDate, e.shortened ? "Có" : "", `"${e.proposer}"`, `"${(e.reason || "").replace(/"/g, '""')}"`, `"${e.approver}"`, STATUS[e.status]?.label || ""].join(","));
+    const csv = "﻿" + [header.join(","), ...lines].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a"); a.href = url; a.download = "cong-viec-gia-han.csv"; a.click(); URL.revokeObjectURL(url);
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <select value={dept} onChange={e => setDept(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 10px" }}><option value="all">Tất cả phòng</option>{DEPTS.map(d => <option key={d} value={d}>{deptLabel(d)}</option>)}</select>
+        <span style={{ fontSize: 13, color: "#6b7280" }}><b style={{ color: "#111" }}>{rows.length}</b> lần gia hạn · <b style={{ color: "#111" }}>{nTasks}</b> công việc</span>
+        <button onClick={exportCsv} disabled={!rows.length} style={{ marginLeft: "auto", background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 8, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: rows.length ? "pointer" : "default", opacity: rows.length ? 1 : 0.5 }}>📤 Xuất CSV</button>
+      </div>
+      <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 820 }}>
+            <thead><tr style={{ background: "#f9fafb" }}>{["Ngày duyệt", "Tiêu đề", "Phòng", "Người thực hiện", "Gia hạn đến", "Người đề xuất", "Lý do", "Người duyệt"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {rows.length === 0 && <tr><td colSpan={8} style={{ padding: 24, textAlign: "center", color: "#9ca3af" }}>Chưa có công việc nào được gia hạn</td></tr>}
+              {rows.map((e, i) => (
+                <tr key={e.taskId + "_" + i} onClick={() => { setModal(e.task); loadComments && loadComments(e.taskId); }} style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer" }} onMouseEnter={ev => ev.currentTarget.style.background = "#fafafa"} onMouseLeave={ev => ev.currentTarget.style.background = "#fff"}>
+                  <td style={{ padding: "9px 12px", whiteSpace: "nowrap", color: "#6b7280" }}>{e.at || "—"}</td>
+                  <td style={{ padding: "9px 12px", fontWeight: 500, maxWidth: 280 }}>{e.title}{STATUS[e.status] && <span style={{ marginLeft: 6, fontSize: 10, background: STATUS[e.status].bg, color: STATUS[e.status].col, padding: "1px 6px", borderRadius: 6, whiteSpace: "nowrap" }}>{STATUS[e.status].label}</span>}</td>
+                  <td style={{ padding: "9px 12px" }}><span style={{ background: DEPT_COLOR[e.dept] + "22", color: DEPT_COLOR[e.dept], fontSize: 11, padding: "2px 6px", borderRadius: 8 }}>{e.dept}</span></td>
+                  <td style={{ padding: "9px 12px" }}>{e.empName}</td>
+                  <td style={{ padding: "9px 12px", whiteSpace: "nowrap", fontWeight: 600, color: "#1d4ed8" }}>{fmtDate(e.toDate)}{e.shortened && <span title="Duyệt rút ngắn hơn đề xuất" style={{ marginLeft: 6, fontSize: 10, background: "#fef3c7", color: "#92400e", padding: "1px 5px", borderRadius: 6 }}>rút ngắn</span>}</td>
+                  <td style={{ padding: "9px 12px", color: "#6b7280" }}>{e.proposer || "—"}</td>
+                  <td style={{ padding: "9px 12px", color: "#374151", maxWidth: 260, fontStyle: e.reason ? "italic" : "normal" }}>{e.reason || "—"}</td>
+                  <td style={{ padding: "9px 12px", color: "#6b7280", whiteSpace: "nowrap" }}>{e.approver || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
