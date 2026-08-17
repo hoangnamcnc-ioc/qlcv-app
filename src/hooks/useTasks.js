@@ -63,7 +63,20 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const addTask = async data => { setSaving(true); const selfCreated = !canCreate; const h = [{ action: selfCreated ? "Nhân viên tự tạo việc (chờ Trưởng phòng duyệt)" : "Tạo nhiệm vụ", by: currentUser.full_name, at: nowStr() }]; const t = { ...data, id: `t${Date.now()}`, completed: data.progress === 100, created: todayStr, created_by_id: currentUser.id, created_by_name: currentUser.full_name, self_created: selfCreated, pending_create: selfCreated, forwarded_by: "", deleted: false, history: JSON.stringify(h), rating: "", rating_note: "", rated_by: "", rated_at: "", late_reason: "", late_note: "" }; const { error } = await supabase.from("tasks").insert(t); if (!error) { setTasks(p => [t, ...p]); showToast(selfCreated ? "Đã gửi — chờ Trưởng phòng duyệt việc bạn tự tạo" : "Đã tạo nhiệm vụ"); } else { console.error("Lỗi tạo nhiệm vụ:", error); showToast("Lỗi: " + (error.message || "không tạo được"), "error"); } setSaving(false); return error ? null : t; };
   // Trưởng/Phó phòng (hoặc BGĐ) duyệt việc nhân viên tự tạo -> việc mới chính thức được ghi nhận (tính vào báo cáo).
   const approveCreateTask = async id => { const task = tasks.find(t => t.id === id); if (!task) return; const h = parseJSON(task.history, []); h.push({ action: "Duyệt việc nhân viên tự tạo", by: currentUser.full_name, at: nowStr() }); const { error } = await supabase.from("tasks").update({ pending_create: false, history: JSON.stringify(h) }).eq("id", id); if (!error) { setTasks(p => p.map(t => t.id === id ? { ...t, pending_create: false, history: JSON.stringify(h) } : t)); setModal(null); showToast("Đã duyệt — việc được chính thức ghi nhận"); } else showToast("Lỗi: " + (error.message || ""), "error"); };
-  const rejectCreateTask = async (id, reason) => { const task = tasks.find(t => t.id === id); if (!task) return; const h = parseJSON(task.history, []); h.push({ action: `Từ chối việc nhân viên tự tạo${reason ? ": " + reason : ""}`, by: currentUser.full_name, at: nowStr() }); const { error } = await supabase.from("tasks").update({ deleted: true, history: JSON.stringify(h) }).eq("id", id); if (!error) { setTasks(p => p.map(t => t.id === id ? { ...t, deleted: true, history: JSON.stringify(h) } : t)); setModal(null); showToast("Đã từ chối — việc chuyển vào thùng rác"); } else showToast("Lỗi: " + (error.message || ""), "error"); };
+  // Từ chối việc nhân viên tự tạo: BẮT BUỘC nhập lý do (≥5 ký tự). KHÔNG xóa vào thùng rác mà GIỮ LẠI
+  // làm BẰNG CHỨNG — đánh dấu create_rejected + lưu lý do/người/thời điểm; loại khỏi mọi danh sách việc
+  // đang hoạt động nhưng vẫn tra cứu được ở tab "Việc tự tạo bị từ chối" trong Báo cáo.
+  const rejectCreateTask = async (id, reason) => {
+    const task = tasks.find(t => t.id === id); if (!task) return false;
+    const r = (reason || "").trim();
+    if (r.length < 5) { showToast("Bắt buộc nêu rõ lý do từ chối (ít nhất 5 ký tự)", "error"); return false; }
+    const h = parseJSON(task.history, []);
+    h.push({ action: `Từ chối việc nhân viên tự tạo: "${r}"`, by: currentUser.full_name, at: nowStr() });
+    const patch = { pending_create: false, create_rejected: true, create_reject_reason: r, create_rejected_by: currentUser.full_name, create_rejected_at: nowStr(), history: JSON.stringify(h) };
+    const { error } = await supabase.from("tasks").update(patch).eq("id", id);
+    if (!error) { setTasks(p => p.map(t => t.id === id ? { ...t, ...patch } : t)); setModal(null); showToast("Đã từ chối — lý do đã được ghi lại làm bằng chứng"); return true; }
+    showToast("Lỗi: " + (error.message || ""), "error"); return false;
+  };
   // LƯU Ý: progress===100 KHÔNG còn tự động suy ra completed:true — hoàn thành chỉ được đặt tường minh
   // qua confirmApproveCompletion (sau khi TP/PP/BGĐ duyệt), tránh việc "Yêu cầu hoàn thành" (cũng set progress:100)
   // vô tình bỏ qua bước duyệt.
@@ -229,8 +242,11 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const trashedTasks = useMemo(() => (tasks || []).filter(t => t.deleted && canSeeTask(t)), [tasks, canSeeTask]);
   // Việc nhân viên tự tạo còn CHỜ TP DUYỆT (pending_create) chưa phải việc chính thức -> tách riêng,
   // không tính vào danh sách/thống kê/chấm điểm cho tới khi được duyệt.
-  const computedAll = useMemo(() => visibleTasks.filter(t => !t.pending_create).map(t => ({ ...t, status: getStatus(t) })), [visibleTasks]);
+  const computedAll = useMemo(() => visibleTasks.filter(t => !t.pending_create && !t.create_rejected).map(t => ({ ...t, status: getStatus(t) })), [visibleTasks]);
   const pendingCreateTasks = useMemo(() => visibleTasks.filter(t => t.pending_create), [visibleTasks]);
+  // BẰNG CHỨNG: việc nhân viên tự tạo đã bị lãnh đạo phòng TỪ CHỐI (giữ lại, không xóa). Phạm vi hiển thị
+  // theo canSeeTask (nhân viên thấy việc của mình, quản lý thấy cả phòng, BGĐ thấy tất cả).
+  const rejectedCreateTasks = useMemo(() => visibleTasks.filter(t => t.create_rejected).sort((a, b) => (b.create_rejected_at || "").localeCompare(a.create_rejected_at || "")), [visibleTasks]);
   const myPendingCreateApprovals = useMemo(() => pendingCreateTasks.filter(t => isDeptManagerOf(t) || ["admin", "director"].includes(currentUser?.role)), [pendingCreateTasks, currentUser, userDept]);
   const myOwnPendingCreate = useMemo(() => pendingCreateTasks.filter(t => t.eid === currentUser?.employee_id), [pendingCreateTasks, currentUser]);
 
@@ -252,7 +268,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   // số liệu hiệu suất nhất quán, đầy đủ (khớp với dữ liệu Hỗ trợ/dự án vốn đã tải toàn cục).
   // KHÔNG dùng cho các danh sách thao tác — chúng vẫn giới hạn theo quyền qua "computed".
   const computedGlobal = useMemo(() => {
-    const all = (tasks || []).filter(t => !t.deleted && !t.pending_create).map(t => ({ ...t, status: getStatus(t) }));
+    const all = (tasks || []).filter(t => !t.deleted && !t.pending_create && !t.create_rejected).map(t => ({ ...t, status: getStatus(t) }));
     if (!dateFrom && !dateTo) return all;
     return all.filter(t => { if (!t.deadline) return false; if (dateFrom && t.deadline < dateFrom) return false; if (dateTo && t.deadline > dateTo) return false; return true; });
   }, [tasks, dateFrom, dateTo]);
@@ -317,6 +333,6 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     filtered, paged, totalPages,
     notifications, unratedTasks, suspiciousTasks, myPendingTaskApprovals, myPendingExtRequests,
     seenKey, markSeen, myAssignedTasks, myNewTasks, myOverdueTasks, myNewTaskIds,
-    pendingCreateTasks, myPendingCreateApprovals, myOwnPendingCreate, approveCreateTask, rejectCreateTask,
+    pendingCreateTasks, myPendingCreateApprovals, myOwnPendingCreate, approveCreateTask, rejectCreateTask, rejectedCreateTasks,
   };
 }

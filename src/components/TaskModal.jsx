@@ -48,13 +48,20 @@ export default function TaskModal({
         </div>
 
         <div style={{ padding: 18, flex: 1 }}>
+          {modal.create_rejected && (
+            <div style={{ marginBottom: 12, padding: "12px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c", marginBottom: 4 }}>🚫 Việc tự tạo đã bị TỪ CHỐI — lưu làm bằng chứng</div>
+              <div style={{ fontSize: 12.5, color: "#7f1d1d" }}>Người tự tạo: <b>{getEmp(modal.eid)?.name || modal.created_by_name}</b> · Người từ chối: <b>{modal.create_rejected_by || "—"}</b>{modal.create_rejected_at ? ` · ${modal.create_rejected_at}` : ""}</div>
+              {modal.create_reject_reason && <div style={{ fontSize: 12.5, marginTop: 6, fontStyle: "italic", color: "#991b1b", background: "#fee2e2", padding: "6px 10px", borderRadius: 6 }}>Lý do: "{modal.create_reject_reason}"</div>}
+            </div>
+          )}
           {modal.pending_create && (
             isDeptManager ? (
               <div style={{ marginBottom: 12, padding: "12px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#15803d", marginBottom: 8 }}>🆕 {getEmp(modal.eid)?.name || modal.created_by_name} tự tạo việc này — cần bạn duyệt</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button onClick={() => approveCreateTask(modal.id)} style={{ fontSize: 13, padding: "8px 16px", border: "none", borderRadius: 8, background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 600 }}>✅ Duyệt việc này</button>
-                  <button onClick={() => { const r = window.prompt("Lý do từ chối (tùy chọn):", ""); if (r !== null) rejectCreateTask(modal.id, r.trim()); }} style={{ fontSize: 13, padding: "8px 16px", border: "1px solid #fca5a5", borderRadius: 8, background: "#fff0f0", color: "#dc2626", cursor: "pointer", fontWeight: 600 }}>❌ Từ chối</button>
+                  <button onClick={() => { const r = window.prompt("Lý do từ chối (BẮT BUỘC — sẽ được ghi lại làm bằng chứng, tối thiểu 5 ký tự):", ""); if (r !== null) rejectCreateTask(modal.id, r.trim()); }} style={{ fontSize: 13, padding: "8px 16px", border: "1px solid #fca5a5", borderRadius: 8, background: "#fff0f0", color: "#dc2626", cursor: "pointer", fontWeight: 600 }}>❌ Từ chối</button>
                 </div>
               </div>
             ) : (

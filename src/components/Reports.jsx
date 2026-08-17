@@ -16,7 +16,7 @@ export default function Reports({
   leaderboard, managerBoard, managerLeaderboard,
   lateReasonStats,
   getEmp, setModal, loadComments, deptLeaderName, hideApprovers,
-  canExec, myEid, computed, monthlyScores, snapshotMonth, syncManagerSnapshots, currentUser, overloadThreshold, kpiOnTime,
+  canExec, myEid, rejectedCreateTasks = [], computed, monthlyScores, snapshotMonth, syncManagerSnapshots, currentUser, overloadThreshold, kpiOnTime,
 }) {
   const [whyEmp, setWhyEmp] = useState(null); // nhân viên đang xem giải thích điểm (tháng)
   const [whyYear, setWhyYear] = useState(null); // nhân viên đang xem giải thích điểm (năm/xếp hạng)
@@ -27,7 +27,7 @@ export default function Reports({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", gap: 8, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 8, overflowX: "auto" }}>
-        {[...(myEid?[["me","👤 Kết quả của tôi"]]:[]),["monthly","📅 Tháng"],["leaderboard","🏆 Xếp hạng"],["catalog","📋 Danh mục việc"],["late_reasons","📊 Nguyên nhân trễ"],["extensions","📅 Gia hạn"],...(canExec?[["grading","📑 Xếp loại"],["exec","🏛️ Điều hành"],["kq_nv","📄 KQ nhiệm vụ"]]:[])].map(([id, label]) => (
+        {[...(myEid?[["me","👤 Kết quả của tôi"]]:[]),["monthly","📅 Tháng"],["leaderboard","🏆 Xếp hạng"],["catalog","📋 Danh mục việc"],["late_reasons","📊 Nguyên nhân trễ"],["extensions","📅 Gia hạn"],["rejected","🚫 Việc tự tạo bị từ chối"],...(canExec?[["grading","📑 Xếp loại"],["exec","🏛️ Điều hành"],["kq_nv","📄 KQ nhiệm vụ"]]:[])].map(([id, label]) => (
           <button key={id} onClick={() => setRepTab(id)} style={{ flex: 1, padding: "7px 8px", border: "none", borderRadius: 7, background: repTab === id ? "#4f46e5" : "transparent", color: repTab === id ? "#fff" : "#6b7280", cursor: "pointer", fontSize: isMobile ? 11 : 13, fontWeight: repTab === id ? 600 : 400, whiteSpace: "nowrap" }}>{label}</button>
         ))}
       </div>
@@ -37,6 +37,7 @@ export default function Reports({
       {repTab === "kq_nv" && canExec && <TaskResultReportTab inp={inp} computed={computed} getEmp={getEmp} currentUser={currentUser} />}
       {repTab === "catalog" && <CatalogTab isMobile={isMobile} inp={inp} computed={computed} getEmp={getEmp} repMonth={repMonth} setRepMonth={setRepMonth} repYear={repYear} setRepYear={setRepYear} />}
       {repTab === "extensions" && <ExtensionsTab isMobile={isMobile} inp={inp} computed={computed} getEmp={getEmp} setModal={setModal} loadComments={loadComments} />}
+      {repTab === "rejected" && <RejectedCreateTab isMobile={isMobile} inp={inp} rows={rejectedCreateTasks} getEmp={getEmp} setModal={setModal} loadComments={loadComments} />}
       {repTab === "me" && myEid && <MeTab isMobile={isMobile} inp={inp} myEid={myEid} repEmpData={repEmpData} managerBoard={managerBoard} leaderboard={leaderboard} managerLeaderboard={managerLeaderboard} repMonth={repMonth} setRepMonth={setRepMonth} repYear={repYear} setRepYear={setRepYear} rankYear={rankYear} onWhy={setWhyEmp} onWhyMgr={setWhyMgr} onWhyYear={setWhyYear} />}
 
       {repTab === "monthly" && (<>
@@ -438,6 +439,51 @@ export default function Reports({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Tab "VIỆC TỰ TẠO BỊ TỪ CHỐI": bằng chứng — nhân viên tự tạo việc đề xuất lãnh đạo phòng duyệt
+// nhưng bị TỪ CHỐI. Giữ lại đầy đủ: người tạo, ngày tạo, người từ chối, thời điểm & LÝ DO từ chối.
+function RejectedCreateTab({ isMobile, inp, rows = [], getEmp, setModal, loadComments }) {
+  const [dept, setDept] = useState("all");
+  const list = dept === "all" ? rows : rows.filter(t => t.dept === dept);
+  const exportCsv = () => {
+    const header = ["Ngày tạo", "Tiêu đề", "Phòng", "Người tự tạo", "Hạn đề xuất", "Người từ chối", "Thời điểm từ chối", "Lý do từ chối"];
+    const lines = list.map(t => [t.created || "", `"${(t.title || "").replace(/"/g, '""')}"`, t.dept, `"${getEmp(t.eid)?.name || t.created_by_name || ""}"`, t.deadline || "", `"${t.create_rejected_by || ""}"`, `"${t.create_rejected_at || ""}"`, `"${(t.create_reject_reason || "").replace(/"/g, '""')}"`].join(","));
+    const csv = "﻿" + [header.join(","), ...lines].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a"); a.href = url; a.download = "viec-tu-tao-bi-tu-choi.csv"; a.click(); URL.revokeObjectURL(url);
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <select value={dept} onChange={e => setDept(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 10px" }}><option value="all">Tất cả phòng</option>{DEPTS.map(d => <option key={d} value={d}>{deptLabel(d)}</option>)}</select>
+        <span style={{ fontSize: 13, color: "#6b7280" }}><b style={{ color: "#111" }}>{list.length}</b> việc bị từ chối</span>
+        <button onClick={exportCsv} disabled={!list.length} style={{ marginLeft: "auto", background: "#eef2ff", color: "#4338ca", border: "1px solid #c7d2fe", borderRadius: 8, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: list.length ? "pointer" : "default", opacity: list.length ? 1 : 0.5 }}>📤 Xuất CSV</button>
+      </div>
+      <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 820 }}>
+            <thead><tr style={{ background: "#f9fafb" }}>{["Ngày tạo", "Tiêu đề", "Phòng", "Người tự tạo", "Hạn đề xuất", "Người từ chối", "Thời điểm", "Lý do từ chối"].map(h => <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {list.length === 0 && <tr><td colSpan={8} style={{ padding: 24, textAlign: "center", color: "#9ca3af" }}>Chưa có việc tự tạo nào bị từ chối</td></tr>}
+              {list.map(t => (
+                <tr key={t.id} onClick={() => { setModal(t); loadComments && loadComments(t.id); }} style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer" }} onMouseEnter={ev => ev.currentTarget.style.background = "#fafafa"} onMouseLeave={ev => ev.currentTarget.style.background = "#fff"}>
+                  <td style={{ padding: "9px 12px", whiteSpace: "nowrap", color: "#6b7280" }}>{t.created ? fmtDate(t.created) : "—"}</td>
+                  <td style={{ padding: "9px 12px", fontWeight: 500, maxWidth: 260 }}>{t.title}</td>
+                  <td style={{ padding: "9px 12px" }}><span style={{ background: DEPT_COLOR[t.dept] + "22", color: DEPT_COLOR[t.dept], fontSize: 11, padding: "2px 6px", borderRadius: 8 }}>{t.dept}</span></td>
+                  <td style={{ padding: "9px 12px" }}>{getEmp(t.eid)?.name || t.created_by_name || "—"}</td>
+                  <td style={{ padding: "9px 12px", whiteSpace: "nowrap", color: "#6b7280" }}>{t.deadline ? fmtDate(t.deadline) : "—"}</td>
+                  <td style={{ padding: "9px 12px", whiteSpace: "nowrap" }}>{t.create_rejected_by || "—"}</td>
+                  <td style={{ padding: "9px 12px", whiteSpace: "nowrap", color: "#6b7280" }}>{t.create_rejected_at || "—"}</td>
+                  <td style={{ padding: "9px 12px", color: "#b91c1c", maxWidth: 300, fontStyle: "italic" }}>{t.create_reject_reason || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
