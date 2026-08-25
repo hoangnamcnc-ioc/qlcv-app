@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
-import { fmtDate, getPreviewUrl, getFileIcon } from "./helpers";
+import { fmtDate, getPreviewUrl, getFileIcon, nowStr } from "./helpers";
 
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
 const today=new Date();today.setHours(0,0,0,0);
@@ -20,7 +20,7 @@ const isStepOverdue=s=>{if(!s.deadline||s.status==="done"||s.status==="skipped")
 const countOverdueSteps=stepsArr=>(stepsArr||[]).filter(isStepOverdue).length;
 
 // ───── Chi tiết nhiệm vụ ─────
-function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUpdateSteps,onUpdateTask,uploadFiles,uploadingFiles,inp,currentUser,canManage}){
+function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUpdateSteps,onUpdateTask,uploadFiles,uploadingFiles,inp,currentUser,canManage,onApproveCreate,onRejectCreate,canApproveCreate}){
   const steps=parseJSON(task.steps,[]);
   const team=parseJSON(task.team,[]);
   const locked=!!task.locked; // Nhiệm vụ đã "Kết thúc" — khóa mọi tương tác cho tới khi Khôi phục
@@ -62,6 +62,22 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
         <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af",marginLeft:8}}>✕</button>
       </div>
       <div style={{padding:20}}>
+        {task.create_rejected&&<div style={{marginBottom:16,padding:"12px 14px",borderRadius:8,background:"#fef2f2",border:"1px solid #fecaca"}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#b91c1c",marginBottom:4}}>🚫 Việc tự tạo đã bị TỪ CHỐI — lưu làm bằng chứng</div>
+          <div style={{fontSize:12.5,color:"#7f1d1d"}}>Người tự tạo: <b>{task.created_by}</b> · Người từ chối: <b>{task.create_rejected_by||"—"}</b>{task.create_rejected_at?` · ${task.create_rejected_at}`:""}</div>
+          {task.create_reject_reason&&<div style={{fontSize:12.5,marginTop:6,fontStyle:"italic",color:"#991b1b",background:"#fee2e2",padding:"6px 10px",borderRadius:6}}>Lý do: "{task.create_reject_reason}"</div>}
+        </div>}
+        {task.pending_create&&(canApproveCreate?(
+          <div style={{marginBottom:16,padding:"12px 14px",borderRadius:8,background:"#f0fdf4",border:"1px solid #bbf7d0"}}>
+            <div style={{fontSize:13,fontWeight:600,color:"#15803d",marginBottom:8}}>🆕 {task.created_by} tự tạo nhiệm vụ này — cần bạn duyệt</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button onClick={()=>onApproveCreate&&onApproveCreate(task)} style={{fontSize:13,padding:"8px 16px",border:"none",borderRadius:8,background:"#16a34a",color:"#fff",cursor:"pointer",fontWeight:600}}>✅ Duyệt nhiệm vụ</button>
+              <button onClick={()=>{const r=window.prompt("Lý do từ chối (BẮT BUỘC — sẽ được ghi lại làm bằng chứng, tối thiểu 5 ký tự):","");if(r!==null)onRejectCreate&&onRejectCreate(task,r.trim());}} style={{fontSize:13,padding:"8px 16px",border:"1px solid #fca5a5",borderRadius:8,background:"#fff0f0",color:"#dc2626",cursor:"pointer",fontWeight:600}}>❌ Từ chối</button>
+            </div>
+          </div>
+        ):(
+          <div style={{marginBottom:16,padding:"10px 14px",borderRadius:8,background:"#fffbeb",border:"1px solid #fde68a",fontSize:12.5,color:"#92400e"}}>⏳ Nhiệm vụ bạn <b>tự tạo</b> đang <b>chờ Trưởng/Phó phòng duyệt</b> — chưa chính thức ghi nhận cho tới khi được duyệt.</div>
+        ))}
         {locked&&<div style={{marginBottom:16,padding:"10px 14px",borderRadius:8,background:"#fef9c3",border:"1px solid #fde68a",color:"#92400e",fontSize:13,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><span>🔒 <b>Nhiệm vụ đã kết thúc</b> — đang khóa, không thao tác được.{canEditTask?" Bấm Khôi phục để mở lại.":""}</span>{canEditTask&&<button onClick={()=>onUpdateTask(task,{locked:false})} style={{padding:"5px 12px",border:"1px solid #16a34a",borderRadius:7,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:12.5,fontWeight:600}}>🔓 Khôi phục nhiệm vụ</button>}</div>}
         {task.content&&<div style={{fontSize:13,color:"#374151",background:"#f8fafc",padding:"12px 14px",borderRadius:8,marginBottom:16,whiteSpace:"pre-wrap"}}>{task.content}</div>}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -219,6 +235,7 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
   const [detail,setDetail]=useState(null);
   const [saving,setSaving]=useState(false);
   const [dateFrom,setDateFrom]=useState(""); const [dateTo,setDateTo]=useState("");
+  const [showRejected,setShowRejected]=useState(false);
 
   const canManage=["admin","director","manager_hcth","manager","deputy_manager"].includes(currentUser?.role);
 
@@ -230,13 +247,21 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
   //  · Nhân viên: chỉ nhiệm vụ mình tham gia
   const myEid=currentUser?.employee_id;
   const otherUserDept=getEmp(myEid)?.dept;
+  // Nhân viên (staff) được TỰ TẠO "Nhiệm vụ khác" nhưng phải CHỜ Trưởng/Phó phòng duyệt (giống Nhiệm vụ chính)
+  const canSelfCreate=currentUser?.role==="staff"&&!!myEid;
+  // Ai được DUYỆT việc tự tạo: admin/BGĐ (mọi phòng) hoặc Trưởng/Phó phòng ĐÚNG phòng của người tạo
+  const isDeptMgrOf=t=>{if(["admin","director"].includes(currentUser?.role))return true;const isMgr=["manager","deputy_manager","manager_hcth"].includes(currentUser?.role);return isMgr&&!!otherUserDept&&t.dept===otherUserDept;};
   const partOf=t=>{const set=new Set(parseJSON(t.team,[]));parseJSON(t.steps,[]).forEach(s=>{if(s.lead_eid)set.add(s.lead_eid);parseJSON(s.collab_eids,[]).forEach(c=>set.add(c));});return[...set];};
   const visibleTasks=useMemo(()=>{
     if(["admin","director"].includes(currentUser?.role))return tasks;
     const isMgr=["manager","deputy_manager","manager_hcth"].includes(currentUser?.role);
-    return tasks.filter(t=>{const ps=partOf(t);if(myEid&&ps.includes(myEid))return true;if(isMgr&&otherUserDept)return ps.some(eid=>getEmp(eid)?.dept===otherUserDept);return false;});
+    return tasks.filter(t=>{const ps=partOf(t);if(myEid&&ps.includes(myEid))return true;if(t.created_by_id===currentUser?.id)return true;if(isMgr&&otherUserDept)return ps.some(eid=>getEmp(eid)?.dept===otherUserDept)||t.dept===otherUserDept;return false;});
   },[tasks,currentUser,myEid,otherUserDept,getEmp]);
-  const filteredTasks=useMemo(()=>visibleTasks.filter(t=>{if(dateFrom&&(!t.created||t.created<dateFrom))return false;if(dateTo&&(!t.created||t.created>dateTo))return false;return true;}),[visibleTasks,dateFrom,dateTo]);
+  // Việc tự tạo CHỜ DUYỆT + BỊ TỪ CHỐI — tách riêng khỏi lưới nhiệm vụ chính thức
+  const pendingApprovals=useMemo(()=>(tasks||[]).filter(t=>t.pending_create&&isDeptMgrOf(t)),[tasks,currentUser,otherUserDept]);
+  const myPendingCreate=useMemo(()=>(tasks||[]).filter(t=>t.pending_create&&t.created_by_id===currentUser?.id),[tasks,currentUser]);
+  const rejectedEvidence=useMemo(()=>(tasks||[]).filter(t=>t.create_rejected&&(t.created_by_id===currentUser?.id||isDeptMgrOf(t)||partOf(t).includes(myEid))).sort((a,b)=>(b.create_rejected_at||"").localeCompare(a.create_rejected_at||"")),[tasks,currentUser,otherUserDept,myEid]);
+  const filteredTasks=useMemo(()=>visibleTasks.filter(t=>!t.pending_create&&!t.create_rejected).filter(t=>{if(dateFrom&&(!t.created||t.created<dateFrom))return false;if(dateTo&&(!t.created||t.created>dateTo))return false;return true;}),[visibleTasks,dateFrom,dateTo]);
 
   useEffect(()=>{
     if(tasksData){setLoading(false);return;} // đã có dữ liệu từ App.jsx
@@ -263,13 +288,18 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
       if(!error){setTasks(p=>p.map(x=>x.id===form.id?{...x,...upd}:x));showToast&&showToast("Đã cập nhật nhiệm vụ");setForm(null);}
       else showToast&&showToast("Lỗi: "+(error.message||""),"error");
     }else{
-      const t={id:`ot${Date.now()}`,name:form.name,content:form.content,team:form.team,steps:form.steps||"[]",created:todayStr,created_by:currentUser.full_name};
+      const selfCreated=canSelfCreate&&!canManage; // nhân viên tự tạo -> chờ duyệt
+      const t={id:`ot${Date.now()}`,name:form.name,content:form.content,team:form.team,steps:form.steps||"[]",created:todayStr,created_by:currentUser.full_name,created_by_id:currentUser.id,self_created:selfCreated,pending_create:selfCreated,dept:selfCreated?(otherUserDept||null):null};
       const{error}=await supabase.from("other_tasks").insert(t);
-      if(!error){setTasks(p=>[t,...p]);showToast&&showToast("Đã tạo nhiệm vụ");setForm(null);}
+      if(!error){setTasks(p=>[t,...p]);showToast&&showToast(selfCreated?"Đã gửi — chờ Trưởng/Phó phòng duyệt":"Đã tạo nhiệm vụ");setForm(null);}
       else showToast&&showToast("Lỗi: "+(error.message||""),"error");
     }
     setSaving(false);
   };
+
+  // Duyệt / Từ chối việc "Nhiệm vụ khác" do nhân viên tự tạo. Từ chối BẮT BUỘC lý do; GIỮ LẠI làm bằng chứng.
+  const approveCreate=async(t)=>{const{error}=await supabase.from("other_tasks").update({pending_create:false}).eq("id",t.id);if(!error){setTasks(p=>p.map(x=>x.id===t.id?{...x,pending_create:false}:x));setDetail(null);showToast&&showToast("Đã duyệt — nhiệm vụ được chính thức ghi nhận");}else showToast&&showToast("Lỗi: "+(error.message||""),"error");};
+  const rejectCreate=async(t,reason)=>{const r=(reason||"").trim();if(r.length<5){showToast&&showToast("Bắt buộc nêu rõ lý do từ chối (ít nhất 5 ký tự)","error");return;}const patch={pending_create:false,create_rejected:true,create_reject_reason:r,create_rejected_by:currentUser.full_name,create_rejected_at:nowStr()};const{error}=await supabase.from("other_tasks").update(patch).eq("id",t.id);if(!error){setTasks(p=>p.map(x=>x.id===t.id?{...x,...patch}:x));setDetail(null);showToast&&showToast("Đã từ chối — lý do đã được ghi lại làm bằng chứng");}else showToast&&showToast("Lỗi: "+(error.message||""),"error");};
 
   const deleteTask=async id=>{if(!window.confirm("Xóa vĩnh viễn nhiệm vụ này?"))return;await supabase.from("other_tasks").delete().eq("id",id);setTasks(p=>p.filter(x=>x.id!==id));setDetail(null);showToast&&showToast("Đã xóa nhiệm vụ");};
   const updateSteps=async(task,newSteps)=>{const stepsStr=JSON.stringify(newSteps);const{error}=await supabase.from("other_tasks").update({steps:stepsStr}).eq("id",task.id);if(!error){setTasks(p=>p.map(x=>x.id===task.id?{...x,steps:stepsStr}:x));setDetail(d=>d&&d.id===task.id?{...d,steps:stepsStr}:d);}else showToast&&showToast("Lỗi cập nhật bước","error");};
@@ -277,7 +307,40 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
   const updateTask=async(task,fields)=>{const{error}=await supabase.from("other_tasks").update(fields).eq("id",task.id);if(!error){setTasks(p=>p.map(x=>x.id===task.id?{...x,...fields}:x));setDetail(d=>d&&d.id===task.id?{...d,...fields}:d);}else showToast&&showToast("Lỗi cập nhật nhiệm vụ","error");};
 
   return (<div style={{display:"flex",flexDirection:"column",gap:14}}>
-    <div style={{display:"flex",justifyContent:"flex-end"}}>{canManage&&<button onClick={openCreate} style={{background:"#059669",color:"#fff",border:"none",borderRadius:8,padding:isMobile?"6px 12px":"7px 16px",fontSize:isMobile?12:13,cursor:"pointer",fontWeight:500}}>+ Nhiệm vụ khác</button>}</div>
+    <div style={{display:"flex",justifyContent:"flex-end"}}>{(canManage||canSelfCreate)&&<button onClick={openCreate} style={{background:"#059669",color:"#fff",border:"none",borderRadius:8,padding:isMobile?"6px 12px":"7px 16px",fontSize:isMobile?12:13,cursor:"pointer",fontWeight:500}}>+ {canManage?"Nhiệm vụ khác":"Tự tạo nhiệm vụ khác"}</button>}</div>
+
+    {canSelfCreate&&<div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#1e40af",lineHeight:1.5}}>ℹ️ "Nhiệm vụ khác" bạn <b>tự tạo</b> sẽ được gửi cho <b>Trưởng/Phó phòng</b> duyệt trước khi chính thức ghi nhận.</div>}
+
+    {pendingApprovals.length>0&&(
+      <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,padding:12}}>
+        <div style={{fontSize:12.5,fontWeight:700,color:"#15803d",marginBottom:8}}>🆕 Nhân viên tự tạo — chờ bạn duyệt ({pendingApprovals.length})</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>{pendingApprovals.map(t=>(
+          <div key={t.id} style={{background:"#fff",border:"1px solid #d1fae5",borderRadius:8,padding:"10px 12px",display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+            <div style={{cursor:"pointer",flex:1,minWidth:160}} onClick={()=>setDetail(t)}><div style={{fontWeight:600,fontSize:13}}>{t.name}</div><div style={{fontSize:11,color:"#6b7280"}}>{t.created_by} tự tạo · {t.created} · {parseJSON(t.steps,[]).length} bước</div></div>
+            <div style={{display:"flex",gap:6}}><button onClick={()=>approveCreate(t)} style={{fontSize:12,padding:"5px 12px",border:"none",borderRadius:6,background:"#16a34a",color:"#fff",cursor:"pointer",fontWeight:600}}>✅ Duyệt</button><button onClick={()=>{const r=window.prompt("Lý do từ chối (BẮT BUỘC — sẽ được ghi lại làm bằng chứng, tối thiểu 5 ký tự):","");if(r!==null)rejectCreate(t,r.trim());}} style={{fontSize:12,padding:"5px 12px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",color:"#dc2626",cursor:"pointer",fontWeight:600}}>❌ Từ chối</button></div>
+          </div>))}</div>
+      </div>
+    )}
+    {myPendingCreate.length>0&&(
+      <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,padding:"10px 12px"}}>
+        <div style={{fontSize:12.5,fontWeight:600,color:"#92400e",marginBottom:6}}>⏳ Việc bạn tự tạo đang chờ duyệt ({myPendingCreate.length})</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>{myPendingCreate.map(t=>(
+          <div key={t.id} onClick={()=>setDetail(t)} style={{cursor:"pointer",fontSize:12.5,color:"#92400e"}}>• {t.name} <span style={{color:"#b45309",opacity:0.8}}>· gửi {t.created} · chờ Trưởng/Phó phòng duyệt</span></div>
+        ))}</div>
+      </div>
+    )}
+    {rejectedEvidence.length>0&&(
+      <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 12px"}}>
+        <div onClick={()=>setShowRejected(v=>!v)} style={{fontSize:12.5,fontWeight:700,color:"#b91c1c",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span>🚫 Việc tự tạo bị từ chối — bằng chứng ({rejectedEvidence.length})</span><span>{showRejected?"▲":"▼"}</span></div>
+        {showRejected&&<div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8}}>{rejectedEvidence.map(t=>(
+          <div key={t.id} onClick={()=>setDetail(t)} style={{cursor:"pointer",background:"#fff",border:"1px solid #fecaca",borderRadius:8,padding:"8px 12px"}}>
+            <div style={{fontWeight:600,fontSize:13,color:"#7f1d1d"}}>{t.name}</div>
+            <div style={{fontSize:11,color:"#991b1b"}}>{t.created_by} tự tạo · Người từ chối: <b>{t.create_rejected_by||"—"}</b>{t.create_rejected_at?` · ${t.create_rejected_at}`:""}</div>
+            {t.create_reject_reason&&<div style={{fontSize:11.5,marginTop:4,fontStyle:"italic",color:"#b91c1c",background:"#fee2e2",padding:"4px 8px",borderRadius:6}}>Lý do: "{t.create_reject_reason}"</div>}
+          </div>
+        ))}</div>}
+      </div>
+    )}
     <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 12px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
       <span style={{fontSize:12,color:"#6b7280",fontWeight:500}}>📅 Ngày tạo:</span>
       <span style={{fontSize:12,color:"#6b7280"}}>Từ ngày</span>
@@ -318,6 +381,6 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
     )}
 
     {form&&<TaskForm form={form} setForm={setForm} onClose={()=>setForm(null)} onSave={saveTask} employees={employees} isMobile={isMobile} inp={inp} saving={saving}/>}
-    {detail&&<TaskDetail task={detail} onClose={()=>setDetail(null)} getEmp={getEmp} employees={employees} isMobile={isMobile} onEdit={()=>openEdit(detail)} onDelete={()=>deleteTask(detail.id)} onUpdateSteps={updateSteps} onUpdateTask={updateTask} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} inp={inp} currentUser={currentUser} canManage={canManage}/>}
+    {detail&&<TaskDetail task={detail} onClose={()=>setDetail(null)} getEmp={getEmp} employees={employees} isMobile={isMobile} onEdit={()=>openEdit(detail)} onDelete={()=>deleteTask(detail.id)} onUpdateSteps={updateSteps} onUpdateTask={updateTask} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} inp={inp} currentUser={currentUser} canManage={canManage} onApproveCreate={approveCreate} onRejectCreate={rejectCreate} canApproveCreate={isDeptMgrOf(detail)}/>}
   </div>);
 }
