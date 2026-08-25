@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 import { fmtDate, getPreviewUrl, getFileIcon, nowStr } from "./helpers";
+import { isAssignable } from "./constants";
 
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
 const today=new Date();today.setHours(0,0,0,0);
@@ -189,7 +190,7 @@ function TaskForm({form,setForm,onClose,onSave,employees,isMobile,inp,saving}){
     setForm(f=>({...f,team:JSON.stringify(t)}));
   };
   const getRole=eid=>team.find(m=>m.eid===eid)?.role||"";
-  const empsByDept=useMemo(()=>{const g={};(employees||[]).forEach(e=>{(g[e.dept]=g[e.dept]||[]).push(e);});return g;},[employees]);
+  const empsByDept=useMemo(()=>{const g={};(employees||[]).filter(isAssignable).forEach(e=>{(g[e.dept]=g[e.dept]||[]).push(e);});return g;},[employees]);
 
   return(<div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:isMobile?"12px 8px":16}}>
     <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:600,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>

@@ -23,6 +23,8 @@ export const ROLES_EMP = ["Giám đốc","Phó Giám đốc","Trưởng phòng",
 // Chức vụ LÃNH ĐẠO (Ban Giám đốc) — ẨN khỏi mọi bảng xếp hạng/điểm KPI (không chấm như nhân viên/điều hành).
 export const EXEC_ROLES = ["Giám đốc","Phó Giám đốc"];
 export const isRankable = e => !!e && !e.no_kpi && !EXEC_ROLES.includes(e.role);
+// Người được GIAO VIỆC / chọn phối hợp: loại người khoán KPI (no_kpi) VÀ Ban Giám đốc (Giám đốc/Phó Giám đốc)
+export const isAssignable = e => !!e && !e.no_kpi && !EXEC_ROLES.includes(e.role);
 export const VI_MONTHS = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
 export const VI_DAYS = ["CN","T2","T3","T4","T5","T6","T7"];
 export const ROLE_LABELS = {admin:"Quản trị viên",director:"Ban Giám đốc",manager_hcth:"TP. HCTH",manager:"Trưởng phòng",deputy_manager:"Phó trưởng phòng",staff:"Nhân viên"};
