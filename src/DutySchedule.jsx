@@ -96,46 +96,68 @@ function parseDocxHtml(html) {
 // TỌA ĐỘ (x,y) của từng cụm chữ: gom theo y = 1 hàng, tách cột theo x gần tâm cột lấy từ hàng tiêu đề.
 // Bảng chuẩn 6 cột: Ngày | Thứ | Trực lãnh đạo | Trực DC | Trực IOC | Ghi chú. Mỗi ngày trải nhiều hàng
 // (DC 3 ca, IOC nhiều người) — gom dồn theo ngày giống cách đọc .docx.
-function pdfToRows(pages) {
-  const rows = [];
-  for (const items of pages) {
-    const map = new Map();
-    for (const it of items) { if (!it.str.trim()) continue; const key = Math.round(it.y / 3); if (!map.has(key)) map.set(key, []); map.get(key).push(it); }
-    [...map.entries()].sort((a, b) => b[0] - a[0]).forEach(([, arr]) => rows.push(arr.sort((a, b) => a.x - b.x)));
-  }
-  return rows;
-}
-function parsePdfDays(rows) {
+const NOTICE_RE = /thông báo|thực hiện theo|phân công|căn cứ|quốc khánh|nghỉ lễ|nghỉ tết|yêu cầu các/i;
+const isJunkName = s => !!s && (s.length > 28 || NOTICE_RE.test(s)); // tên trực thật là tên người (ngắn); text dài = ghi chú/thông báo gộp ô
+
+// Phân tích 1 TRANG: gom chữ theo dòng (y), tách cột theo tâm cột lấy từ hàng tiêu đề của CHÍNH trang đó.
+// Ô Ngày/Lãnh đạo gộp dọc căn GIỮA khối → gán mỗi dòng con về NGÀY GẦN NHẤT theo y (tâm khối nằm đúng
+// ranh giới giữa 2 ngày). Trang không có hàng tiêu đề (VD trang chú thích + chữ ký cuối) → bỏ qua.
+function parseOnePage(items) {
+  const map = new Map();
+  for (const it of items) { if (!it.str.trim()) continue; const k = Math.round(it.y / 3); if (!map.has(k)) map.set(k, []); map.get(k).push(it); }
+  const rows = [...map.entries()].sort((a, b) => b[0] - a[0]).map(([, a]) => a.sort((p, q) => p.x - q.x));
   let cols = null, startIdx = 0;
   for (let r = 0; r < rows.length; r++) {
     const low = rows[r].map(i => i.str).join(" ").toLowerCase();
     if (low.includes("lãnh đạo") && low.includes("ioc")) {
       const xOf = kw => { const it = rows[r].find(i => i.str.toLowerCase().includes(kw)); return it ? it.x : null; };
       cols = { date: xOf("ngày"), leader: xOf("lãnh"), dc: xOf("dc"), ioc: xOf("ioc"), note: xOf("ghi") };
-      if (cols.date == null) cols.date = Math.min(...rows[r].map(i => i.x)); // cột Ngày ở ngoài cùng bên trái
+      if (cols.date == null) cols.date = Math.min(...rows[r].map(i => i.x));
       startIdx = r + 1; break;
     }
   }
   if (!cols || cols.leader == null || cols.dc == null || cols.ioc == null) return [];
   const centers = Object.entries(cols).filter(([, x]) => x != null);
   const colOf = x => { let best = "", bd = Infinity; for (const [n, cx] of centers) { const d = Math.abs(x - cx); if (d < bd) { bd = d; best = n; } } return best; };
-  const days = {}; let cur = null;
+  // Gom text từng dòng theo cột + y trung bình; bỏ dòng tiêu đề lặp lại giữa trang
+  const dataRows = [];
   for (let r = startIdx; r < rows.length; r++) {
+    const low = rows[r].map(i => i.str).join(" ").toLowerCase();
+    if (low.includes("lãnh đạo") && low.includes("ioc")) continue; // tiêu đề lặp
     const b = { date: [], leader: [], dc: [], ioc: [], note: [] };
-    for (const it of rows[r]) { const c = colOf(it.x); if (b[c]) b[c].push(it.str); }
-    const dm = b.date.join(" ").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    const leaderTxt = b.leader.join(" ").replace(/\s+/g, " ").trim();
-    const dcTxt = b.dc.join(" ").replace(/\s+/g, " ").trim();
-    const iocTxt = b.ioc.join(" ").replace(/\s+/g, " ").trim();
-    const noteTxt = b.note.join(" ").replace(/\s+/g, " ").trim();
-    if (dm) { const date = `${dm[3]}-${pad(dm[2])}-${pad(dm[1])}`; cur = date; days[date] = { date, leader: leaderTxt, dc: [], ioc: [], note: noteTxt, _d: 0, _i: 0 }; }
-    if (!cur) continue;
-    if (dcTxt) days[cur].dc.push({ name: dcTxt, shiftIdx: days[cur]._d++ });
-    if (iocTxt) days[cur].ioc.push({ name: iocTxt, shiftIdx: days[cur]._i++ });
-    if (!days[cur].leader && leaderTxt) days[cur].leader = leaderTxt;
-    if (!days[cur].note && noteTxt) days[cur].note = noteTxt;
+    let sy = 0, ny = 0;
+    for (const it of rows[r]) { const c = colOf(it.x); if (b[c]) b[c].push(it.str); sy += it.y; ny++; }
+    const g = k => b[k].join(" ").replace(/\s+/g, " ").trim();
+    dataRows.push({ y: ny ? sy / ny : 0, dateTxt: g("date"), leader: g("leader"), dc: g("dc"), ioc: g("ioc"), note: g("note") });
+  }
+  const dateRows = dataRows.map(d => { const m = d.dateTxt.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? { y: d.y, date: `${m[3]}-${pad(m[2])}-${pad(m[1])}` } : null; }).filter(Boolean);
+  if (!dateRows.length) return [];
+  const nearest = y => { let best = dateRows[0], bd = Infinity; for (const dr of dateRows) { const d = Math.abs(y - dr.y); if (d < bd) { bd = d; best = dr; } } return best.date; };
+  const days = {};
+  for (const dr of dateRows) days[dr.date] = { date: dr.date, leader: "", dc: [], ioc: [], note: "", _d: 0, _i: 0 };
+  for (const row of dataRows) {
+    const day = days[nearest(row.y)]; if (!day) continue;
+    if (row.leader && !day.leader) day.leader = row.leader;
+    if (row.note && !day.note) day.note = row.note;
+    if (row.dc) day.dc.push({ name: row.dc, shiftIdx: day._d++ });
+    if (row.ioc) day.ioc.push({ name: row.ioc, shiftIdx: day._i++ });
   }
   return Object.values(days).map(({ _d, _i, ...d }) => d);
+}
+// Gộp nhiều trang; dọn dòng thông báo/ghi chú gộp ô lọt vào cột; bỏ ngày rỗng (VD ngày nghỉ lễ chỉ có
+// dòng thông báo) để lịch bắt đầu đúng từ ngày có trực thật.
+function parsePdfDays(pages) {
+  const all = {};
+  for (const items of pages) for (const d of parseOnePage(items)) all[d.date] = d;
+  const out = [];
+  for (const d of Object.values(all)) {
+    if (isJunkName(d.leader)) d.leader = "";
+    d.dc = d.dc.filter(x => !isJunkName(x.name)).map((x, i) => ({ ...x, shiftIdx: i }));
+    d.ioc = d.ioc.filter(x => !isJunkName(x.name)).map((x, i) => ({ ...x, shiftIdx: i }));
+    if (!d.leader && d.dc.length === 0 && d.ioc.length === 0) continue; // ngày rỗng → bỏ
+    out.push(d);
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export default function DutySchedule({ currentUser, employees, userDept, isMobile, inp, showToast, canManage }){
@@ -152,7 +174,7 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
   const docxRef=useRef(null);
   const pdfRef=useRef(null);
   const onDocx=async(e)=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;setImporting(true);setDocxDays(null);setDocxName(f.name);try{const mammoth=await import("mammoth");const buf=await f.arrayBuffer();const{value}=await mammoth.convertToHtml({arrayBuffer:buf});const days=parseDocxHtml(value);setDocxDays(days);if(!days.length)showToast&&showToast("Không tìm thấy bảng lịch trực trong file (kiểm tra bảng có cột Ngày/Trực lãnh đạo/Trực DC/Trực IOC).","error");}catch(err){showToast&&showToast("Lỗi đọc file: "+(err.message||""),"error");setDocxName("");}setImporting(false);};
-  const onPdf=async(e)=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;setImporting(true);setDocxDays(null);setDocxName(f.name);try{const pdfjs=await import("pdfjs-dist");const workerUrl=(await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;pdfjs.GlobalWorkerOptions.workerSrc=workerUrl;const buf=await f.arrayBuffer();const pdf=await pdfjs.getDocument({data:buf}).promise;const pages=[];const max=Math.min(pdf.numPages,60);for(let i=1;i<=max;i++){const p=await pdf.getPage(i);const c=await p.getTextContent();pages.push(c.items.map(it=>({str:it.str,x:it.transform[4],y:it.transform[5]})));}const days=parsePdfDays(pdfToRows(pages));setDocxDays(days);if(!days.length)showToast&&showToast("Không đọc được bảng lịch trực trong PDF. Đảm bảo PDF có CHỮ (không phải ảnh scan) và có các cột Ngày/Trực lãnh đạo/Trực DC/Trực IOC. Nếu là bản scan, hãy dùng file .docx.","error");}catch(err){showToast&&showToast("Lỗi đọc PDF: "+(err.message||""),"error");setDocxName("");}setImporting(false);};
+  const onPdf=async(e)=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;setImporting(true);setDocxDays(null);setDocxName(f.name);try{const pdfjs=await import("pdfjs-dist");const workerUrl=(await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;pdfjs.GlobalWorkerOptions.workerSrc=workerUrl;const buf=await f.arrayBuffer();const pdf=await pdfjs.getDocument({data:buf}).promise;const pages=[];const max=Math.min(pdf.numPages,60);for(let i=1;i<=max;i++){const p=await pdf.getPage(i);const c=await p.getTextContent();pages.push(c.items.map(it=>({str:it.str,x:it.transform[4],y:it.transform[5]})));}const days=parsePdfDays(pages);setDocxDays(days);if(!days.length)showToast&&showToast("Không đọc được bảng lịch trực trong PDF. Đảm bảo PDF có CHỮ (không phải ảnh scan) và có các cột Ngày/Trực lãnh đạo/Trực DC/Trực IOC. Nếu là bản scan, hãy dùng file .docx.","error");}catch(err){showToast&&showToast("Lỗi đọc PDF: "+(err.message||""),"error");setDocxName("");}setImporting(false);};
   const [editDay,setEditDay]=useState(null);
   const [dayDraft,setDayDraft]=useState(null);
 
