@@ -92,6 +92,52 @@ function parseDocxHtml(html) {
   return Object.values(days).map(({ _d, _i, ...d }) => d);
 }
 
+// ── Đọc THẲNG file .pdf (pdf.js): PDF không giữ cấu trúc bảng như HTML, nên phải DỰNG LẠI hàng/cột theo
+// TỌA ĐỘ (x,y) của từng cụm chữ: gom theo y = 1 hàng, tách cột theo x gần tâm cột lấy từ hàng tiêu đề.
+// Bảng chuẩn 6 cột: Ngày | Thứ | Trực lãnh đạo | Trực DC | Trực IOC | Ghi chú. Mỗi ngày trải nhiều hàng
+// (DC 3 ca, IOC nhiều người) — gom dồn theo ngày giống cách đọc .docx.
+function pdfToRows(pages) {
+  const rows = [];
+  for (const items of pages) {
+    const map = new Map();
+    for (const it of items) { if (!it.str.trim()) continue; const key = Math.round(it.y / 3); if (!map.has(key)) map.set(key, []); map.get(key).push(it); }
+    [...map.entries()].sort((a, b) => b[0] - a[0]).forEach(([, arr]) => rows.push(arr.sort((a, b) => a.x - b.x)));
+  }
+  return rows;
+}
+function parsePdfDays(rows) {
+  let cols = null, startIdx = 0;
+  for (let r = 0; r < rows.length; r++) {
+    const low = rows[r].map(i => i.str).join(" ").toLowerCase();
+    if (low.includes("lãnh đạo") && low.includes("ioc")) {
+      const xOf = kw => { const it = rows[r].find(i => i.str.toLowerCase().includes(kw)); return it ? it.x : null; };
+      cols = { date: xOf("ngày"), leader: xOf("lãnh"), dc: xOf("dc"), ioc: xOf("ioc"), note: xOf("ghi") };
+      if (cols.date == null) cols.date = Math.min(...rows[r].map(i => i.x)); // cột Ngày ở ngoài cùng bên trái
+      startIdx = r + 1; break;
+    }
+  }
+  if (!cols || cols.leader == null || cols.dc == null || cols.ioc == null) return [];
+  const centers = Object.entries(cols).filter(([, x]) => x != null);
+  const colOf = x => { let best = "", bd = Infinity; for (const [n, cx] of centers) { const d = Math.abs(x - cx); if (d < bd) { bd = d; best = n; } } return best; };
+  const days = {}; let cur = null;
+  for (let r = startIdx; r < rows.length; r++) {
+    const b = { date: [], leader: [], dc: [], ioc: [], note: [] };
+    for (const it of rows[r]) { const c = colOf(it.x); if (b[c]) b[c].push(it.str); }
+    const dm = b.date.join(" ").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    const leaderTxt = b.leader.join(" ").replace(/\s+/g, " ").trim();
+    const dcTxt = b.dc.join(" ").replace(/\s+/g, " ").trim();
+    const iocTxt = b.ioc.join(" ").replace(/\s+/g, " ").trim();
+    const noteTxt = b.note.join(" ").replace(/\s+/g, " ").trim();
+    if (dm) { const date = `${dm[3]}-${pad(dm[2])}-${pad(dm[1])}`; cur = date; days[date] = { date, leader: leaderTxt, dc: [], ioc: [], note: noteTxt, _d: 0, _i: 0 }; }
+    if (!cur) continue;
+    if (dcTxt) days[cur].dc.push({ name: dcTxt, shiftIdx: days[cur]._d++ });
+    if (iocTxt) days[cur].ioc.push({ name: iocTxt, shiftIdx: days[cur]._i++ });
+    if (!days[cur].leader && leaderTxt) days[cur].leader = leaderTxt;
+    if (!days[cur].note && noteTxt) days[cur].note = noteTxt;
+  }
+  return Object.values(days).map(({ _d, _i, ...d }) => d);
+}
+
 export default function DutySchedule({ currentUser, employees, userDept, isMobile, inp, showToast, canManage }){
   const [schedule,setSchedule]=useState({}); // {date: {leader,dc:[],ioc:[],note}}
   const [holidays,setHolidays]=useState([]);
@@ -104,7 +150,9 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
   const [docxName,setDocxName]=useState("");
   const [importing,setImporting]=useState(false);
   const docxRef=useRef(null);
+  const pdfRef=useRef(null);
   const onDocx=async(e)=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;setImporting(true);setDocxDays(null);setDocxName(f.name);try{const mammoth=await import("mammoth");const buf=await f.arrayBuffer();const{value}=await mammoth.convertToHtml({arrayBuffer:buf});const days=parseDocxHtml(value);setDocxDays(days);if(!days.length)showToast&&showToast("Không tìm thấy bảng lịch trực trong file (kiểm tra bảng có cột Ngày/Trực lãnh đạo/Trực DC/Trực IOC).","error");}catch(err){showToast&&showToast("Lỗi đọc file: "+(err.message||""),"error");setDocxName("");}setImporting(false);};
+  const onPdf=async(e)=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;setImporting(true);setDocxDays(null);setDocxName(f.name);try{const pdfjs=await import("pdfjs-dist");const workerUrl=(await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;pdfjs.GlobalWorkerOptions.workerSrc=workerUrl;const buf=await f.arrayBuffer();const pdf=await pdfjs.getDocument({data:buf}).promise;const pages=[];const max=Math.min(pdf.numPages,60);for(let i=1;i<=max;i++){const p=await pdf.getPage(i);const c=await p.getTextContent();pages.push(c.items.map(it=>({str:it.str,x:it.transform[4],y:it.transform[5]})));}const days=parsePdfDays(pdfToRows(pages));setDocxDays(days);if(!days.length)showToast&&showToast("Không đọc được bảng lịch trực trong PDF. Đảm bảo PDF có CHỮ (không phải ảnh scan) và có các cột Ngày/Trực lãnh đạo/Trực DC/Trực IOC. Nếu là bản scan, hãy dùng file .docx.","error");}catch(err){showToast&&showToast("Lỗi đọc PDF: "+(err.message||""),"error");setDocxName("");}setImporting(false);};
   const [editDay,setEditDay]=useState(null);
   const [dayDraft,setDayDraft]=useState(null);
 
@@ -122,7 +170,7 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
   // Quyền duyệt 1 swap: Admin/BGĐ toàn quyền; TP/PP chỉ duyệt swap của nhân viên phòng mình
   const canApproveSwap=(sw)=>{if(["admin","director"].includes(currentUser?.role))return true;if(["manager_hcth","manager","deputy_manager"].includes(currentUser?.role)){const d1=findDept(sw.substitute),d2=findDept(sw.absent);return (d1&&d1===userDept)||(d2&&d2===userDept);}return false;};
 
-  const doImport=async()=>{const parsed=(docxDays&&docxDays.length)?docxDays:parsePasted(pasteText);if(parsed.length===0){showToast&&showToast("Không đọc được dữ liệu. Hãy chọn file .docx hoặc kiểm tra định dạng dán.","error");return;}const rows=parsed.map(d=>({date:d.date,leader:d.leader,dc:JSON.stringify(d.dc),ioc:JSON.stringify(d.ioc),note:d.note}));const{error}=await supabase.from("duty_schedule").upsert(rows,{onConflict:"date"});if(!error){const map={...schedule};parsed.forEach(d=>map[d.date]={...d,dc:normPeople(d.dc),ioc:normPeople(d.ioc)});setSchedule(map);showToast&&showToast(`Đã nhập ${parsed.length} ngày trực`);setShowImport(false);setPasteText("");setDocxDays(null);setDocxName("");}else showToast&&showToast("Lỗi: "+(error.message||""),"error");};
+  const doImport=async()=>{const parsed=(docxDays&&docxDays.length)?docxDays:parsePasted(pasteText);if(parsed.length===0){showToast&&showToast("Không đọc được dữ liệu. Hãy chọn file .docx/.pdf hoặc kiểm tra định dạng dán.","error");return;}const rows=parsed.map(d=>({date:d.date,leader:d.leader,dc:JSON.stringify(d.dc),ioc:JSON.stringify(d.ioc),note:d.note}));const{error}=await supabase.from("duty_schedule").upsert(rows,{onConflict:"date"});if(!error){const map={...schedule};parsed.forEach(d=>map[d.date]={...d,dc:normPeople(d.dc),ioc:normPeople(d.ioc)});setSchedule(map);showToast&&showToast(`Đã nhập ${parsed.length} ngày trực`);setShowImport(false);setPasteText("");setDocxDays(null);setDocxName("");}else showToast&&showToast("Lỗi: "+(error.message||""),"error");};
 
   const monthDays=useMemo(()=>{const y=cur.getFullYear(),m=cur.getMonth();const first=new Date(y,m,1);const startDow=first.getDay();const daysInMonth=new Date(y,m+1,0).getDate();const cells=[];for(let i=0;i<startDow;i++)cells.push(null);for(let d=1;d<=daysInMonth;d++)cells.push(new Date(y,m,d));return cells;},[cur]);
   const weekDays=useMemo(()=>{const d=new Date(cur);const dow=d.getDay();const monday=new Date(d);monday.setDate(d.getDate()-dow);const arr=[];for(let i=0;i<7;i++){const x=new Date(monday);x.setDate(monday.getDate()+i);arr.push(x);}return arr;},[cur]);
@@ -199,11 +247,15 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
     </>}
 
     {showImport&&(<div onClick={()=>setShowImport(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:600,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
-      <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>📥 Nhập lịch trực từ Word</span><button onClick={()=>setShowImport(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div>
+      <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>📥 Nhập lịch trực từ Word / PDF</span><button onClick={()=>setShowImport(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button></div>
       <div style={{padding:18}}>
-        <div style={{fontSize:12,color:"#166534",marginBottom:10,lineHeight:1.6,background:"#f0fdf4",border:"1px solid #bbf7d0",padding:"10px 12px",borderRadius:8}}><b>✅ Cách 1 (khuyên dùng): tải thẳng file Word .docx</b><br/>Đọc chính xác cả DC (3 ca) và IOC (nhiều người) — kể cả khi bảng gộp ô.</div>
+        <div style={{fontSize:12,color:"#166534",marginBottom:10,lineHeight:1.6,background:"#f0fdf4",border:"1px solid #bbf7d0",padding:"10px 12px",borderRadius:8}}><b>✅ Cách 1 (khuyên dùng): tải thẳng file Word .docx hoặc PDF</b><br/>Đọc chính xác cả DC (3 ca) và IOC (nhiều người). PDF cần là bản có CHỮ (xuất từ Word), không phải ảnh scan.</div>
         <input ref={docxRef} type="file" accept=".docx" style={{display:"none"}} onChange={onDocx}/>
-        <button onClick={()=>docxRef.current&&docxRef.current.click()} disabled={importing} style={{width:"100%",padding:"12px",border:"2px dashed #86efac",borderRadius:10,background:"#f7fef9",color:"#15803d",cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:8}}>{importing?"⏳ Đang đọc file…":"📄 Chọn file .docx lịch trực"}</button>
+        <input ref={pdfRef} type="file" accept=".pdf" style={{display:"none"}} onChange={onPdf}/>
+        <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+          <button onClick={()=>docxRef.current&&docxRef.current.click()} disabled={importing} style={{flex:1,minWidth:150,padding:"12px",border:"2px dashed #86efac",borderRadius:10,background:"#f7fef9",color:"#15803d",cursor:"pointer",fontSize:13,fontWeight:600}}>{importing?"⏳ Đang đọc…":"📄 Chọn file .docx"}</button>
+          <button onClick={()=>pdfRef.current&&pdfRef.current.click()} disabled={importing} style={{flex:1,minWidth:150,padding:"12px",border:"2px dashed #fca5a5",borderRadius:10,background:"#fff7f7",color:"#b91c1c",cursor:"pointer",fontSize:13,fontWeight:600}}>{importing?"⏳ Đang đọc…":"📕 Chọn file .pdf"}</button>
+        </div>
         {docxName&&!importing&&<div style={{fontSize:12.5,color:docxDays&&docxDays.length?"#059669":"#b91c1c",marginBottom:10}}>{docxName} — {docxDays&&docxDays.length?`đọc được ${docxDays.length} ngày trực (DC ${docxDays.reduce((s,d)=>s+d.dc.length,0)} lượt · IOC ${docxDays.reduce((s,d)=>s+d.ioc.length,0)} lượt)`:"không đọc được bảng"}</div>}
         <div style={{fontSize:11.5,color:"#9ca3af",textAlign:"center",margin:"4px 0"}}>— hoặc dán bảng từ Word —</div>
         <div style={{fontSize:11.5,color:"#6b7280",marginBottom:8,lineHeight:1.6,background:"#f8fafc",padding:"8px 12px",borderRadius:8}}><b>Cách 2:</b> Bôi đen bảng trong Word → Copy → dán vào ô dưới. <i>(Lưu ý: cách dán dễ mất cột DC/IOC nếu bảng gộp ô — nên ưu tiên Cách 1.)</i></div>
