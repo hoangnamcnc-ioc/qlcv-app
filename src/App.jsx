@@ -337,7 +337,7 @@ export default function App() {
   } = useEmployees({ employees, setEmployees, showToast, setSaving });
   const {
     userModal, setUserModal, userForm, setUserForm, userEditId, setUserEditId, submitUser, deleteUser, resetUserPwd,
-  } = useUsers({ users, setUsers, showToast, setSaving });
+  } = useUsers({ users, setUsers, showToast, setSaving, currentUser });
 
   const submitTemplate=async()=>{const{editId}=templateForm;const data={...templateForm.data,deadline_days:templateForm.data.frequency==="daily"?0:templateForm.data.deadline_days};if(!data.title||!data.eid){showToast("Nhập tiêu đề và chọn người giao","error");return;}setSaving(true);if(editId){const old=recurringTemplates.find(t=>t.id===editId);const{error}=await supabase.from("recurring_templates").update(data).eq("id",editId);if(error){showToast("Lỗi lưu mẫu: "+(error.message||""),"error");setSaving(false);return;}setRecurringTemplates(p=>p.map(t=>t.id===editId?{...t,...data}:t));
     // Nếu ĐỔI người giao (hoặc phòng) trong mẫu → cập nhật luôn các việc định kỳ ĐANG MỞ (chưa hoàn thành)
