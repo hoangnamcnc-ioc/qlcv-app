@@ -23,17 +23,19 @@ Cài đặt:
   playwright install chromium
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  QUAN TRỌNG: Cần điền SUPABASE_SERVICE_KEY
+  QUAN TRỌNG: Bí mật đọc từ BIẾN MÔI TRƯỜNG (không ghi vào file)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Cách lấy SUPABASE_SERVICE_KEY (service_role key):
-  1. Đăng nhập Supabase: https://supabase.com/dashboard
-  2. Chọn project → Settings → API
-  3. Trong mục "Project API keys" → copy "service_role" key
-     (KHÔNG phải "anon" key — cần key service_role mới insert được)
-  4. Dán vào CONFIG["SUPABASE_SERVICE_KEY"] bên dưới
+  Trước khi chạy, đặt 3 biến môi trường bắt buộc (PowerShell):
+      $env:IOFFICE_PASSWORD     = "mat_khau_ioffice"
+      $env:QLCV_PASSWORD        = "mat_khau_qlcv"
+      $env:SUPABASE_SERVICE_KEY = "service_role_key"
+  (Đặt vĩnh viễn: dùng `setx TÊN "giá_trị"` rồi mở terminal MỚI.)
 
-  Lý do cần service_role: bảng documents có bảo mật RLS chặn
-  việc thêm dữ liệu từ bên ngoài. Service_role key bỏ qua RLS.
+  Lấy SUPABASE_SERVICE_KEY (service_role key):
+  1. Đăng nhập https://supabase.com/dashboard → chọn project → Settings → API
+  2. Mục "Project API keys" → copy "service_role" key (KHÔNG phải "anon")
+  Lý do cần service_role: bảng documents có RLS chặn thêm dữ liệu từ ngoài;
+  service_role bỏ qua RLS. VÌ VẬY tuyệt đối không ghi key này vào file/commit.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
@@ -47,6 +49,14 @@ from datetime import datetime
 import requests
 from playwright.async_api import async_playwright
 
+# Windows + Python mới: ép stdout/stderr sang UTF-8 để in được ✓/⚠/emoji kể cả khi ghi log/redirect
+# (nếu không, console cp1252 sẽ ném UnicodeEncodeError và làm script dừng giữa chừng).
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 # Thư mục tạm để lưu file đính kèm đã tải — cần tự tạo vì Playwright sẽ XOÁ file tạm
 # của riêng nó ngay khi đóng trình duyệt (browser.close()), trong khi bước upload lên
 # Supabase Storage chỉ chạy SAU khi đã đóng trình duyệt.
@@ -55,31 +65,84 @@ os.makedirs(ATTACHMENT_TMP_DIR, exist_ok=True)
 
 
 # ════════════════════════════════════════════════════════════
-#  CẤU HÌNH — Điền thông tin của bạn vào đây
+#  CẤU HÌNH — Đọc từ BIẾN MÔI TRƯỜNG (không ghi bí mật vào file)
 # ════════════════════════════════════════════════════════════
+# Thông tin nhạy cảm (mật khẩu, service_role key) LẤY TỪ BIẾN MÔI TRƯỜNG — KHÔNG ghi thẳng vào file
+# để tránh lộ khi chia sẻ/commit. Các giá trị công khai (URL, anon key, tên đăng nhập) có sẵn mặc định
+# nhưng vẫn có thể override bằng biến môi trường cùng tên.
+#
+# Cách đặt biến môi trường (PowerShell) — chỉ có hiệu lực trong cửa sổ hiện tại:
+#     $env:IOFFICE_PASSWORD       = "mat_khau_ioffice"
+#     $env:QLCV_PASSWORD          = "mat_khau_qlcv"
+#     $env:SUPABASE_SERVICE_KEY   = "service_role_key_lay_tu_supabase"
+#     python sync_vanban.py
+#
+# Đặt VĨNH VIỄN (chạy 1 lần, mở lại terminal mới để có hiệu lực):
+#     setx IOFFICE_PASSWORD     "mat_khau_ioffice"
+#     setx QLCV_PASSWORD        "mat_khau_qlcv"
+#     setx SUPABASE_SERVICE_KEY "service_role_key_lay_tu_supabase"
+#
+# (Tuỳ chọn) đặt thêm nếu muốn đổi tài khoản: IOFFICE_USERNAME, QLCV_USERNAME, IOFFICE_URL, SUPABASE_URL
+_ANON_DEFAULT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxheXF0a3dpYW5ycXJ3b3J3dHltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNDQxMTgsImV4cCI6MjA5NjYyMDExOH0.0NhZXfljXT4_BumLZg8GN_OSSdK87ngoxPqXfQuilx0"
+
+def _load_local_env():
+    """Đọc bí mật từ file '.env.sync' đặt CẠNH file script (KHÔNG commit — đã cho vào .gitignore).
+    Đọc bằng UTF-8 nên tránh được lỗi dán key JWT dài qua terminal PowerShell bị hỏng mã hoá.
+    Giá trị trong file ƯU TIÊN hơn biến môi trường (để chắc chắn dùng đúng key sạch trong file).
+    Định dạng mỗi dòng:  TÊN=giá_trị   (bỏ qua dòng trống và dòng bắt đầu bằng #)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env.sync")
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                os.environ[k.strip()] = v.strip().strip('"').strip("'")
+    except OSError as e:
+        print(f"⚠ Không đọc được file .env.sync: {e}")
+
+_load_local_env()
+
+def _env(name: str, default: str = "") -> str:
+    """Đọc biến môi trường, cắt khoảng trắng thừa; nếu không đặt thì dùng mặc định."""
+    return (os.environ.get(name) or default).strip()
+
+def _bad_key(v: str) -> str:
+    """Kiểm tra 1 Supabase key (anon/service) có đúng dạng JWT ASCII không.
+    Trả về LÝ DO nếu sai (để báo lỗi), chuỗi rỗng nếu hợp lệ. Ngăn lỗi khó hiểu
+    'latin-1 codec can't encode' khi key bị dán nhầm thành chữ tiếng Việt."""
+    if any(ord(c) > 127 for c in v):
+        return "chứa ký tự không phải ASCII (nhiều khả năng dán nhầm giá trị khác, không phải key)"
+    if not v.startswith("eyJ") or v.count(".") != 2:
+        return "không đúng định dạng JWT (key phải bắt đầu bằng 'eyJ' và có đúng 2 dấu chấm)"
+    return ""
+
 CONFIG = {
     # ── iOffice ──────────────────────────────────────────────
-    "IOFFICE_URL":      "https://ioffice.vnptdaklak.vn/qlvbdh_dlk/",
-    "IOFFICE_USERNAME": "namvnh@khcn.daklak.gov.vn",   # ← sửa
-    "IOFFICE_PASSWORD": "Qlvb@2026",        # ← sửa
+    "IOFFICE_URL":      _env("IOFFICE_URL", "https://ioffice.vnptdaklak.vn/qlvbdh_dlk/"),
+    "IOFFICE_USERNAME": _env("IOFFICE_USERNAME", "namvnh@khcn.daklak.gov.vn"),
+    "IOFFICE_PASSWORD": _env("IOFFICE_PASSWORD"),          # ← BẮT BUỘC đặt qua biến môi trường
 
     # ── qlcv-app (Supabase) ───────────────────────────────────
-    "SUPABASE_URL":     "https://layqtkwianrqrworwtym.supabase.co",
-    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxheXF0a3dpYW5ycXJ3b3J3dHltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNDQxMTgsImV4cCI6MjA5NjYyMDExOH0.0NhZXfljXT4_BumLZg8GN_OSSdK87ngoxPqXfQuilx0",
-    # ★ QUAN TRỌNG: Lấy từ Supabase Dashboard → Settings → API → service_role key
-    "SUPABASE_SERVICE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxheXF0a3dpYW5ycXJ3b3J3dHltIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTA0NDExOCwiZXhwIjoyMDk2NjIwMTE4fQ.PS4Gh2W5RsCQNUZkqspukoMgF4F92RH5rofyC0N6Y24",  # ← BẮT BUỘC
-    "QLCV_USERNAME":    "admin",    # ← tên đăng nhập qlcv-app (không phải email)
-    "QLCV_PASSWORD":    "admin123@",
+    "SUPABASE_URL":      _env("SUPABASE_URL", "https://layqtkwianrqrworwtym.supabase.co"),
+    "SUPABASE_ANON_KEY": _env("SUPABASE_ANON_KEY", _ANON_DEFAULT),  # anon là key công khai
+    # ★ service_role key — BẮT BUỘC đặt qua biến môi trường SUPABASE_SERVICE_KEY
+    #   (Supabase Dashboard → Settings → API → service_role). Bỏ qua RLS nên TUYỆT ĐỐI không ghi vào file.
+    "SUPABASE_SERVICE_KEY": _env("SUPABASE_SERVICE_KEY"),  # ← BẮT BUỘC
+    "QLCV_USERNAME":    _env("QLCV_USERNAME", "admin"),    # tên đăng nhập qlcv-app (không phải email)
+    "QLCV_PASSWORD":    _env("QLCV_PASSWORD"),             # ← BẮT BUỘC đặt qua biến môi trường
 
     # ── Chọn section văn bản đến cần lấy ────────────────────
-    # Bỏ comment (#) section nào bạn muốn đồng bộ
     "SECTIONS": [
         "Văn bản đến xử lý chính",
         "Văn bản đến phối hợp",
     ],
 
     # ── Tùy chọn khác ───────────────────────────────────────
-    "HEADLESS": False,   # False = hiện cửa sổ Chrome; True = chạy ẩn
+    "HEADLESS": _env("HEADLESS", "false").lower() in ("1", "true", "yes"),  # true = chạy ẩn
     "WAIT_SECONDS": 2,   # Giây chờ sau mỗi thao tác
 }
 
@@ -551,12 +614,13 @@ class QLCVInserter:
         anon_key = CONFIG["SUPABASE_ANON_KEY"]
         svc_key  = CONFIG["SUPABASE_SERVICE_KEY"]
 
-        # Kiểm tra service_role key đã điền chưa
-        if "DIEN_" in svc_key:
+        # Kiểm tra service_role key đã đặt qua biến môi trường chưa
+        if not svc_key:
             raise RuntimeError(
-                "Chưa điền SUPABASE_SERVICE_KEY!\n"
-                "  → Truy cập: https://supabase.com/dashboard/project/layqtkwianrqrworwtym/settings/api\n"
-                "  → Copy 'service_role' key và dán vào CONFIG['SUPABASE_SERVICE_KEY']"
+                "Chưa đặt biến môi trường SUPABASE_SERVICE_KEY!\n"
+                '  → PowerShell: $env:SUPABASE_SERVICE_KEY = "service_role_key"\n'
+                "  → Lấy key: https://supabase.com/dashboard/project/layqtkwianrqrworwtym/settings/api\n"
+                "  → Copy 'service_role' key (KHÔNG phải 'anon' key)"
             )
 
         # Xác thực qua RPC login (an toàn, không lộ password hash)
@@ -770,15 +834,31 @@ async def main():
         print("  CHẾ ĐỘ: DRY RUN (chỉ xem, không thay đổi)")
     print("=" * 60)
 
-    # Kiểm tra config
-    for key in ("IOFFICE_USERNAME", "IOFFICE_PASSWORD", "SUPABASE_ANON_KEY",
-                "SUPABASE_SERVICE_KEY", "QLCV_USERNAME", "QLCV_PASSWORD"):
-        if "DIEN_" in CONFIG.get(key, "DIEN_"):
-            print(f"\n❌ Chưa điền: CONFIG['{key}'].")
-            if key == "SUPABASE_SERVICE_KEY":
-                print("   → Truy cập: https://supabase.com/dashboard/project/layqtkwianrqrworwtym/settings/api")
-                print("   → Copy 'service_role' key (KHÔNG phải 'anon' key)")
-            print("   Mở file sync_vanban.py và điền thông tin.")
+    # Kiểm tra biến môi trường bắt buộc (bí mật không ghi trong file)
+    missing = [k for k in ("IOFFICE_PASSWORD", "QLCV_PASSWORD", "SUPABASE_SERVICE_KEY") if not CONFIG.get(k)]
+    if missing:
+        print("\n❌ Chưa đặt các biến môi trường bắt buộc: " + ", ".join(missing))
+        print("\n   Đặt tạm trong PowerShell (chỉ có hiệu lực ở cửa sổ hiện tại), rồi chạy lại:")
+        for k in missing:
+            print(f'     $env:{k} = "..."')
+        print("\n   Hoặc đặt VĨNH VIỄN (mở terminal MỚI sau khi chạy):")
+        for k in missing:
+            print(f'     setx {k} "..."')
+        if "SUPABASE_SERVICE_KEY" in missing:
+            print("\n   Lấy service_role key: https://supabase.com/dashboard/project/layqtkwianrqrworwtym/settings/api")
+            print("   → Copy 'service_role' key (KHÔNG phải 'anon' key)")
+        sys.exit(1)
+
+    # Kiểm tra định dạng key (tránh lỗi 'latin-1 codec' khi key bị dán nhầm thành chữ tiếng Việt)
+    for kname in ("SUPABASE_ANON_KEY", "SUPABASE_SERVICE_KEY"):
+        why = _bad_key(CONFIG[kname])
+        if why:
+            val = CONFIG[kname]
+            print(f"\n❌ {kname} {why}.")
+            print(f"   Đang nhận giá trị (rút gọn): '{val[:25]}...' (dài {len(val)} ký tự)")
+            print(f'   → Đặt lại đúng key: $env:{kname} = "eyJhbGciOi...."')
+            if kname == "SUPABASE_SERVICE_KEY":
+                print("   → Lấy 'service_role' key ở: https://supabase.com/dashboard/project/layqtkwianrqrworwtym/settings/api")
             sys.exit(1)
 
     # ── Bước 1: Đăng nhập qlcv-app ──────────────────────────
