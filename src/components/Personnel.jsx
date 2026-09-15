@@ -31,10 +31,12 @@ function Bars({ data, color = "#6366f1" }) {
 const lbl = { fontSize: 11.5, color: "#6b7280", display: "block", marginBottom: 3 };
 
 export default function Personnel(props) {
-  const { employees, computed, canManageHR, meId, isAdmin, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, deptRows, addDept, updateDept, deleteDept } = props;
+  const { employees, computed, canManageHR, meId, isAdmin, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, deptRows, addDept, updateDept, deleteDept, hrById, loadHr, saveHr } = props;
   // CHỈ Admin/Giám đốc được thêm–sửa–xóa & quản lý cơ cấu. Người khác chỉ XEM hồ sơ của CHÍNH MÌNH.
   const [tab, setTab] = useState("workload");
   const canEditHr = !!canManageHR;
+  // PII hồ sơ (hr) chỉ tải qua RPC có xác thực khi vào tab Hồ sơ / Cơ cấu — không nằm trong bản employees chung.
+  useEffect(() => { if ((tab === "profile" || tab === "stats") && !hrById && loadHr) loadHr(); }, [tab]);
 
   const inp = { padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 13, background: "#fff", color: "#111", width: "100%", boxSizing: "border-box" };
   const card = { background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 };
@@ -50,8 +52,8 @@ export default function Personnel(props) {
       </div>
 
       {tab === "workload" && <Employees {...props} canCreate={canManageHR} isAdmin={canManageHR} />}
-      {tab === "profile" && <ProfileTab {...{ employees, computed, canEditHr, canManageHR, meId, canManageDept: canManageHR, isAdmin, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName }} />}
-      {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} />}
+      {tab === "profile" && <ProfileTab {...{ employees, computed, canEditHr, canManageHR, meId, canManageDept: canManageHR, isAdmin, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName, hrById, saveHr }} />}
+      {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} hrById={hrById} />}
       {tab === "depts" && <DeptTab {...{ readOnly: !canManageHR, deptRows, addDept, updateDept, deleteDept, deptAudit: props.deptAudit, deptOversight: props.deptOversight, setDeptOverseer: props.setDeptOverseer, employees, isMobile, inp, card }} />}
     </div>
   );
@@ -133,7 +135,8 @@ function DeptRow({ readOnly = false, d, count, onSave, onDelete, inp, isMobile, 
 }
 
 // ── TAB HỒ SƠ ───────────────────────────────────────────────────────────────
-function ProfileTab({ employees, computed, canEditHr, canManageHR, meId, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName }) {
+function ProfileTab({ employees, computed, canEditHr, canManageHR, meId, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName, hrById, saveHr }) {
+  const hrOf = id => (hrById && hrById[id]) || {}; // PII lấy từ map đã tải qua RPC (không đọc thẳng e.hr nữa)
   const ownMode = !canManageHR; // Người thường: chỉ xem hồ sơ của CHÍNH MÌNH, chỉ đọc
   const [selId, setSelId] = useState(ownMode ? meId : null);
   const [draft, setDraft] = useState(null);
@@ -146,14 +149,14 @@ function ProfileTab({ employees, computed, canEditHr, canManageHR, meId, canMana
   const sel = employees.find(e => e.id === selId);
   useEffect(() => { if (ownMode && meId && selId !== meId) setSelId(meId); }, [ownMode, meId]);
 
-  const open = emp => { setSelId(emp.id); const hr = getHr(emp); setDraft({ ...hr, rewards: hr.rewards || [], leaves: hr.leaves || [] }); setSaved(false); };
+  const open = emp => { setSelId(emp.id); const hr = hrOf(emp.id); setDraft({ ...hr, rewards: hr.rewards || [], leaves: hr.leaves || [] }); setSaved(false); };
   const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
   const save = async () => {
     if (!sel) return; setSaving(true);
     // Ghi NHẬT KÝ cập nhật hồ sơ (ai sửa, lúc nào) ngay trong hr._audit — quy trách nhiệm với dữ liệu cán bộ.
     const audit = [...(draft._audit || []), { by: meName || "—", at: new Date().toLocaleString("vi-VN") }].slice(-20);
     const payload = { ...draft, _audit: audit };
-    const ok = await updateEmployee(sel.id, { hr: payload });
+    const ok = saveHr ? await saveHr(sel.id, payload) : await updateEmployee(sel.id, { hr: payload });
     setSaving(false); if (ok === false) return;
     setDraft(payload); setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
@@ -183,7 +186,7 @@ function ProfileTab({ employees, computed, canEditHr, canManageHR, meId, canMana
           {depts.map(d => <button key={d} onClick={() => setEmpDeptTab(d)} style={{ padding: "4px 10px", border: "1px solid " + (empDeptTab === d ? DEPT_COLOR[d] : "#e5e7eb"), borderRadius: 6, background: empDeptTab === d ? DEPT_COLOR[d] + "18" : "#fff", color: empDeptTab === d ? DEPT_COLOR[d] : "#6b7280", fontSize: 12, cursor: "pointer" }}>{deptLabel(d)}</button>)}
         </div>
         <div style={{ maxHeight: 420, overflowY: "auto" }}>
-          {list.map(e => { const hr = getHr(e); const done = hr.dob || hr.phone || hr.education; return (
+          {list.map(e => { const hr = hrOf(e.id); const done = hr.dob || hr.phone || hr.education; return (
             <div key={e.id} onClick={() => open(e)} style={{ padding: "9px 12px", borderBottom: "1px solid #f8fafc", cursor: "pointer", background: selId === e.id ? "#eef2ff" : "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div><div style={{ fontSize: 13, fontWeight: selId === e.id ? 600 : 400 }}>{e.name}</div><div style={{ fontSize: 11, color: "#9ca3af" }}>{e.role}</div></div>
               <span title={done ? "Đã có hồ sơ" : "Chưa cập nhật hồ sơ"} style={{ fontSize: 11 }}>{done ? "✅" : "◻️"}</span>
@@ -294,7 +297,8 @@ function ProfileTab({ employees, computed, canEditHr, canManageHR, meId, canMana
 }
 
 // ── TAB CƠ CẤU ──────────────────────────────────────────────────────────────
-function StatsTab({ employees, canSeeAll, userDept, card }) {
+function StatsTab({ employees, canSeeAll, userDept, card, hrById }) {
+  const hrOf = id => (hrById && hrById[id]) || {};
   const emps = useMemo(() => (employees || []).filter(e => canSeeAll || e.dept === userDept), [employees, canSeeAll, userDept]);
   const total = emps.length;
 
@@ -305,7 +309,7 @@ function StatsTab({ employees, canSeeAll, userDept, card }) {
     const tenure = { "Dưới 5 năm": 0, "5–10 năm": 0, "10–20 năm": 0, "Trên 20 năm": 0, "Chưa rõ": 0 };
     const byDept = {};
     for (const e of emps) {
-      const hr = getHr(e);
+      const hr = hrOf(e.id);
       gender[hr.gender === "nam" ? "Nam" : hr.gender === "nu" ? "Nữ" : "Chưa rõ"]++;
       const a = yearsSince(hr.dob);
       age[a == null ? "Chưa rõ" : a < 30 ? "Dưới 30" : a < 40 ? "30–40" : a < 50 ? "40–50" : "Trên 50"]++;
@@ -325,7 +329,7 @@ function StatsTab({ employees, canSeeAll, userDept, card }) {
     };
   }, [emps]);
 
-  const filled = emps.filter(e => { const h = getHr(e); return h.dob || h.gender || h.education; }).length;
+  const filled = emps.filter(e => { const h = hrOf(e.id); return h.dob || h.gender || h.education; }).length;
   const Block = ({ title, data, color }) => <div style={card}><div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>{title}</div>{data.length ? <Bars data={data} color={color} /> : <div style={{ fontSize: 12.5, color: "#9ca3af" }}>Chưa có dữ liệu.</div>}</div>;
 
   return (

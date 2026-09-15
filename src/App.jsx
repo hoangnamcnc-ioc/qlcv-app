@@ -153,9 +153,10 @@ export default function App() {
   const transferEmployeeDept=async(empId,newDept,moveOpenTasks)=>{
     const emp=getEmp(empId); if(!emp||!newDept||emp.dept===newDept) return;
     const oldDept=emp.dept;
-    let hr=emp.hr; if(typeof hr==="string"){try{hr=JSON.parse(hr);}catch{hr={};}} if(!hr||typeof hr!=="object")hr={};
-    const audit=[...(hr._audit||[]),{by:currentUser?.full_name||"—",at:new Date().toLocaleString("vi-VN"),action:`Chuyển phòng ${oldDept} → ${newDept}`}].slice(-20);
-    const ok=await updateEmployee(empId,{dept:newDept,hr:{...hr,_audit:audit}});
+    // Nhật ký chuyển phòng lưu ở cột hr_audit (tách khỏi hr để không đụng PII bị khóa)
+    let prevAudit=emp.hr_audit; if(typeof prevAudit==="string"){try{prevAudit=JSON.parse(prevAudit);}catch{prevAudit=[];}} if(!Array.isArray(prevAudit))prevAudit=[];
+    const audit=[...prevAudit,{by:currentUser?.full_name||"—",at:new Date().toLocaleString("vi-VN"),action:`Chuyển phòng ${oldDept} → ${newDept}`}].slice(-20);
+    const ok=await updateEmployee(empId,{dept:newDept,hr_audit:audit});
     if(ok===false)return;
     let moved=0;
     if(moveOpenTasks){const open=(tasks||[]).filter(t=>!t.deleted&&!t.pending_create&&t.eid===empId&&!isCompletedStatus(getStatus(t)));for(const t of open){const r=await updateTask(t.id,{dept:newDept},`Chuyển phòng theo nhân sự: ${oldDept} → ${newDept}`,{silent:true});if(r)moved++;}}
@@ -244,16 +245,35 @@ export default function App() {
   const applyDeptRows=rows=>{setDepartments(rows);setDeptRows(rows);};
   // Nhật ký thay đổi phòng/ban (ai làm, khi nào) — lưu trong app_config key="dept_audit", không cần bảng mới.
   const logDept=async(action)=>{const entry={by:currentUser?.full_name||"—",at:new Date().toLocaleString("vi-VN"),action};const next=[...deptAudit,entry].slice(-100);setDeptAudit(next);try{await supabase.from("app_config").upsert({key:"dept_audit",value:JSON.stringify(next)},{onConflict:"key"});}catch{/* ignore */}};
-  // BGĐ phụ trách phòng — LƯU TRONG hr.oversees_dept của chính người BGĐ (bảng employees ghi được, không như app_config bị RLS).
-  const getHr=e=>{let h=e?.hr;if(typeof h==="string"){try{h=JSON.parse(h);}catch{h={};}}return h&&typeof h==="object"?h:{};};
-  const deptOversight=useMemo(()=>{const m={};for(const e of (employees||[])){const od=getHr(e).oversees_dept;if(od)m[od]=e.id;}return m;},[employees]); // { mãPhòng: empId }
+  // BGĐ phụ trách phòng — LƯU Ở CỘT oversees_dept (tách khỏi hr để mọi người đọc được, còn hr chứa PII bị khóa).
+  const deptOversight=useMemo(()=>{const m={};for(const e of (employees||[])){if(e.oversees_dept)m[e.oversees_dept]=e.id;}return m;},[employees]); // { mãPhòng: empId }
   const deptOverseerName=code=>{const id=deptOversight[code];const e=id&&getEmp(id);return e?e.name:null;};
-  const myOverseenDepts=useMemo(()=>{const od=getHr(getEmp(currentUser?.employee_id)).oversees_dept;return od?[od]:[];},[employees,currentUser]);
+  const myOverseenDepts=useMemo(()=>{const od=getEmp(currentUser?.employee_id)?.oversees_dept;return od?[od]:[];},[employees,currentUser]);
   const setDeptOverseer=async(deptCode,empId)=>{
     // Bỏ phòng này khỏi người BGĐ khác đang phụ trách (mỗi phòng chỉ 1 người BGĐ).
-    for(const e of (employees||[])){const hr=getHr(e);if(e.id!==empId&&hr.oversees_dept===deptCode)await updateEmployee(e.id,{hr:{...hr,oversees_dept:null}});}
-    if(empId){const e=getEmp(empId);const hr=getHr(e);if(hr.oversees_dept!==deptCode)await updateEmployee(empId,{hr:{...hr,oversees_dept:deptCode}});showToast(`Đã gán ${e?.name||"BGĐ"} phụ trách phòng ${deptCode}`);}
+    for(const e of (employees||[])){if(e.id!==empId&&e.oversees_dept===deptCode)await updateEmployee(e.id,{oversees_dept:null});}
+    if(empId){const e=getEmp(empId);if(e?.oversees_dept!==deptCode)await updateEmployee(empId,{oversees_dept:deptCode});showToast(`Đã gán ${e?.name||"BGĐ"} phụ trách phòng ${deptCode}`);}
     else showToast(`Đã bỏ gán BGĐ phụ trách phòng ${deptCode}`);
+  };
+  // ── PII hồ sơ nhân sự (cột employees.hr) — KHÔNG tải chung; chỉ đọc/ghi qua RPC có xác thực mật khẩu.
+  // Admin/Giám đốc xem tất cả; người khác chỉ xem hồ sơ của chính mình. Mật khẩu giữ trong bộ nhớ phiên.
+  const [hrById,setHrById]=useState(null); // {empId: hr} — null = chưa tải
+  const hrPassRef=useRef("");
+  const loadHr=async(force=false)=>{
+    if(hrById&&!force)return hrById;
+    if(!currentUser?.username)return null;
+    let pass=hrPassRef.current;
+    if(!pass){pass=window.prompt("Nhập MẬT KHẨU của bạn để xem hồ sơ nhân sự (thông tin cá nhân/lương…):","");if(!pass)return null;hrPassRef.current=pass;}
+    const{data,error}=await supabase.rpc("get_employees_hr",{p_user:currentUser.username,p_pass:pass});
+    if(error){if(/mật khẩu|tài khoản/i.test(error.message||""))hrPassRef.current="";showToast("Không xem được hồ sơ: "+(error.message||""),"error");return null;}
+    const m={};(data||[]).forEach(r=>{m[r.id]=r.hr||{};});setHrById(m);return m;
+  };
+  const saveHr=async(empId,hr)=>{
+    let pass=hrPassRef.current;
+    if(!pass){pass=window.prompt("Nhập MẬT KHẨU của bạn để lưu hồ sơ:","");if(!pass)return false;hrPassRef.current=pass;}
+    const{error}=await supabase.rpc("set_employee_hr",{p_user:currentUser.username,p_pass:pass,p_id:empId,p_hr:hr});
+    if(error){if(/mật khẩu|tài khoản/i.test(error.message||""))hrPassRef.current="";showToast("Lỗi lưu hồ sơ: "+(error.message||""),"error");return false;}
+    setHrById(p=>({...(p||{}),[empId]:hr}));return true;
   };
   const addDept=async({code,name,color})=>{const nm=(name||"").trim();let cd=(code||"").trim().toUpperCase().replace(/\s+/g," ");if(!nm||!cd)return;if(deptRows.some(d=>d.code.toUpperCase()===cd)){showToast("Mã phòng/ban đã tồn tại","error");return;}const ord=deptRows.reduce((m,d)=>Math.max(m,d.ord||0),0)+1;const row={code:cd,name:nm,color:color||"#6366f1",ord};const{error}=await supabase.from("departments").insert(row);if(error){showToast("Lỗi tạo phòng/ban","error");return;}applyDeptRows([...deptRows,row]);logDept(`Thêm phòng/ban "${nm}" (${cd})`);showToast("Đã thêm phòng/ban");};
   const updateDept=async(code,patch)=>{const before=deptRows.find(d=>d.code===code);const{error}=await supabase.from("departments").update(patch).eq("code",code);if(error){showToast("Lỗi cập nhật","error");return;}applyDeptRows(deptRows.map(d=>d.code===code?{...d,...patch}:d));logDept(`Sửa phòng/ban ${code}: ${before?.name!==patch.name?`đổi tên "${before?.name}" → "${patch.name}"`:"đổi màu"}`);showToast("Đã lưu");};
@@ -269,7 +289,11 @@ export default function App() {
       // MỌI VAI TRÒ tải TOÀN BỘ công việc để báo cáo/biểu đồ/danh sách khớp nhau (Nhân viên xem như Giám đốc,
       // phục vụ đối chiếu/so sánh). Ranh giới đọc thật sự sẽ do RLS đảm nhiệm (kế hoạch 2/9). Ghi/duyệt vẫn
       // được kiểm soát riêng theo vai trò (canEditTask/isAssigner/isDeptManagerOf...).
-      const{data:ed}=await supabase.from("employees").select("*").order("dept");
+      // Tải cột CƠ BẢN (không có PII hr). Cột chức năng oversees_dept/hr_audit merge riêng, chịu lỗi nếu
+      // chưa chạy 45a (chưa có cột) → không gãy app; tải hr thật đi qua RPC get_employees_hr có xác thực.
+      const{data:edBase}=await supabase.from("employees").select("id,name,dept,role,no_kpi").order("dept");
+      let ed=edBase;
+      {const{data:edEx}=await supabase.from("employees").select("id,oversees_dept,hr_audit");if(edEx&&edEx.length){const m={};edEx.forEach(r=>m[r.id]=r);ed=(edBase||[]).map(e=>({...e,...(m[e.id]||{})}));}}
       const tasksQ=supabase.from("tasks").select("*").order("created",{ascending:false});
       const[{data:td},{data:ud},{data:rtd},{data:otd},{data:pjd},{data:scd},{data:cmd},{data:dgd},{data:msd}]=await Promise.all([tasksQ,supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false}),supabase.from("projects").select("id,name,dept,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time,deadline,ext_proposed,ext_reason,ext_requested_by,ext_requested_at"),supabase.from("support_cases").select("id,eid,collab_eids,difficulty,created,content,category").eq("deleted",false),supabase.from("comments").select("task_id,user_name,created_at"),supabase.from("approval_delegations").select("*").order("start_date",{ascending:false}),supabase.from("monthly_scores").select("*")]);
       if(!ed||ed.length===0){if(!background){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}}else setEmployees(ed);
@@ -887,6 +911,7 @@ export default function App() {
           {view==="employees"&&(
             <Personnel
               isMobile={isMobile} inp={inp} meName={currentUser?.full_name} meId={currentUser?.employee_id} canManageHR={["admin","director"].includes(currentUser?.role)}
+              hrById={hrById} loadHr={loadHr} saveHr={saveHr}
               canSeeAll={canSeeAll} canCreate={canCreate} isAdmin={isAdmin}
               userDept={userDept}
               empDeptTab={empDeptTab} setEmpDeptTab={setEmpDeptTab}
