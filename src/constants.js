@@ -22,6 +22,10 @@ export const deptLabel = code => DEPT_NAME[code] || code; // tên hiển thị c
 export const ROLES_EMP = ["Giám đốc","Phó Giám đốc","Trưởng phòng","Phó trưởng phòng","Chuyên viên","Nhân viên"];
 // Chức vụ LÃNH ĐẠO (Ban Giám đốc) — ẨN khỏi mọi bảng xếp hạng/điểm KPI (không chấm như nhân viên/điều hành).
 export const EXEC_ROLES = ["Giám đốc","Phó Giám đốc"];
+// Mốc BẮT ĐẦU tính xếp loại/đánh giá chính thức: từ tháng 7/2026. Các tháng trước (T6/2026 là tháng thử nghiệm)
+// không đưa vào bảng Xếp loại (dữ liệu sổ điểm vẫn giữ nguyên, chỉ không tính). Muốn đổi mốc thì sửa ở đây.
+export const GRADING_START = { year: 2026, month: 7 };
+export const inGradingScope = (year, month) => year > GRADING_START.year || (year === GRADING_START.year && month >= GRADING_START.month);
 export const isRankable = e => !!e && !e.no_kpi && !EXEC_ROLES.includes(e.role);
 // Người được GIAO VIỆC / chọn phối hợp: loại người khoán KPI (no_kpi) VÀ Ban Giám đốc (Giám đốc/Phó Giám đốc)
 export const isAssignable = e => !!e && !e.no_kpi && !EXEC_ROLES.includes(e.role);

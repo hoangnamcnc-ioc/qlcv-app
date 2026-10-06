@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { DEPTS, DEPT_COLOR, deptLabel, STATUS, VI_MONTHS, RATING } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel, STATUS, VI_MONTHS, RATING, GRADING_START, inGradingScope } from "../constants";
 import { isCompletedStatus, parseNowStr, fmtDate } from "../helpers";
 const RATING_KEYS = ["xuat_sac", "tot", "tb", "kem"];
 
@@ -27,7 +27,8 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, syncMa
   // Chốt sổ điểm (ghi dữ liệu) chỉ dành cho BGĐ/Admin — mọi vai trò xem được bảng nhưng không tự chốt.
   const canFinalize = ["admin", "director"].includes(currentUser?.role);
 
-  const periodMonths = useMemo(() => gPeriod === "year" ? [1,2,3,4,5,6,7,8,9,10,11,12] : (() => { const q = Number(gPeriod[1]); return [q*3-2, q*3-1, q*3]; })(), [gPeriod]);
+  // Chỉ tính các tháng từ mốc bắt đầu xếp loại (GRADING_START = T7/2026); tháng thử nghiệm trước đó bị loại.
+  const periodMonths = useMemo(() => (gPeriod === "year" ? [1,2,3,4,5,6,7,8,9,10,11,12] : (() => { const q = Number(gPeriod[1]); return [q*3-2, q*3-1, q*3]; })()).filter(m => inGradingScope(gYear, m)), [gPeriod, gYear]);
   const periodLabel = gPeriod === "year" ? `năm ${gYear}` : `quý ${gPeriod[1]}/${gYear}`;
 
   // Gom sổ điểm theo nhân viên trong kỳ đã chọn — dùng tên/phòng lưu tại thời điểm chốt
@@ -90,8 +91,8 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, syncMa
     </div>
 
     <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
-      <div style={{ padding: "8px 16px", borderBottom: "1px solid #e5e7eb", fontSize: 11, color: "#9ca3af" }}>Điểm lấy từ sổ đã chốt (không đổi khi dữ liệu sống bị sửa) · Điểm TB = trung bình các tháng đủ điều kiện · Ngưỡng: ≥90 HTXS · ≥75 HT tốt · ≥50 HT · &lt;50 KHT · <span style={{ color: "#075985" }}>🏛️ ĐH = Trưởng/Phó phòng chấm theo điểm điều hành (kết quả cả phòng)</span></div>
-      {rows.length === 0 ? <div style={{ padding: 30, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>Chưa có tháng nào trong {periodLabel} được chốt sổ — dùng nút "📌 Chốt sổ" ở trên.</div> : (
+      <div style={{ padding: "8px 16px", borderBottom: "1px solid #e5e7eb", fontSize: 11, color: "#9ca3af" }}>Điểm lấy từ sổ đã chốt (không đổi khi dữ liệu sống bị sửa) · Điểm TB = trung bình các tháng đủ điều kiện · Ngưỡng: ≥90 HTXS · ≥75 HT tốt · ≥50 HT · &lt;50 KHT · <span style={{ color: "#075985" }}>🏛️ ĐH = Trưởng/Phó phòng chấm theo điểm điều hành (kết quả cả phòng)</span> · <span style={{ color: "#b45309" }}>📌 Xếp loại tính từ T{GRADING_START.month}/{GRADING_START.year} (tháng trước đó là thử nghiệm, không tính)</span></div>
+      {periodMonths.length === 0 ? <div style={{ padding: 30, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>{periodLabel} nằm trước mốc bắt đầu xếp loại (T{GRADING_START.month}/{GRADING_START.year}) — không có dữ liệu để xếp loại.</div> : rows.length === 0 ? <div style={{ padding: 30, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>Chưa có tháng nào trong {periodLabel} được chốt sổ — dùng nút "📌 Chốt sổ" ở trên.</div> : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 560 }}>
             <thead><tr style={{ background: "#f9fafb" }}>{["TT","Nhân viên","Phòng",...periodMonths.map(m => `T${m}`),"Điểm TB","Xếp loại"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
