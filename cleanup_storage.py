@@ -150,6 +150,12 @@ def main():
         return
     if not orphans:
         print("\nKhông có file mồ côi để xóa."); return
+    # CHỐT CHẶN: nếu bảng nguồn tham chiếu bỗng TRỐNG thì danh sách "mồ côi" không đáng tin (file của bảng đó bị coi
+    # là rác) → từ chối xóa trừ khi có --force. (Bài học: lỗi phân trang từng làm mất 93 file; bảng documents từng trống.)
+    empty = [t for t in ("tasks", "documents") if len(_get_all(t, "id")) == 0]
+    if empty and "--force" not in sys.argv:
+        print(f"\n⛔ TỪ CHỐI XÓA: bảng {', '.join(empty)} đang TRỐNG nên danh sách mồ côi không đáng tin (có thể xóa nhầm file đang dùng).")
+        print("   Kiểm tra dữ liệu trước; chỉ khi chắc chắn mới chạy lại với --force."); return
     if backup_dir:
         print(f"\n💾 Sao lưu {len(orphans)} file về {backup_dir}/ …")
         for i, n in enumerate(orphans, 1):
