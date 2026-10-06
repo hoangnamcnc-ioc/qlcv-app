@@ -39,3 +39,6 @@ backup_orphans/
 
 broken_refs.txt
 missing_attachments_report.txt
+
+dondep_baocao.cmd
+storage_report*.log
