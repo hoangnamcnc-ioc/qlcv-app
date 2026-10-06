@@ -48,7 +48,7 @@ def list_objects():
         if not pg: break
         objs += pg; off += len(pg)
         if len(pg) < 1000: break
-    return {o["name"]: (o.get("metadata") or {}).get("size") or 0 for o in objs}
+    return {o["name"]: {"size": (o.get("metadata") or {}).get("size") or 0, "created": o.get("created_at") or ""} for o in objs}
 
 def key_from_url(u):
     if not isinstance(u, str) or "/" + BUCKET + "/" not in u: return None
@@ -63,6 +63,17 @@ def _atts(val):
         except Exception: return []
     return val if isinstance(val, list) else []
 
+def _get_all(tbl, sel):
+    """Đọc TẤT CẢ dòng — PostgREST mặc định chỉ trả 1000/lần nên BẮT BUỘC phân trang, nếu không sẽ bỏ
+    sót tham chiếu ở các dòng sau và XÓA NHẦM file đang dùng (đã từng gây mất 93 file đính kèm việc)."""
+    out, off = [], 0
+    while True:
+        pg = _req("GET", f"/rest/v1/{tbl}?select={sel}&limit=1000&offset={off}")
+        if not pg: break
+        out += pg; off += len(pg)
+        if len(pg) < 1000: break
+    return out
+
 def referenced_keys():
     refs = set()
     def add_list(lst):
@@ -74,12 +85,12 @@ def referenced_keys():
     for tbl, col in [("tasks", "attachments"), ("documents", "attachments"),
                      ("comments", "attachments"), ("support_cases", "attachments")]:
         try:
-            for row in _req("GET", f"/rest/v1/{tbl}?select={col}"): add_list(row.get(col))
+            for row in _get_all(tbl, col): add_list(row.get(col))
         except Exception as e: print(f"  ⚠ bỏ qua {tbl}: {e}")
     # bảng có steps[].attachments
     for tbl in ["other_tasks", "projects"]:
         try:
-            for row in _req("GET", f"/rest/v1/{tbl}?select=steps"):
+            for row in _get_all(tbl, "steps"):
                 for st in _atts(row.get("steps")):
                     if isinstance(st, dict): add_list(st.get("attachments"))
         except Exception as e: print(f"  ⚠ bỏ qua {tbl}: {e}")
@@ -96,33 +107,46 @@ def delete_batch(names):
     # Storage xóa nhiều file: DELETE /object/<bucket> với body {"prefixes":[...]}
     _req("DELETE", f"/storage/v1/object/{BUCKET}", {"prefixes": names})
 
+def _arg_val(flag, default=None):
+    return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv and sys.argv.index(flag) + 1 < len(sys.argv) else default
+
 def main():
     do_delete = "--delete" in sys.argv
-    backup_dir = None
-    if "--backup" in sys.argv:
-        i = sys.argv.index("--backup"); backup_dir = sys.argv[i + 1] if i + 1 < len(sys.argv) else "backup_orphans"
+    auto_yes = "--yes" in sys.argv          # bỏ qua hỏi xác nhận (dùng cho chạy tự động theo lịch)
+    older_days = float(_arg_val("--older-than", 0) or 0)  # chỉ xóa file mồ côi CŨ hơn N ngày (an toàn với file vừa tải)
+    backup_dir = _arg_val("--backup", "backup_orphans") if "--backup" in sys.argv else None
 
     print("📦 Đang liệt kê storage…")
-    sizeof = list_objects()
+    info = list_objects()
     print("🔗 Đang thu thập link đính kèm được tham chiếu…")
     refs = referenced_keys()
-    orphans = sorted((n for n in sizeof if n not in refs), key=lambda n: -sizeof[n])
-    osz = sum(sizeof[n] for n in orphans)
-    tot = sum(sizeof.values())
+    orphans = [n for n in info if n not in refs]
+    # Lọc theo tuổi: chỉ giữ file đủ cũ để xóa (tránh xóa nhầm file vừa upload chưa kịp gắn vào bản ghi)
+    skipped_young = 0
+    if older_days > 0:
+        import datetime as _dt
+        cutoff = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=older_days)
+        def old_enough(n):
+            c = info[n]["created"]
+            if not c: return True
+            try: return _dt.datetime.fromisoformat(c.replace("Z", "+00:00")) < cutoff
+            except Exception: return True
+        before = len(orphans); orphans = [n for n in orphans if old_enough(n)]; skipped_young = before - len(orphans)
+    orphans.sort(key=lambda n: -info[n]["size"])
+    osz = sum(info[n]["size"] for n in orphans)
+    tot = sum(v["size"] for v in info.values())
     print("\n" + "=" * 56)
-    print(f"  Tổng: {len(sizeof)} file / {tot/1e9:.2f} GB")
-    print(f"  Được dùng: {len(sizeof)-len(orphans)} file / {(tot-osz)/1e9:.2f} GB")
-    print(f"  MỒ CÔI:    {len(orphans)} file / {osz/1e9:.2f} GB")
+    print(f"  Tổng: {len(info)} file / {tot/1e9:.2f} GB")
+    print(f"  Được dùng: {len(info)-len([n for n in info if n not in refs])} file")
+    print(f"  MỒ CÔI sẽ dọn: {len(orphans)} file / {osz/1e9:.2f} GB" + (f"  (bỏ qua {skipped_young} file < {older_days:g} ngày)" if skipped_young else ""))
     print("=" * 56)
-    # ghi danh sách ra file để anh xem
     with open("orphan_list.txt", "w", encoding="utf-8") as f:
-        for n in orphans: f.write(f"{sizeof[n]}\t{n}\n")
-    print(f"→ Đã ghi danh sách {len(orphans)} file mồ côi vào orphan_list.txt (kích thước\\ttên)")
-    print("  15 file mồ côi lớn nhất:")
-    for n in orphans[:15]: print(f"    {sizeof[n]/1e6:7.1f} MB  {n[:70]}")
+        for n in orphans: f.write(f"{info[n]['size']}\t{n}\n")
+    print(f"→ Đã ghi danh sách {len(orphans)} file vào orphan_list.txt")
+    for n in orphans[:15]: print(f"    {info[n]['size']/1e6:7.1f} MB  {n[:70]}")
 
     if not do_delete:
-        print("\n(DRY-RUN) Chưa xóa gì. Xem orphan_list.txt; chạy lại với --delete để xóa (thêm --backup DIR nếu muốn sao lưu).")
+        print("\n(DRY-RUN) Chưa xóa gì. Chạy lại với --delete để xóa (thêm --yes để không hỏi, --older-than N để chỉ xóa file cũ).")
         return
     if not orphans:
         print("\nKhông có file mồ côi để xóa."); return
@@ -132,9 +156,10 @@ def main():
             try: download(n, backup_dir)
             except Exception as e: print(f"  ⚠ lỗi tải {n}: {e}")
             if i % 100 == 0: print(f"    …{i}/{len(orphans)}")
-    ans = input(f"\n⚠️ Xóa VĨNH VIỄN {len(orphans)} file ({osz/1e9:.2f} GB)? Gõ 'xoa' để xác nhận: ").strip()
-    if ans != "xoa":
-        print("Đã hủy."); return
+    if not auto_yes:
+        ans = input(f"\n⚠️ Xóa VĨNH VIỄN {len(orphans)} file ({osz/1e9:.2f} GB)? Gõ 'xoa' để xác nhận: ").strip()
+        if ans != "xoa":
+            print("Đã hủy."); return
     print("🗑️  Đang xóa…")
     for i in range(0, len(orphans), 500):
         batch = orphans[i:i + 500]

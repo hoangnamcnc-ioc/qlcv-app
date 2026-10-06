@@ -36,3 +36,6 @@ mophien.cmd
 # Danh sach tam cua cleanup_storage.py
 orphan_list.txt
 backup_orphans/
+
+broken_refs.txt
+missing_attachments_report.txt
