@@ -32,3 +32,7 @@ dist-demo/
 __pycache__/
 _listing_check.txt
 mophien.cmd
+
+# Danh sach tam cua cleanup_storage.py
+orphan_list.txt
+backup_orphans/

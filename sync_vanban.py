@@ -718,13 +718,16 @@ class QLCVInserter:
     def upload_attachment(self, local_path: str, filename: str) -> dict | None:
         """Upload 1 file lên Supabase Storage bucket 'attachments' (cùng bucket app đang dùng),
         trả về {name, url} để gắn vào cột attachments của bảng documents."""
-        safe_name = f"{int(datetime.now().timestamp()*1000)}_{self._safe_storage_key(filename)}"
         try:
             with open(local_path, "rb") as f:
                 data = f.read()
         except OSError as e:
             print(f"       ⚠ Không đọc được file tạm '{local_path}': {e}")
             return None
+        # Tên theo MÃ BĂM NỘI DUNG (sha256) → cùng 1 file tải lại nhiều lần dùng chung 1 object, không
+        # sinh bản trùng làm phình storage (nguyên nhân từng làm vượt quota).
+        import hashlib
+        safe_name = f"{hashlib.sha256(data).hexdigest()[:16]}_{self._safe_storage_key(filename)}"
         ext = os.path.splitext(filename)[1].lower()
         # Content-Type đúng theo đuôi file — nếu để mặc định application/octet-stream, trình duyệt
         # sẽ luôn bắt tải file về (kể cả PDF) thay vì hiển thị trực tiếp trên tab.
@@ -740,6 +743,9 @@ class QLCVInserter:
             timeout=30,
         )
         if resp.status_code in (200, 201):
+            return {"name": filename, "url": f"{self.base}/storage/v1/object/public/attachments/{safe_name}"}
+        # File đã tồn tại (nội dung trùng — cùng mã băm) → dùng lại, không coi là lỗi
+        if resp.status_code == 409 or "Duplicate" in resp.text or "already exists" in resp.text:
             return {"name": filename, "url": f"{self.base}/storage/v1/object/public/attachments/{safe_name}"}
         if resp.status_code == 413 or "exceeded the maximum allowed size" in resp.text:
             print(f"       ⚠ File '{filename}' vượt quá dung lượng cho phép của Storage (bỏ qua, văn bản vẫn được đồng bộ, chỉ thiếu file này)")
