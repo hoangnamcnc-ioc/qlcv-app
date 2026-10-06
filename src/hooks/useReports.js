@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
-import { DEPTS, deptLabel, isRankable, EXEC_ROLES, RATING, LATE_REASONS, STATUS_ORDER } from "../constants";
+import { DEPTS, deptLabel, isRankable, EXEC_ROLES, RATING, LATE_REASONS, STATUS_ORDER, inGradingScope } from "../constants";
+// Tháng nằm TRƯỚC mốc bắt đầu xếp loại (T6/2026 là tháng thử nghiệm): coi như tháng trống để không vào xếp hạng/điểm TB.
+const EMPTY_MONTH = { total: 0, resolved: 0, done: 0, over: 0, completedLate: 0, collabTotal: 0, collabDone: 0, eligible: false, perfScore: 0, resolvedW: 0, doneW: 0, onTimeW: 0, lateW: 0, overW: 0 };
 import { isCompletedStatus, parseJSON, pendingApprovalDays, parseNowStr, workingDaysBetween } from "../helpers";
 import { w, sumW, staffScore, managerScore } from "../scoring";
 
@@ -217,6 +219,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const trend = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(repYear, repMonth - i, 1); const m = d.getMonth(), y = d.getFullYear();
+      if (!inGradingScope(y, m + 1)) continue; // bỏ tháng trước mốc xếp loại khỏi xu hướng điểm
       const mp = isMgr ? managerPerf(empId, y, m) : calcMonthPerf(empId, y, m);
       const rslv = isMgr ? mp.resolvedW : mp.resolved;
       trend.push({ name: `T${m + 1}`, score: rslv > 0 ? mp.perfScore : null, eligible: mp.eligible, resolved: rslv, done: isMgr ? mp.doneW : mp.done });
@@ -283,7 +286,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
   // Bảng điểm điều hành NĂM (trung bình có điều chỉnh theo số tháng đủ ĐK, giống bảng nhân viên)
   const managerLeaderboard = useMemo(() => {
     const raw = (employees || []).filter(e => MANAGER_EMP_ROLES.includes(e.role)).map(emp => {
-      const monthly = [...Array(12)].map((_, m) => managerPerf(emp.id, rankYear, m));
+      const monthly = [...Array(12)].map((_, m) => inGradingScope(rankYear, m + 1) ? managerPerf(emp.id, rankYear, m) : EMPTY_MONTH);
       const eligibleMonths = monthly.filter(m => m.eligible);
       const resolvedW = Math.round(monthly.reduce((s, m) => s + (m.resolvedW || 0), 0) * 100) / 100;
       const doneW = Math.round(monthly.reduce((s, m) => s + (m.doneW || 0), 0) * 100) / 100;
@@ -299,7 +302,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
 
   const leaderboard = useMemo(() => {
     const raw = (employees || []).map(emp => {
-      const monthly = [...Array(12)].map((_, m) => calcMonthPerf(emp.id, rankYear, m));
+      const monthly = [...Array(12)].map((_, m) => inGradingScope(rankYear, m + 1) ? calcMonthPerf(emp.id, rankYear, m) : EMPTY_MONTH);
       const eligibleMonths = monthly.filter(m => m.eligible);
       const total = monthly.reduce((s, m) => s + m.total, 0);
       const resolved = monthly.reduce((s, m) => s + (m.resolved || 0), 0); // việc đã đến hạn (dùng để tính điểm) — total còn gồm cả việc chưa đến hạn

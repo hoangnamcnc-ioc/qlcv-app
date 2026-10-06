@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { DEPTS, DEPT_COLOR, deptLabel, isRankable } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel, isRankable, inGradingScope } from "../constants";
 import { MANAGER_EMP_ROLES } from "../hooks/useReports";
 
 // ── Trang "KPI & Xu hướng": theo dõi điểm nhân viên/phòng qua nhiều tháng, nhân viên tăng/giảm nổi bật,
@@ -47,7 +47,7 @@ export default function KpiTrends({ employees, calcMonthPerf, managerPerf, isMob
   // Danh sách tháng gần nhất (cũ → mới), gồm tháng hiện tại.
   const months = useMemo(() => {
     const arr = [];
-    for (let i = nMonths - 1; i >= 0; i--) { const d = new Date(today.getFullYear(), today.getMonth() - i, 1); arr.push({ y: d.getFullYear(), m: d.getMonth(), label: `T${d.getMonth() + 1}` }); }
+    for (let i = nMonths - 1; i >= 0; i--) { const d = new Date(today.getFullYear(), today.getMonth() - i, 1); if (inGradingScope(d.getFullYear(), d.getMonth() + 1)) arr.push({ y: d.getFullYear(), m: d.getMonth(), label: `T${d.getMonth() + 1}` }); } // bỏ tháng trước mốc xếp loại (T7/2026)
     return arr;
   }, [nMonths]);
 
