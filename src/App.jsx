@@ -97,7 +97,7 @@ export default function App() {
   // ── Đăng nhập/đăng xuất, đổi mật khẩu ──
   const {
     currentUser, setCurrentUser,
-    loginForm, setLoginForm, loginError, loginLoading, handleLogin, handleLogout,
+    mustChangePwd, loginForm, setLoginForm, loginError, loginLoading, handleLogin, handleLogout,
     showChangePwd, setShowChangePwd, changePwdForm, setChangePwdForm, changePwdError, setChangePwdError, handleChangePwd,
   } = useAuth({ showToast, onLogout: () => setLoginNotifShown(false) });
 
@@ -1162,15 +1162,16 @@ export default function App() {
                 <div style={{fontWeight:700,fontSize:16}}>🔑 Đổi mật khẩu</div>
                 <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{currentUser.full_name}</div>
               </div>
-              <button onClick={()=>setShowChangePwd(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:"#9ca3af",lineHeight:1}}>✕</button>
+              {!mustChangePwd&&<button onClick={()=>setShowChangePwd(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:"#9ca3af",lineHeight:1}}>✕</button>}
             </div>
             <div style={{padding:20,display:"flex",flexDirection:"column",gap:14}}>
+              {mustChangePwd&&<div style={{background:"#fff7ed",border:"1px solid #fdba74",color:"#9a3412",padding:"10px 14px",borderRadius:8,fontSize:13,lineHeight:1.5}}>🔒 <b>Bắt buộc đổi mật khẩu.</b> Mật khẩu bạn vừa dùng là mật khẩu mặc định/quá dễ đoán. Vui lòng đặt mật khẩu mới (ít nhất 8 ký tự) trước khi sử dụng hệ thống.</div>}
               <div>
                 <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:5,fontWeight:500}}>Mật khẩu hiện tại</label>
                 <input type="password" value={changePwdForm.current} onChange={e=>setChangePwdForm(f=>({...f,current:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleChangePwd()} placeholder="Nhập mật khẩu hiện tại..." style={inp} autoFocus/>
               </div>
               <div>
-                <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:5,fontWeight:500}}>Mật khẩu mới <span style={{color:"#9ca3af",fontWeight:400}}>(ít nhất 6 ký tự)</span></label>
+                <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:5,fontWeight:500}}>Mật khẩu mới <span style={{color:"#9ca3af",fontWeight:400}}>(ít nhất 8 ký tự)</span></label>
                 <input type="password" value={changePwdForm.next} onChange={e=>setChangePwdForm(f=>({...f,next:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleChangePwd()} placeholder="Nhập mật khẩu mới..." style={inp}/>
               </div>
               <div>
@@ -1194,7 +1195,9 @@ export default function App() {
               )}
             </div>
             <div style={{padding:"14px 20px",borderTop:"1px solid #e5e7eb",display:"flex",gap:10}}>
-              <button onClick={()=>setShowChangePwd(false)} style={{flex:1,padding:"9px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>Hủy</button>
+              {mustChangePwd
+                ?<button onClick={handleLogout} style={{flex:1,padding:"9px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>Đăng xuất</button>
+                :<button onClick={()=>setShowChangePwd(false)} style={{flex:1,padding:"9px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>Hủy</button>}
               <button onClick={handleChangePwd} style={{flex:2,padding:"9px",background:"#4f46e5",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>Xác nhận đổi mật khẩu</button>
             </div>
           </div>
