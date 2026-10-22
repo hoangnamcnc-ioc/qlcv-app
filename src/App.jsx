@@ -819,6 +819,7 @@ export default function App() {
               recurringTemplates={recurringTemplates} setShowRecurring={setShowRecurring}
               statFilter={statFilter} setStatFilter={setStatFilter}
               setView={setView} setFDept={setFDept}
+              attentionTasks={visibleTasks} onCompleteRequest={t=>{setCompletionNoteModal(t);setCompletionNote("");setCompletionFiles(parseJSON(t.attachments,[]));}} openExtRequestModal={openExtRequestModal} setLateReasonFn={setLateReasonFn} nudgeTask={nudgeTask}
               setModal={setModal} loadComments={loadComments}
               getEmp={getEmp} todayStr={todayStr}
               onReassign={(t,eid)=>{setForwardModal(t);setForwardEid(eid);}}

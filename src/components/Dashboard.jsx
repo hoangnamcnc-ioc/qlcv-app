@@ -3,6 +3,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { DEPTS, DEPT_COLOR, deptLabel, isRankable, ROLE_COLORS, FULL_ACCESS, STATUS, STATUS_ORDER, FREQUENCIES, RATING, PRIO, VI_MONTHS } from "../constants";
 import { isCompletedStatus, fmtDate } from "../helpers";
 import { RoleBadge, OverloadPopup } from "./ui";
+import OverdueActions from "./OverdueActions";
+import { myAttentionList, escalatedList } from "../taskNudge";
 
 export default function Dashboard({
   currentUser, isMobile, userDept,
@@ -17,10 +19,17 @@ export default function Dashboard({
   setView, setFDept,
   setModal, loadComments,
   getEmp, todayStr, onReassign, pendingProfileId, onProfileOpened,
+  attentionTasks = [], onCompleteRequest, openExtRequestModal, setLateReasonFn, nudgeTask,
 }) {
   // Nhân viên (staff) chỉ thấy việc của mình → ẩn các khối mang tính điều hành/toàn phòng
   // (thống kê tổng, biểu đồ phòng ban, cảnh báo quá tải, quản lý nhiệm vụ định kỳ) cho gọn và tránh trùng lặp.
   const isManagerView = FULL_ACCESS.includes(currentUser.role) || ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role);
+  // Việc quá hạn cần cập nhật: của CHÍNH MÌNH (trễ ≥3 ngày) + (quản lý) việc trễ ≥14 ngày trong phạm vi phụ trách.
+  // Trưởng/Phó phòng: phòng mình · BGĐ: phòng được giao phụ trách (chưa gán → tất cả) · Admin: tất cả.
+  const myEid = currentUser.employee_id;
+  const attMine = myAttentionList(attentionTasks, myEid, todayStr);
+  const escDepts = ["manager", "deputy_manager", "manager_hcth"].includes(currentUser.role) ? [userDept].filter(Boolean) : currentUser.role === "director" ? myOverseenDepts : [];
+  const attEsc = isManagerView ? escalatedList(attentionTasks, escDepts, myEid, todayStr) : [];
   // Phân trang cho danh sách "Công việc của tôi"
   const [wlPage, setWlPage] = useState(1);
   const [doneOpen, setDoneOpen] = useState(false); // mục "Đã hoàn thành tháng này"
@@ -74,6 +83,9 @@ export default function Dashboard({
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 12 }} />
         {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>✕ Bỏ lọc</button>}
       </div>
+      <OverdueActions mine={attMine} escalated={attEsc} myEid={myEid} todayStr={todayStr} isMobile={isMobile} getEmp={getEmp}
+        onDone={onCompleteRequest} onExtend={openExtRequestModal} onReason={setLateReasonFn} onNudge={nudgeTask}
+        onOpen={t => { setModal(t); loadComments && loadComments(t.id); }} />
       {myOverseenDepts.length > 0 && (
         <div style={{ order: -3, background: "linear-gradient(135deg,#0e7490,#0891b2)", borderRadius: 12, padding: 14, color: "#fff" }}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>👔 Phòng bạn phụ trách</div>
