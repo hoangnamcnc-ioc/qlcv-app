@@ -126,9 +126,9 @@ ${sec("📨 Chờ bạn duyệt hoàn thành", "#15803d", s.waiting)}
 ${sec("🆕 Việc nhân viên tự tạo chờ duyệt", "#15803d", s.pendingCreate)}
 ${dutyHtml}
 <div style="margin-top:18px">${appUrl ? `<a href="${esc(appUrl)}" style="background:#4f46e5;color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:600">Mở hệ thống QLCV</a>` : ""}</div>
-<div style="margin-top:16px;font-size:11.5px;color:#9ca3af">Email tự động từ hệ thống Quản lý giao việc — DAK LAK IOC. Muốn dừng nhận email nhắc việc: trong hệ thống bấm biểu tượng ✉️ và xoá trống ô email.</div>
+<div style="margin-top:16px;font-size:11.5px;color:#9ca3af">Email tự động từ hệ thống Quản lý giao việc — DAK LAK IOC. Muốn đổi địa chỉ nhận thư: trong hệ thống bấm biểu tượng ✉️ và nhập email mới.</div>
 </div>`;
-    const text = `${label} — ${dm(today)}\nChào ${name}, đây là tổng hợp việc cần chú ý hôm nay:\n${secT("Quá hạn", s.overdue)}${s.escalated.length ? `\n(Trong đó ${s.escalated.length} việc đã trễ từ ${ESCALATE_DAYS} ngày trở lên)\n` : ""}${secT("Đến hạn hôm nay", s.dueToday)}${secT("Sắp đến hạn (3 ngày tới)", s.soon)}${secT("Chờ bạn duyệt hoàn thành", s.waiting)}${secT("Việc nhân viên tự tạo chờ duyệt", s.pendingCreate)}${dutyText}\n${appUrl ? "Mở hệ thống: " + appUrl + "\n" : ""}\nMuốn dừng nhận email: bấm biểu tượng ✉️ trong hệ thống và xoá trống ô email.`;
+    const text = `${label} — ${dm(today)}\nChào ${name}, đây là tổng hợp việc cần chú ý hôm nay:\n${secT("Quá hạn", s.overdue)}${s.escalated.length ? `\n(Trong đó ${s.escalated.length} việc đã trễ từ ${ESCALATE_DAYS} ngày trở lên)\n` : ""}${secT("Đến hạn hôm nay", s.dueToday)}${secT("Sắp đến hạn (3 ngày tới)", s.soon)}${secT("Chờ bạn duyệt hoàn thành", s.waiting)}${secT("Việc nhân viên tự tạo chờ duyệt", s.pendingCreate)}${dutyText}\n${appUrl ? "Mở hệ thống: " + appUrl + "\n" : ""}\nMuốn đổi địa chỉ nhận thư: bấm biểu tượng ✉️ trong hệ thống và nhập email mới.`;
 
     out.push({ to: email, name, subject, html, text, userId: u.id, counts: { overdue: s.overdue.length, escalated: s.escalated.length, dueToday: s.dueToday.length, soon: s.soon.length, waiting: s.waiting.length, pendingCreate: s.pendingCreate.length }, scope: scope.kind });
   }

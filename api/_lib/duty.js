@@ -68,7 +68,7 @@ export function buildDutyReminders({ date, row, users, employees, holidays = [],
 <ul style="margin:8px 0 12px;padding-left:20px">${items.map(i => `<li style="margin:3px 0"><b>${esc(i)}</b></li>`).join("")}</ul>
 ${row.note ? `<div style="color:#6b7280">Ghi chú: ${esc(row.note)}</div>` : ""}
 ${appUrl ? `<div style="margin-top:14px"><a href="${esc(appUrl)}" style="background:#7c3aed;color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:600">Xem lịch trực</a></div>` : ""}
-<div style="margin-top:16px;font-size:11.5px;color:#9ca3af">Email tự động từ hệ thống QLCV — DAK LAK IOC. Cần đổi ca/trực thay: đăng ký "Trực thay" trong mục Lịch trực. Muốn dừng nhận email: bấm ✉️ trong hệ thống và xoá trống ô email.</div></div>`;
+<div style="margin-top:16px;font-size:11.5px;color:#9ca3af">Email tự động từ hệ thống QLCV — DAK LAK IOC. Cần đổi ca/trực thay: đăng ký "Trực thay" trong mục Lịch trực. Muốn đổi địa chỉ nhận thư: bấm ✉️ trong hệ thống và nhập email mới.</div></div>`;
     const text = `Nhắc lịch trực — ${wd} ${dm(date)}\nChào ${name}, ngày mai bạn được phân công:\n${items.map(i => "  - " + i).join("\n")}\n${row.note ? "Ghi chú: " + row.note + "\n" : ""}${appUrl ? "Xem lịch trực: " + appUrl + "\n" : ""}`;
     out.push({ to: email, name, subject, html, text, userId: u.id, items });
   }

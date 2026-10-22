@@ -1168,23 +1168,23 @@ export default function App() {
             </div>
             <div style={{padding:20,display:"flex",flexDirection:"column",gap:12}}>
               <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"#166534",lineHeight:1.6}}>
-                Hệ thống gửi email nhắc việc <b>mỗi sáng Thứ 2–6</b>: nhân viên nhận <b>việc của mình</b>; Trưởng/Phó phòng nhận việc <b>cả phòng</b>; Ban Giám đốc nhận việc của <b>phòng được giao phụ trách</b>. Chiều hôm trước có thêm email nhắc <b>lịch trực</b> nếu bạn được phân công.
+                {emailPrompt.forced&&<div style={{marginBottom:8,color:"#9a3412",background:"#fff7ed",border:"1px solid #fdba74",borderRadius:6,padding:"6px 10px"}}>🔒 <b>Bắt buộc nhập email</b> để tiếp tục sử dụng hệ thống.</div>}Hệ thống gửi email nhắc việc <b>mỗi sáng Thứ 2–6</b>: nhân viên nhận <b>việc của mình</b>; Trưởng/Phó phòng nhận việc <b>cả phòng</b>; Ban Giám đốc nhận việc của <b>phòng được giao phụ trách</b>. Chiều hôm trước có thêm email nhắc <b>lịch trực</b> nếu bạn được phân công.
               </div>
               <div>
                 <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:5,fontWeight:500}}>Email của bạn</label>
-                <input type="email" value={emailPrompt.email} onChange={e=>setEmailPrompt(x=>({...x,email:e.target.value,error:""}))} onKeyDown={e=>e.key==="Enter"&&saveEmail()} placeholder="ten@coquan.gov.vn" style={inp} autoFocus/>
+                <input type="email" value={emailPrompt.email} onChange={e=>setEmailPrompt(x=>({...x,email:e.target.value,error:""}))} onKeyDown={e=>e.key==="Enter"&&saveEmail()} placeholder="tenban@gmail.com" style={inp} autoFocus/>
+                <div style={{fontSize:11.5,marginTop:4,color:/@gmail\.com\s*$/i.test(emailPrompt.email)?"#15803d":"#92400e"}}>{/@gmail\.com\s*$/i.test(emailPrompt.email)?"✅ Gmail — nhận thư ổn định, ít bị chặn.":"💡 Khuyến cáo dùng Gmail (…@gmail.com) để nhận thư ổn định; email cơ quan có thể bị chặn hoặc vào mục Spam."}</div>
               </div>
-              {!emailPrompt.forced&&(
+              {!emailPrompt.pwKnown&&(
                 <div>
                   <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:5,fontWeight:500}}>Mật khẩu hiện tại (để xác nhận)</label>
                   <input type="password" value={emailPrompt.password} onChange={e=>setEmailPrompt(x=>({...x,password:e.target.value,error:""}))} onKeyDown={e=>e.key==="Enter"&&saveEmail()} placeholder="Nhập mật khẩu..." style={inp}/>
-                  <div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>Để trống ô email rồi lưu = tắt nhận email nhắc việc.</div>
                 </div>
               )}
               {emailPrompt.error&&<div style={{background:"#fee2e2",color:"#b91c1c",padding:"10px 14px",borderRadius:8,fontSize:13}}>⚠️ {emailPrompt.error}</div>}
             </div>
             <div style={{padding:"14px 20px",borderTop:"1px solid #e5e7eb",display:"flex",gap:10}}>
-              <button onClick={()=>setEmailPrompt(null)} style={{flex:1,padding:"9px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>{emailPrompt.forced?"Để sau":"Đóng"}</button>
+              <button onClick={()=>emailPrompt.forced?handleLogout():setEmailPrompt(null)} style={{flex:1,padding:"9px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>{emailPrompt.forced?"Đăng xuất":"Đóng"}</button>
               <button onClick={saveEmail} disabled={emailPrompt.saving} style={{flex:2,padding:"9px",background:emailPrompt.saving?"#a5b4fc":"#4f46e5",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>{emailPrompt.saving?"Đang lưu…":"Lưu email"}</button>
             </div>
           </div>

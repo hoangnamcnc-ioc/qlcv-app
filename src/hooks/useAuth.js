@@ -4,6 +4,7 @@ import { nowStr } from "../helpers";
 
 import { isWeakPassword } from "../passwordPolicy";
 const MUST_KEY = "qlcv_must_change_pwd";
+const EMAIL_KEY = "qlcv_must_email"; // chưa có email → BẮT BUỘC nhập (giữ cờ trong phiên để F5 không né được)
 
 // Đăng nhập/đăng xuất, khôi phục phiên, và đổi mật khẩu.
 // Tách khỏi App.jsx vì đây là domain độc lập (không phụ thuộc nhiệm vụ/nhân viên/...).
@@ -16,22 +17,22 @@ export default function useAuth({ showToast, onLogout }) {
 
   // ── Email nhận nhắc việc: hỏi lúc đăng nhập nếu chưa có; sửa/tắt được bất cứ lúc nào qua nút ✉️ ──
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-  const [emailPrompt, setEmailPrompt] = useState(null); // { email, password, error, saving, forced }
+  const [emailPrompt, setEmailPrompt] = useState(null); // { email, password, pwKnown, error, saving, forced }
   // Kiểm tra email của tài khoản; chưa có → mở hộp nhập. RPC lỗi (chưa chạy SQL 47) → im lặng bỏ qua.
   const checkEmail = async (username, password) => {
     try {
       const { data, error } = await supabase.rpc("get_my_email", { p_user: username, p_pass: password });
-      if (!error && (data === null || data === "")) setEmailPrompt({ email: "", password, error: "", saving: false, forced: true });
+      if (!error && (data === null || data === "")) { try { sessionStorage.setItem(EMAIL_KEY, "1"); } catch { } setEmailPrompt({ email: "", password, pwKnown: true, error: "", saving: false, forced: true }); }
     } catch { }
   };
   const openEmailModal = async () => {
-    setEmailPrompt({ email: "", password: "", error: "", saving: false, forced: false });
+    setEmailPrompt({ email: "", password: "", pwKnown: false, error: "", saving: false, forced: false });
   };
   const saveEmail = async () => {
     const p = emailPrompt; if (!p || !currentUser) return;
     const email = (p.email || "").trim();
     if (email && !EMAIL_RE.test(email)) { setEmailPrompt(x => ({ ...x, error: "Email chưa đúng định dạng (ví dụ: ten@coquan.gov.vn)" })); return; }
-    if (!email && p.forced) { setEmailPrompt(x => ({ ...x, error: "Vui lòng nhập email, hoặc bấm “Để sau”." })); return; }
+    if (!email) { setEmailPrompt(x => ({ ...x, error: "Email là bắt buộc để nhận nhắc việc — vui lòng nhập địa chỉ email của bạn." })); return; }
     if (!p.password) { setEmailPrompt(x => ({ ...x, error: "Nhập mật khẩu hiện tại để xác nhận" })); return; }
     setEmailPrompt(x => ({ ...x, saving: true, error: "" }));
     const { error } = await supabase.rpc("set_my_email", { p_user: currentUser.username, p_pass: p.password, p_email: email });
@@ -39,8 +40,9 @@ export default function useAuth({ showToast, onLogout }) {
       const m = /mật khẩu/i.test(error.message || "") ? "Mật khẩu không đúng" : /không hợp lệ/i.test(error.message || "") ? "Email không hợp lệ" : "Chưa lưu được (máy chủ chưa bật tính năng email — cần quản trị chạy SQL 47)";
       setEmailPrompt(x => ({ ...x, saving: false, error: m })); return;
     }
+    try { sessionStorage.removeItem(EMAIL_KEY); } catch { }
     setEmailPrompt(null);
-    showToast(email ? "Đã lưu email — bạn sẽ nhận nhắc việc mỗi sáng ✉️" : "Đã tắt email nhắc việc");
+    showToast("Đã lưu email — bạn sẽ nhận nhắc việc mỗi sáng ✉️");
   };
 
   const logLogin = async (username, success, fullName) => { try { await supabase.from("login_history").insert({ id: `lg${Date.now()}${Math.random().toString(36).slice(2, 6)}`, username, full_name: fullName || "", success, at: nowStr() }); } catch { } };
@@ -61,9 +63,9 @@ export default function useAuth({ showToast, onLogout }) {
       checkEmail(user.username, loginForm.password);
     }
   };
-  const handleLogout = () => { setCurrentUser(null); sessionStorage.removeItem("qlcv_user"); try { sessionStorage.removeItem(MUST_KEY); } catch { } setMustChangePwd(false); setShowChangePwd(false); setEmailPrompt(null); onLogout?.(); };
+  const handleLogout = () => { setCurrentUser(null); sessionStorage.removeItem("qlcv_user"); try { sessionStorage.removeItem(MUST_KEY); sessionStorage.removeItem(EMAIL_KEY); } catch { } setMustChangePwd(false); setShowChangePwd(false); setEmailPrompt(null); onLogout?.(); };
   // Khôi phục phiên (F5): nếu còn cờ bắt buộc đổi mật khẩu thì mở lại hộp đổi mật khẩu
-  useEffect(() => { const s = sessionStorage.getItem("qlcv_user"); if (s) try { setCurrentUser(JSON.parse(s)); if (sessionStorage.getItem(MUST_KEY) === "1") setShowChangePwd(true); } catch { }; }, []);
+  useEffect(() => { const s = sessionStorage.getItem("qlcv_user"); if (s) try { setCurrentUser(JSON.parse(s)); if (sessionStorage.getItem(MUST_KEY) === "1") setShowChangePwd(true); else if (sessionStorage.getItem(EMAIL_KEY) === "1") setEmailPrompt({ email: "", password: "", pwKnown: false, error: "", saving: false, forced: true }); } catch { }; }, []);
 
   // ── Đổi mật khẩu ──
   const [showChangePwd, setShowChangePwd] = useState(false);
