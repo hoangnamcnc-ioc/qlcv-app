@@ -83,7 +83,21 @@ os.makedirs(ATTACHMENT_TMP_DIR, exist_ok=True)
 #     setx SUPABASE_SERVICE_KEY "service_role_key_lay_tu_supabase"
 #
 # (Tuỳ chọn) đặt thêm nếu muốn đổi tài khoản: IOFFICE_USERNAME, QLCV_USERNAME, IOFFICE_URL, SUPABASE_URL
-_ANON_DEFAULT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxheXF0a3dpYW5ycXJ3b3J3dHltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNDQxMTgsImV4cCI6MjA5NjYyMDExOH0.0NhZXfljXT4_BumLZg8GN_OSSdK87ngoxPqXfQuilx0"
+def _dotenv(name: str) -> str:
+    """Đọc 1 biến từ file .env của dự án (cùng nơi app web lấy VITE_SUPABASE_KEY) — KHÔNG ghi cứng khóa trong code,
+    để khi xoay khóa Supabase chỉ cần cập nhật .env là cả app lẫn script đều dùng khóa mới."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith(name + "="):
+                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return ""
+
+_ANON_DEFAULT = _dotenv("VITE_SUPABASE_KEY")   # khóa anon lấy từ .env (hoặc đặt biến môi trường SUPABASE_ANON_KEY)
 
 def _load_local_env():
     """Đọc bí mật từ file '.env.sync' đặt CẠNH file script (KHÔNG commit — đã cho vào .gitignore).
