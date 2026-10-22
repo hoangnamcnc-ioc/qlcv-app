@@ -19,7 +19,7 @@ export default function TaskList({
   fDept, setFDept,
   fEid, setFEid,
   fAssignedByMe, setFAssignedByMe,
-  fSort, setFSort,
+  fSort, setFSort, showDaily, setShowDaily, dailyCount = 0,
   filtered, paged, page, setPage, totalPages,
   canSeeAll, canCreate, canEditTask, canDeleteTask, canUpdateProgress, canRequestCompletion, canRate, canApprove,
   employees, userDept,
@@ -48,6 +48,7 @@ export default function TaskList({
         <select value={fSort} onChange={e => setFSort(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 8px", fontSize: 12, borderColor: "#6366f1", color: "#4f46e5", fontWeight: 500 }}>
           <option value="urgency">⚡ Ưu tiên</option><option value="deadline_asc">📅 Hạn gần nhất</option><option value="deadline_desc">📅 Hạn xa nhất</option><option value="newest">🆕 Mới nhất</option>
         </select>
+        {dailyCount > 0 && <button onClick={() => setShowDaily(!showDaily)} title="Việc định kỳ hằng ngày (tự sinh mỗi ngày) mặc định được ẩn để việc quan trọng không bị chìm" style={{ padding: "6px 12px", border: "1px solid " + (showDaily ? "#6366f1" : "#d1d5db"), borderRadius: 7, background: showDaily ? "#eef2ff" : "#fff", color: showDaily ? "#4338ca" : "#6b7280", cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>{showDaily ? "🔄 Đang hiện" : "🔄 Đang ẩn"} việc hằng ngày ({dailyCount})</button>}
         {canCreate && <button onClick={() => setFAssignedByMe(v => !v)} style={{ padding: "6px 12px", border: "1px solid " + (fAssignedByMe ? "#4f46e5" : "#d1d5db"), borderRadius: 7, background: fAssignedByMe ? "#eef2ff" : "#fff", color: fAssignedByMe ? "#4338ca" : "#6b7280", cursor: "pointer", fontSize: 12, fontWeight: fAssignedByMe ? 600 : 400 }}>{fAssignedByMe ? "✓ " : ""}👤 Tôi giao</button>}
         <span style={{ fontSize: 12, color: "#9ca3af" }}>{filtered.length}</span>
       </div>

@@ -391,7 +391,7 @@ export default function App() {
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn, toggleLateExcused,
     visibleTasks, trashedTasks, computed, computedGlobal, stats, statsW, deptChart,
     dateFrom, setDateFrom, dateTo, setDateTo,
-    fStatus, setFStatus, fDept, setFDept, fEid, setFEid, fAssignedByMe, setFAssignedByMe, search, setSearch, fSort, setFSort, page, setPage,
+    fStatus, setFStatus, fDept, setFDept, fEid, setFEid, fAssignedByMe, setFAssignedByMe, search, setSearch, fSort, setFSort, showDaily, setShowDaily, dailyCount, page, setPage,
     filtered, paged, totalPages,
     notifications, unratedTasks, suspiciousTasks, myPendingTaskApprovals, myPendingExtRequests,
     seenKey, markSeen, myAssignedTasks, myNewTasks, myOverdueTasks, myNewTaskIds,
@@ -852,7 +852,7 @@ export default function App() {
               fDept={fDept} setFDept={setFDept}
               fEid={fEid} setFEid={setFEid}
               fAssignedByMe={fAssignedByMe} setFAssignedByMe={setFAssignedByMe}
-              fSort={fSort} setFSort={setFSort}
+              fSort={fSort} setFSort={setFSort} showDaily={showDaily} setShowDaily={setShowDaily} dailyCount={dailyCount}
               filtered={filtered} paged={paged} page={page} setPage={setPage} totalPages={totalPages}
               canSeeAll={canSeeAll} canCreate={canCreate} canEditTask={canEditTask} canDeleteTask={canDeleteTask} canUpdateProgress={canUpdateProgress} canRequestCompletion={canRequestCompletion} canRate={canRate} canApprove={canApprove}
               employees={employees} userDept={userDept}

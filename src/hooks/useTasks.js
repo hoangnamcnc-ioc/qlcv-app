@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { supabase } from "../supabase";
+import { isDailyRecurring } from "../taskNudge";
 import { DEPTS, FULL_ACCESS, RATING, LATE_REASONS, STATUS_ORDER } from "../constants";
 import { today, todayStr, nowStr, parseNowStr, getStatus, isCompletedStatus, isLateStatus, parseJSON } from "../helpers";
 
@@ -290,8 +291,12 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   const [fAssignedByMe, setFAssignedByMe] = useState(false); // chỉ hiện nhiệm vụ do CHÍNH mình giao (tạo/chuyển tiếp) — giúp Trưởng phòng lọc riêng việc mình phải chịu trách nhiệm duyệt
   const [search, setSearch] = useState("");
   const [fSort, setFSort] = useState("urgency");
+  // Việc định kỳ HẰNG NGÀY (~24 việc/ngày) mặc định ẨN khỏi danh sách để việc thật không bị chìm; bật lại bằng nút.
+  const [showDaily, setShowDailyState] = useState(() => { try { return localStorage.getItem("qlcv_show_daily") === "1"; } catch { return false; } });
+  const setShowDaily = v => { setShowDailyState(v); try { localStorage.setItem("qlcv_show_daily", v ? "1" : "0"); } catch { } };
+  const dailyCount = useMemo(() => computed.filter(isDailyRecurring).length, [computed]);
   const [page, setPage] = useState(1);
-  const filtered = useMemo(() => { const f = computed.filter(t => { if (fStatus !== "all" && t.status !== fStatus) return false; if (fDept !== "all" && t.dept !== fDept) return false; if (fEid !== "all" && t.eid !== fEid) return false; if (fAssignedByMe && !isAssigner(t)) return false; if (search) { const q = search.toLowerCase(); const empName = (getEmp(t.eid)?.name || "").toLowerCase(); const hit = t.title.toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q) || empName.includes(q); if (!hit) return false; } return true; }); if (fSort === "urgency") return [...f].sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)); if (fSort === "deadline_asc") return [...f].sort((a, b) => a.deadline.localeCompare(b.deadline)); if (fSort === "deadline_desc") return [...f].sort((a, b) => b.deadline.localeCompare(a.deadline)); if (fSort === "newest") return [...f].sort((a, b) => (b.created || "").localeCompare(a.created || "")); return f; }, [computed, fStatus, fDept, fEid, fAssignedByMe, search, fSort]);
+  const filtered = useMemo(() => { const f = computed.filter(t => { if (!showDaily && isDailyRecurring(t)) return false; if (fStatus !== "all" && t.status !== fStatus) return false; if (fDept !== "all" && t.dept !== fDept) return false; if (fEid !== "all" && t.eid !== fEid) return false; if (fAssignedByMe && !isAssigner(t)) return false; if (search) { const q = search.toLowerCase(); const empName = (getEmp(t.eid)?.name || "").toLowerCase(); const hit = t.title.toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q) || empName.includes(q); if (!hit) return false; } return true; }); if (fSort === "urgency") return [...f].sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)); if (fSort === "deadline_asc") return [...f].sort((a, b) => a.deadline.localeCompare(b.deadline)); if (fSort === "deadline_desc") return [...f].sort((a, b) => b.deadline.localeCompare(a.deadline)); if (fSort === "newest") return [...f].sort((a, b) => (b.created || "").localeCompare(a.created || "")); return f; }, [computed, fStatus, fDept, fEid, fAssignedByMe, search, fSort, showDaily]);
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)), [filtered]);
   const paged = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
 
@@ -329,7 +334,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     ratingNote, setRatingNote, lateNote, setLateNote, rateTask, setLateReasonFn, toggleLateExcused,
     visibleTasks, trashedTasks, computed, computedGlobal, stats, statsW, deptChart,
     dateFrom, setDateFrom, dateTo, setDateTo,
-    fStatus, setFStatus, fDept, setFDept, fEid, setFEid, fAssignedByMe, setFAssignedByMe, search, setSearch, fSort, setFSort, page, setPage,
+    fStatus, setFStatus, fDept, setFDept, fEid, setFEid, fAssignedByMe, setFAssignedByMe, search, setSearch, fSort, setFSort, showDaily, setShowDaily, dailyCount, page, setPage,
     filtered, paged, totalPages,
     notifications, unratedTasks, suspiciousTasks, myPendingTaskApprovals, myPendingExtRequests,
     seenKey, markSeen, myAssignedTasks, myNewTasks, myOverdueTasks, myNewTaskIds,
