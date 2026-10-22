@@ -15,7 +15,20 @@ const SHIFTS = {
 };
 const dm = ymd => `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}`;
 const WD = ["Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
-export const nameKey = s => String(s || "").normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
+// KHỚP TÊN chịu được các biến thể thường gặp giữa lịch trực (nhập từ Word/PDF) và danh sách nhân viên:
+//   bỏ dấu & chữ hoa/thường · bỏ dấu câu ("H'Lisa" = "H Lisa") · chữ viết tắt ("Phan Đ. V. Vinh Chuẩn" = "Phan Đăng Việt Vinh Chuẩn")
+//   · chữ "thứ" dính ở đầu tên người trực lãnh đạo do lỗi đọc PDF ("Bảy Võ Nguyễn Hoàng Nam" = "Võ Nguyễn Hoàng Nam").
+const fold = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
+export const nameKey = s => fold(s).replace(/[^a-z0-9]+/g, " ").trim();
+const toks = s => nameKey(s).split(" ").filter(Boolean);
+const WEEKDAY_WORDS = new Set(["hai", "ba", "tu", "nam", "sau", "bay", "nhat"]);
+export const stripWeekday = name => { const t = String(name || "").trim().split(/\s+/); return t.length >= 3 && WEEKDAY_WORDS.has(fold(t[0])) ? t.slice(1).join(" ") : String(name || ""); };
+export function sameName(a, b) {
+  const ta = toks(a), tb = toks(b);
+  if (!ta.length || !tb.length) return false;
+  if (ta.join("") === tb.join("")) return true;
+  return ta.length === tb.length && ta.every((x, i) => x === tb[i] || (x.length === 1 && tb[i].startsWith(x)) || (tb[i].length === 1 && x.startsWith(tb[i])));
+}
 
 const parseArr = v => { if (Array.isArray(v)) return v; try { const x = JSON.parse(v || "[]"); return Array.isArray(x) ? x : []; } catch { return []; } };
 const people = v => parseArr(v).map((p, i) => (typeof p === "string" ? { name: p, shiftIdx: i } : { name: p?.name || "", shiftIdx: p?.shiftIdx ?? i })).filter(p => p.name.trim());
@@ -26,9 +39,9 @@ export function assignmentsOf(row, holidays = []) {
   const kind = isWorkday(row.date, holidays) ? "weekday" : "weekend";
   const sh = SHIFTS[kind];
   const out = [];
-  if ((row.leader || "").trim()) out.push({ nameKey: nameKey(row.leader), label: "Trực lãnh đạo" });
-  for (const p of people(row.dc)) { const s = sh.DC[p.shiftIdx]; out.push({ nameKey: nameKey(p.name), label: `Trực DC${s ? ` — ${s.label} (${s.time})` : ""}` }); }
-  for (const p of people(row.ioc)) { const s = sh.IOC[p.shiftIdx]; out.push({ nameKey: nameKey(p.name), label: `Trực IOC${s ? ` — ${s.label ? s.label + " " : ""}(${s.time})` : ""}` }); }
+  if ((row.leader || "").trim()) out.push({ name: row.leader, label: "Trực lãnh đạo" });
+  for (const p of people(row.dc)) { const s = sh.DC[p.shiftIdx]; out.push({ name: p.name, label: `Trực DC${s ? ` — ${s.label} (${s.time})` : ""}` }); }
+  for (const p of people(row.ioc)) { const s = sh.IOC[p.shiftIdx]; out.push({ name: p.name, label: `Trực IOC${s ? ` — ${s.label ? s.label + " " : ""}(${s.time})` : ""}` }); }
   return out;
 }
 
@@ -42,8 +55,8 @@ export function buildDutyReminders({ date, row, users, employees, holidays = [],
     const email = String(u.email || "").trim().toLowerCase();
     if (!isValidEmail(email) || seen.has(email)) continue;
     const emp = empById.get(u.employee_id);
-    const key = nameKey(emp?.name || u.full_name);
-    const mine = asg.filter(a => a.nameKey === key);
+    const who = emp?.name || u.full_name;
+    const mine = asg.filter(a => sameName(who, a.name) || sameName(who, stripWeekday(a.name)));
     if (!mine.length) continue;
     seen.add(email);
     const name = u.full_name || emp?.name || "";

@@ -103,6 +103,8 @@ const isJunkName = s => !!s && (s.length > 28 || NOTICE_RE.test(s)); // tên tr�
 // Phân tích 1 TRANG: gom chữ theo dòng (y), tách cột theo tâm cột lấy từ hàng tiêu đề của CHÍNH trang đó.
 // Ô Ngày/Lãnh đạo gộp dọc căn GIỮA khối → gán mỗi dòng con về NGÀY GẦN NHẤT theo y (tâm khối nằm đúng
 // ranh giới giữa 2 ngày). Trang không có hàng tiêu đề (VD trang chú thích + chữ ký cuối) → bỏ qua.
+// Chữ "thứ" (Hai/Ba/Tư/Năm/Sáu/Bảy/Nhật) đôi khi lọt sang cột Lãnh đạo khi đọc PDF → cắt bỏ ở đầu tên (chỉ khi tên còn ≥2 từ).
+const stripWeekdayWord = n => { const t = String(n || "").trim().split(/\s+/); return t.length >= 3 && ["hai", "ba", "tư", "năm", "sáu", "bảy", "nhật"].includes(t[0].toLowerCase()) ? t.slice(1).join(" ") : String(n || "").trim(); };
 function parseOnePage(items) {
   const map = new Map();
   for (const it of items) { if (!it.str.trim()) continue; const k = Math.round(it.y / 3); if (!map.has(k)) map.set(k, []); map.get(k).push(it); }
@@ -138,7 +140,7 @@ function parseOnePage(items) {
   for (const dr of dateRows) days[dr.date] = { date: dr.date, leader: "", dc: [], ioc: [], note: "", _d: 0, _i: 0 };
   for (const row of dataRows) {
     const day = days[nearest(row.y)]; if (!day) continue;
-    if (row.leader && !day.leader) day.leader = row.leader;
+    if (row.leader && !day.leader) day.leader = stripWeekdayWord(row.leader);
     if (row.note && !day.note) day.note = row.note;
     if (row.dc) day.dc.push({ name: row.dc, shiftIdx: day._d++ });
     if (row.ioc) day.ioc.push({ name: row.ioc, shiftIdx: day._i++ });

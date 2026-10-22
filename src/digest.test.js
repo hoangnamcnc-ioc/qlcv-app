@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildDigests, scopeOf, vnToday, addDaysYMD, isWorkday, isValidEmail, esc } from "../api/_lib/digest.js";
-import { buildDutyReminders, assignmentsOf, nameKey } from "../api/_lib/duty.js";
+import { buildDutyReminders, assignmentsOf, nameKey, sameName, stripWeekday } from "../api/_lib/duty.js";
 
 const TODAY = "2026-10-22"; // Thứ Năm
 const employees = [
@@ -124,4 +124,24 @@ test("nhac lich truc: khop ten (khong phan biet hoa/thuong/khoang trang), ca lan
 test("nhac lich truc: ngay khong co lich / khong co ai -> rong", () => {
   assert.deepEqual(buildDutyReminders({ date: "2026-10-23", row: null, users, employees }), []);
   assert.deepEqual(buildDutyReminders({ date: "2026-10-23", row: { date: "2026-10-23", leader: "", dc: "[]", ioc: "[]" }, users, employees }), []);
+});
+
+test("khop ten: bo dau, dau cau, viet tat, chu thu dinh o dau", () => {
+  assert.ok(sameName("H'Lisa Bya", "H Lisa Byă"));
+  assert.ok(sameName("Y Sơm Ê nuôl", "Y Sơm Êñuôl"));
+  assert.ok(sameName("Phan Đ. V. Vinh Chuẩn", "Phan Đăng Việt Vinh Chuẩn"));
+  assert.ok(sameName("Võ Nguyễn Hoàng Nam", stripWeekday("Bảy Võ Nguyễn Hoàng Nam")));
+  assert.ok(sameName("Lê Xuân Quang", stripWeekday("Sáu Lê Xuân Quang")));
+  assert.ok(!sameName("Lê Anh Tuấn", "Lê Quang Thanh"));         // khac nguoi
+  assert.ok(!sameName("Nguyễn Vinh Quang", "Nguyễn Quang Tú"));
+  assert.ok(!sameName("Phan Đ. V. Vinh Chuẩn", "Phan Văn Vinh Chuẩn")); // viet tat khong khop chu cai dau
+  assert.equal(stripWeekday("Năm Nguyễn"), "Năm Nguyễn");            // ten ngan 2 tu: khong cat nham
+  assert.equal(stripWeekday("Hai Võ Nguyễn Hoàng Nam"), "Võ Nguyễn Hoàng Nam");
+});
+test("nhac lich truc: nguoi bi ghi bien the ten van duoc nhac", () => {
+  const emps = [{ id: "e1", name: "H'Lisa Bya", dept: "HCTH" }, { id: "e2", name: "Võ Nguyễn Hoàng Nam", dept: "BGD" }];
+  const us = [{ id: "u1", role: "staff", employee_id: "e1", email: "h@x.vn", full_name: "H'Lisa Bya" }, { id: "u2", role: "director", employee_id: "e2", email: "n@x.vn", full_name: "Võ Nguyễn Hoàng Nam" }];
+  const row = { date: "2026-10-24", leader: "Bảy Võ Nguyễn Hoàng Nam", dc: JSON.stringify([{ name: "H Lisa Byă", shiftIdx: 0 }]), ioc: "[]" };
+  const out = buildDutyReminders({ date: "2026-10-24", row, users: us, employees: emps });
+  assert.deepEqual(out.map(o => o.to).sort(), ["h@x.vn", "n@x.vn"]);
 });

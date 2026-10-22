@@ -11,7 +11,8 @@ export default async function handler(req, res) {
   const q = req.query || {};
   const dry = q.dry === "1", only = (q.only || "").toString().trim().toLowerCase();
   try {
-    const tomorrow = addDaysYMD(vnToday(), 1);
+    // ?date=YYYY-MM-DD: chỉ để THỬ (đã qua xác thực CRON_SECRET) — mặc định là ngày mai theo giờ VN.
+    const tomorrow = /^\d{4}-\d{2}-\d{2}$/.test(q.date || "") ? q.date : addDaysYMD(vnToday(), 1);
     const d = await loadDigestData();
     const row = d.duty.find(r => r.date === tomorrow);
     if (!row) { res.status(200).json({ ok: true, tomorrow, skipped: "chưa có lịch trực ngày mai" }); return; }
