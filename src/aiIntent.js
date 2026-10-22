@@ -11,7 +11,10 @@
 // Xem code proxy mẫu: supabase/functions/ai-intent/index.ts
 
 import { sanitizeDraft } from "./aiDraft";
-const PROXY_URL = import.meta.env.VITE_AI_PROXY_URL || "";
+// Địa chỉ proxy AI: ưu tiên biến VITE_AI_PROXY_URL. Nếu chưa đặt thì BẢN CHÍNH THỨC (PROD) tự dùng "/api/ai-intent"
+// (hàm máy chủ có sẵn trong dự án, GIỮ API key phía Vercel). Muốn TẮT AI hoàn toàn: đặt VITE_AI_PROXY_URL=off.
+const _envProxy = import.meta.env.VITE_AI_PROXY_URL;
+const PROXY_URL = _envProxy === "off" ? "" : (_envProxy || (import.meta.env.PROD ? "/api/ai-intent" : ""));
 export const aiEnabled = !!PROXY_URL;
 
 // Chuẩn hoá kết quả AI về đúng khung slots mà bộ chạy truy vấn đang dùng (bỏ field lạ, ép kiểu an toàn).
