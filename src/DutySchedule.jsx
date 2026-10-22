@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
+import { dutyCoverage } from "./dutyCoverage";
 
 const today=new Date();today.setHours(0,0,0,0);
 const pad0=n=>String(n).padStart(2,"0");
@@ -247,6 +248,11 @@ export default function DutySchedule({ currentUser, employees, userDept, isMobil
       <button onClick={()=>setCur(new Date())} style={{padding:"6px 12px",border:"1px solid #e5e7eb",borderRadius:8,background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontSize:12}}>Hôm nay</button>
     </div>
 
+    {!loading&&(()=>{const cv=dutyCoverage(Object.keys(schedule),todayStr);if(!cv.warn)return null;const lastTxt=cv.last.split("-").reverse().join("/");
+      return <div style={{background:cv.daysLeft<0?"#fef2f2":"#fffbeb",border:"1px solid "+(cv.daysLeft<0?"#fecaca":"#fde68a"),borderRadius:10,padding:"10px 14px",display:"flex",gap:10,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap"}}>
+        <div style={{fontSize:13,color:cv.daysLeft<0?"#991b1b":"#92400e"}}>⚠️ <b>{cv.daysLeft<0?`Lịch trực đã hết từ ${lastTxt}`:`Lịch trực chỉ còn đến ${lastTxt} (còn ${cv.daysLeft} ngày)`}</b>{canManage?" — hãy nhập lịch trực tháng tiếp theo (Word hoặc PDF).":" — đề nghị người phụ trách nhập lịch trực tháng tiếp theo."}</div>
+        {canManage&&<button onClick={()=>setShowImport(true)} style={{background:"#059669",color:"#fff",border:"none",borderRadius:8,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontWeight:600}}>📥 Nhập lịch trực</button>}
+      </div>;})()}
     {loading?<div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>Đang tải lịch trực…</div>:<>
     {viewMode==="month"&&<div style={{background:"#fff",borderRadius:12,border:"1px solid #e5e7eb",padding:isMobile?6:12,overflowX:"auto"}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:isMobile?2:6,minWidth:isMobile?600:0}}>
