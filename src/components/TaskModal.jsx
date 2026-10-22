@@ -357,7 +357,12 @@ export default function TaskModal({
                       <span style={{ fontSize: 11, color: "#9ca3af" }}>{timeStr}</span>
                     </div>
                     {c.content && <div style={{ fontSize: 13 }}>{c.content}</div>}
-                    {files.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>{files.map((f, i) => <a key={i} href={getPreviewUrl(f.url, f.name)} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid #d1d5db", borderRadius: 6, padding: "3px 8px", fontSize: 11, color: "#4f46e5", textDecoration: "none" }}>📎 {f.name}</a>)}</div>}
+                    {files.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>{files.map((f, i) => (
+                      <span key={i} style={{ display: "inline-flex", alignItems: "stretch", background: "#fff", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 11, overflow: "hidden", maxWidth: "100%" }}>
+                        <a href={getPreviewUrl(f.url, f.name)} target="_blank" rel="noreferrer" title="Mở xem" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", color: "#4f46e5", textDecoration: "none", minWidth: 0 }}>📎 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span></a>
+                        {f.url && <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); forceDownload(f.url, f.name); }} title="Tải về máy" style={{ border: "none", borderLeft: "1px solid #e5e7eb", background: "#eef2ff", color: "#4338ca", cursor: "pointer", padding: "3px 8px", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>⬇ Tải</button>}
+                      </span>
+                    ))}</div>}
                   </div>
                 );
               })}
