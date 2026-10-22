@@ -68,6 +68,27 @@ Trả lời bằng văn bản thường, MARKDOWN NHẸ (**in đậm**, gạch �
 Dựa vào các lượt hội thoại trước để hiểu câu nối tiếp. Chỉ từ chối khi yêu cầu vi phạm pháp luật/đạo đức nghiêm trọng;
 ngoài ra luôn cố gắng giúp hết sức.`;
 
+// Chế độ SOẠN NHÁP VIỆC (mode="task_draft"): từ tiêu đề ngắn HOẶC tin chỉ đạo/email dán vào → JSON để điền sẵn form tạo việc.
+const SYS_TASK = `Bạn hỗ trợ cán bộ một cơ quan nhà nước Việt Nam soạn NHÁP một nhiệm vụ công việc.
+Đầu vào có dòng "Hôm nay: YYYY-MM-DD (thứ ...)" rồi tới nội dung người dùng (có thể là tiêu đề ngắn, hoặc tin nhắn chỉ đạo/email/công văn dán vào).
+Trả về DUY NHẤT một object JSON, KHÔNG giải thích:
+{"title": "tiêu đề ngắn gọn ≤120 ký tự, bắt đầu bằng động từ (VD 'Báo cáo ...', 'Rà soát ...')",
+ "description": "2-5 câu: làm gì, sản phẩm/kết quả cần có, căn cứ/bối cảnh nếu có",
+ "deadline": "YYYY-MM-DD nếu nội dung nêu RÕ hạn (tính từ 'Hôm nay' nếu nêu tương đối như 'trước thứ Sáu', 'trong tuần này', 'ngày mai'); nếu không nêu hạn thì null",
+ "prio": "high" nếu có từ khẩn/hỏa tốc/gấp/ưu tiên; "low" nếu nói không gấp; còn lại "medium",
+ "subtasks": ["tối đa 8 bước thực hiện ngắn gọn, theo thứ tự"]}
+QUY TẮC: không bịa tên người, số liệu, số văn bản không có trong nội dung. Nếu chỉ có tiêu đề ngắn thì description và subtasks là gợi ý CHUNG hợp lý.
+deadline phải là ngày hợp lệ không sớm hơn "Hôm nay". Viết tiếng Việt.`;
+
+// Chế độ TÓM TẮT (mode="summarize"): tóm tắt luồng bình luận của 1 nhiệm vụ để người mới vào nắm nhanh.
+const SYS_SUMMARY = `Bạn tóm tắt luồng trao đổi (bình luận) của MỘT nhiệm vụ trong cơ quan nhà nước, bằng tiếng Việt, ngắn gọn.
+Đầu vào: tiêu đề nhiệm vụ và các bình luận theo thứ tự thời gian (dạng "[thời gian] Tên: nội dung").
+Trả lời bằng văn bản thường theo ĐÚNG khuôn:
+**Tình hình hiện tại:** 1-2 câu.
+**Đã thống nhất/làm xong:** các gạch đầu dòng "- " (bỏ mục nếu không có).
+**Còn vướng/cần làm tiếp:** các gạch đầu dòng "- " kèm TÊN người liên quan nếu có (bỏ mục nếu không có).
+Chỉ dựa vào nội dung bình luận, KHÔNG bịa thêm. Tối đa ~150 từ.`;
+
 export default async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ slots: null }); return; }
   try {
@@ -87,20 +108,25 @@ export default async function handler(req, res) {
     const model = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
     // Ghép vài lượt hội thoại trước (nếu có) để AI hiểu câu nối tiếp; role chỉ nhận "user"/"model".
-    const answerMode = body.mode === "answer";
+    const answerMode = body.mode === "answer" || body.mode === "summarize";
+    const taskMode = body.mode === "task_draft";
     // Lịch sử hội thoại: chế độ trả lời cần ngữ cảnh dài hơn (giữ nhiều lượt & nhiều ký tự hơn).
     const histCap = answerMode ? 2000 : 600;
     const hist = Array.isArray(body.history) ? body.history.filter(h => h && typeof h.text === "string" && h.text.trim()).slice(-8).map(h => ({ role: h.role === "model" ? "model" : "user", parts: [{ text: String(h.text).slice(0, histCap) }] })) : [];
     const contents = [...hist, { role: "user", parts: [{ text: String(question).slice(0, 14000) }] }]; // đủ chứa cả bản báo cáo cần đánh giá
     // Chế độ trả lời: văn bản THƯỜNG, nhiệt độ cao (giàu ý), token cao (câu dài không cụt). Chế độ slots: JSON gọn, deterministic.
-    const genConfig = answerMode
-      ? { temperature: 0.7, topP: 0.95, maxOutputTokens: 8192 }
-      : { temperature: 0, maxOutputTokens: 512, responseMimeType: "application/json" };
+    const genConfig = taskMode
+      ? { temperature: 0.3, maxOutputTokens: 1500, responseMimeType: "application/json" }
+      : body.mode === "summarize"
+        ? { temperature: 0.2, maxOutputTokens: 1024 }
+        : answerMode
+          ? { temperature: 0.7, topP: 0.95, maxOutputTokens: 8192 }
+          : { temperature: 0, maxOutputTokens: 512, responseMimeType: "application/json" };
     const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: answerMode ? SYS_ANSWER : SYS }] },
+        systemInstruction: { parts: [{ text: taskMode ? SYS_TASK : body.mode === "summarize" ? SYS_SUMMARY : answerMode ? SYS_ANSWER : SYS }] },
         contents,
         generationConfig: genConfig,
       }),
@@ -108,7 +134,13 @@ export default async function handler(req, res) {
     if (!r.ok) { const detail = await r.text().catch(() => ""); res.status(200).json({ slots: null, error: "gemini " + r.status, detail: detail.slice(0, 300) }); return; }
     const data = await r.json();
     const text = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-    // Chế độ trả lời tự do → trả THẲNG văn bản (không parse JSON nữa).
+    // Chế độ soạn nháp việc → parse JSON và trả { draft }
+    if (taskMode) {
+      const mm = text.match(/\{[\s\S]*\}/); let d = null;
+      if (mm) { try { d = JSON.parse(mm[0]); } catch { d = null; } }
+      res.status(200).json({ draft: d }); return;
+    }
+    // Chế độ trả lời tự do / tóm tắt → trả THẲNG văn bản (không parse JSON nữa).
     if (answerMode) { res.status(200).json({ answer: text }); return; }
     const m = text.match(/\{[\s\S]*\}/);
     let obj = null;

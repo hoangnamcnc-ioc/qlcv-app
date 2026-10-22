@@ -10,6 +10,7 @@
 // Proxy phải nhận POST {question} và trả JSON dạng slots giống chatIntent (status/metric/order/subject/...).
 // Xem code proxy mẫu: supabase/functions/ai-intent/index.ts
 
+import { sanitizeDraft } from "./aiDraft";
 const PROXY_URL = import.meta.env.VITE_AI_PROXY_URL || "";
 export const aiEnabled = !!PROXY_URL;
 
@@ -66,4 +67,36 @@ export async function parseWithAI(question, history, opts) {
   } catch {
     return null; // mọi lỗi (mạng/timeout/parse) → im lặng quay về bộ phân loại nội bộ
   }
+}
+
+// ── AI hỗ trợ soạn nháp việc & tóm tắt bình luận (dùng chung proxy, chế độ riêng) ──
+async function callProxy(payload, timeoutMs = 25000) {
+  if (!aiEnabled) return null;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(PROXY_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+// Soạn nháp việc từ tiêu đề ngắn HOẶC tin chỉ đạo dán vào. Trả { title, description, deadline, prio, subtasks } hoặc null.
+// todayStr: YYYY-MM-DD để AI hiểu hạn tương đối ("trước thứ Sáu"). Kết quả được làm sạch/kiểm tra hợp lệ trước khi dùng.
+export async function aiTaskDraft(text, todayStr) {
+  const t = (text || "").trim();
+  if (!t) return null;
+  const dow = ["Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"][new Date(todayStr + "T00:00:00").getDay()];
+  const data = await callProxy({ mode: "task_draft", question: `Hôm nay: ${todayStr} (${dow})\n\nNội dung:\n${t.slice(0, 6000)}` });
+  return sanitizeDraft(data && data.draft, todayStr);
+}
+
+// Tóm tắt luồng bình luận (comments: [{user_name, content, created_at}]). Trả chuỗi markdown nhẹ hoặc null.
+export async function aiSummarizeComments(taskTitle, comments) {
+  const lines = (comments || []).filter(c => c && (c.content || "").trim()).map(c => `[${c.created_at || ""}] ${c.user_name || "?"}: ${String(c.content).trim().slice(0, 600)}`);
+  if (lines.length === 0) return null;
+  const q = `Nhiệm vụ: ${taskTitle || ""}\n\nBình luận:\n${lines.join("\n")}`.slice(0, 13000);
+  const data = await callProxy({ mode: "summarize", question: q });
+  return data && typeof data.answer === "string" && data.answer.trim() ? data.answer.trim() : null;
 }

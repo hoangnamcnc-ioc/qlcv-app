@@ -2,6 +2,37 @@ import React, { useState } from "react";
 import { DEPT_COLOR, RATING, LATE_REASONS } from "../constants";
 import { parseJSON, getFileIcon, getPreviewUrl, forceDownload, fmtDate } from "../helpers";
 import { ProgressBar, RatingBadge, Chip, PChip } from "./ui";
+import { aiEnabled, aiSummarizeComments } from "../aiIntent";
+
+// Tiêu đề khối bình luận + nút "✨ Tóm tắt" (AI) khi luồng trao đổi dài (≥4 bình luận) để người mới vào nắm nhanh.
+// Markdown nhẹ: chỉ xử lý **in đậm** và gạch đầu dòng, không chèn HTML thô.
+function CommentSummary({ title, list }) {
+  const [busy, setBusy] = useState(false);
+  const [text, setText] = useState("");
+  const [err, setErr] = useState("");
+  const run = async () => {
+    setBusy(true); setErr("");
+    const r = await aiSummarizeComments(title, list);
+    setBusy(false);
+    if (r) setText(r); else setErr("AI chưa tóm tắt được lúc này. Bạn thử lại sau nhé.");
+  };
+  const bold = line => line.split(/\*\*(.+?)\*\*/g).map((part, i) => i % 2 ? <b key={i}>{part}</b> : part);
+  return (
+    <>
+      <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span>💬 Bình luận ({list.length})</span>
+        {aiEnabled && list.length >= 4 && <button onClick={run} disabled={busy} style={{ padding: "2px 10px", border: "1px solid #c7d2fe", borderRadius: 6, background: "#eef2ff", color: "#4338ca", cursor: busy ? "default" : "pointer", fontSize: 11.5, fontWeight: 600 }}>{busy ? "⏳ Đang tóm tắt…" : text ? "✨ Tóm tắt lại" : "✨ Tóm tắt"}</button>}
+      </div>
+      {err && <div style={{ fontSize: 12, color: "#b45309", marginBottom: 8 }}>{err}</div>}
+      {text && (
+        <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 8, padding: "10px 12px", marginBottom: 10, fontSize: 12.5, lineHeight: 1.6, color: "#312e81" }}>
+          {text.split("\n").filter(l => l.trim()).map((l, i) => <div key={i} style={{ paddingLeft: /^\s*[-•]/.test(l) ? 10 : 0 }}>{bold(l)}</div>)}
+          <div style={{ fontSize: 10.5, color: "#7c3aed", marginTop: 4 }}>✨ Do AI tóm tắt từ các bình luận bên dưới — chỉ để tham khảo.</div>
+        </div>
+      )}
+    </>
+  );
+}
 
 const IMG_EXT = ["jpg", "jpeg", "png", "gif", "webp"];
 const isImageFile = name => IMG_EXT.includes((name || "").split(".").pop().toLowerCase());
@@ -311,7 +342,7 @@ export default function TaskModal({
           )}
 
           <div>
-            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 8 }}>💬 Bình luận ({(comments[modal.id] || []).length})</div>
+            <CommentSummary key={modal.id} title={modal.title} list={comments[modal.id] || []} />
             <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
               {commentLoading && <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center" }}>Đang tải…</div>}
               {(comments[modal.id] || []).length === 0 && !commentLoading && <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 8 }}>Chưa có bình luận</div>}
