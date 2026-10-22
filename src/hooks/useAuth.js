@@ -14,6 +14,35 @@ export default function useAuth({ showToast, onLogout }) {
   const [loginLoading, setLoginLoading] = useState(false);
   const [mustChangePwd, setMustChangePwd] = useState(() => { try { return sessionStorage.getItem(MUST_KEY) === "1"; } catch { return false; } });
 
+  // ── Email nhận nhắc việc: hỏi lúc đăng nhập nếu chưa có; sửa/tắt được bất cứ lúc nào qua nút ✉️ ──
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  const [emailPrompt, setEmailPrompt] = useState(null); // { email, password, error, saving, forced }
+  // Kiểm tra email của tài khoản; chưa có → mở hộp nhập. RPC lỗi (chưa chạy SQL 47) → im lặng bỏ qua.
+  const checkEmail = async (username, password) => {
+    try {
+      const { data, error } = await supabase.rpc("get_my_email", { p_user: username, p_pass: password });
+      if (!error && (data === null || data === "")) setEmailPrompt({ email: "", password, error: "", saving: false, forced: true });
+    } catch { }
+  };
+  const openEmailModal = async () => {
+    setEmailPrompt({ email: "", password: "", error: "", saving: false, forced: false });
+  };
+  const saveEmail = async () => {
+    const p = emailPrompt; if (!p || !currentUser) return;
+    const email = (p.email || "").trim();
+    if (email && !EMAIL_RE.test(email)) { setEmailPrompt(x => ({ ...x, error: "Email chưa đúng định dạng (ví dụ: ten@coquan.gov.vn)" })); return; }
+    if (!email && p.forced) { setEmailPrompt(x => ({ ...x, error: "Vui lòng nhập email, hoặc bấm “Để sau”." })); return; }
+    if (!p.password) { setEmailPrompt(x => ({ ...x, error: "Nhập mật khẩu hiện tại để xác nhận" })); return; }
+    setEmailPrompt(x => ({ ...x, saving: true, error: "" }));
+    const { error } = await supabase.rpc("set_my_email", { p_user: currentUser.username, p_pass: p.password, p_email: email });
+    if (error) {
+      const m = /mật khẩu/i.test(error.message || "") ? "Mật khẩu không đúng" : /không hợp lệ/i.test(error.message || "") ? "Email không hợp lệ" : "Chưa lưu được (máy chủ chưa bật tính năng email — cần quản trị chạy SQL 47)";
+      setEmailPrompt(x => ({ ...x, saving: false, error: m })); return;
+    }
+    setEmailPrompt(null);
+    showToast(email ? "Đã lưu email — bạn sẽ nhận nhắc việc mỗi sáng ✉️" : "Đã tắt email nhắc việc");
+  };
+
   const logLogin = async (username, success, fullName) => { try { await supabase.from("login_history").insert({ id: `lg${Date.now()}${Math.random().toString(36).slice(2, 6)}`, username, full_name: fullName || "", success, at: nowStr() }); } catch { } };
 
   const handleLogin = async () => {
@@ -28,9 +57,11 @@ export default function useAuth({ showToast, onLogout }) {
     if (isWeakPassword(loginForm.password, user.username)) {
       try { sessionStorage.setItem(MUST_KEY, "1"); } catch { }
       setMustChangePwd(true); setChangePwdForm({ current: loginForm.password, next: "", confirm: "" }); setChangePwdError(""); setShowChangePwd(true);
+    } else {
+      checkEmail(user.username, loginForm.password);
     }
   };
-  const handleLogout = () => { setCurrentUser(null); sessionStorage.removeItem("qlcv_user"); try { sessionStorage.removeItem(MUST_KEY); } catch { } setMustChangePwd(false); setShowChangePwd(false); onLogout?.(); };
+  const handleLogout = () => { setCurrentUser(null); sessionStorage.removeItem("qlcv_user"); try { sessionStorage.removeItem(MUST_KEY); } catch { } setMustChangePwd(false); setShowChangePwd(false); setEmailPrompt(null); onLogout?.(); };
   // Khôi phục phiên (F5): nếu còn cờ bắt buộc đổi mật khẩu thì mở lại hộp đổi mật khẩu
   useEffect(() => { const s = sessionStorage.getItem("qlcv_user"); if (s) try { setCurrentUser(JSON.parse(s)); if (sessionStorage.getItem(MUST_KEY) === "1") setShowChangePwd(true); } catch { }; }, []);
 
@@ -50,14 +81,16 @@ export default function useAuth({ showToast, onLogout }) {
     if (error) { showToast("Lỗi khi đổi mật khẩu", "error"); return; }
     if (!ok) { setChangePwdError("Mật khẩu hiện tại không đúng"); return; }
     showToast("Đổi mật khẩu thành công ✓");
+    const wasForced = mustChangePwd;
     try { sessionStorage.removeItem(MUST_KEY); } catch { } setMustChangePwd(false);
     setShowChangePwd(false);
+    if (wasForced) checkEmail(currentUser.username, next);
     setChangePwdForm({ current: "", next: "", confirm: "" });
     setChangePwdError("");
   };
 
   return {
-    currentUser, setCurrentUser, mustChangePwd,
+    currentUser, setCurrentUser, mustChangePwd, emailPrompt, setEmailPrompt, saveEmail, openEmailModal,
     loginForm, setLoginForm, loginError, loginLoading, handleLogin, handleLogout,
     showChangePwd, setShowChangePwd, changePwdForm, setChangePwdForm, changePwdError, setChangePwdError, handleChangePwd,
   };

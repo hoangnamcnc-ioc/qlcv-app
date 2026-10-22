@@ -98,7 +98,7 @@ export default function App() {
   // ── Đăng nhập/đăng xuất, đổi mật khẩu ──
   const {
     currentUser, setCurrentUser,
-    mustChangePwd, loginForm, setLoginForm, loginError, loginLoading, handleLogin, handleLogout,
+    mustChangePwd, emailPrompt, setEmailPrompt, saveEmail, openEmailModal, loginForm, setLoginForm, loginError, loginLoading, handleLogin, handleLogout,
     showChangePwd, setShowChangePwd, changePwdForm, setChangePwdForm, changePwdError, setChangePwdError, handleChangePwd,
   } = useAuth({ showToast, onLogout: () => setLoginNotifShown(false) });
 
@@ -731,6 +731,7 @@ export default function App() {
                 <button onClick={()=>{setChangePwdForm({current:"",next:"",confirm:""});setChangePwdError("");setShowChangePwd(true);}} style={{flex:1,background:"rgba(99,102,241,0.3)",border:"none",borderRadius:6,padding:"5px 0",cursor:"pointer",color:"#c7d2fe",fontSize:12}}>🔑 Đổi MK</button>
                 <button onClick={handleLogout} style={{flex:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:6,padding:"5px 0",cursor:"pointer",color:"#94a3b8",fontSize:12}}>⏏ Đăng xuất</button>
               </div>
+              <button onClick={openEmailModal} title="Email nhận nhắc việc mỗi sáng" style={{width:"100%",marginTop:6,background:"rgba(16,185,129,0.18)",border:"none",borderRadius:6,padding:"5px 0",cursor:"pointer",color:"#a7f3d0",fontSize:12}}>✉️ Email nhắc việc</button>
             </div>
             {saving&&<div style={{color:"#64748b",fontSize:11,textAlign:"center"}}>Đang lưu…</div>}
           </div>
@@ -784,6 +785,7 @@ export default function App() {
             {/* Mobile: đổi MK + đăng xuất */}
             {isMobile&&(canCreate||isDelegationAdmin)&&<button onClick={openDelegationModal} style={{background:"none",border:"1px solid #e5e7eb",borderRadius:7,padding:"5px 8px",cursor:"pointer",fontSize:13}} title="Ủy quyền duyệt">🤝</button>}
             {isMobile&&<button onClick={()=>{setChangePwdForm({current:"",next:"",confirm:""});setChangePwdError("");setShowChangePwd(true);}} style={{background:"none",border:"1px solid #e5e7eb",borderRadius:7,padding:"5px 8px",cursor:"pointer",fontSize:13}} title="Đổi mật khẩu">🔑</button>}
+            {isMobile&&<button onClick={openEmailModal} style={{background:"none",border:"1px solid #e5e7eb",borderRadius:7,padding:"5px 8px",cursor:"pointer",fontSize:13}} title="Email nhận nhắc việc">✉️</button>}
             {isMobile&&<button onClick={handleLogout} style={{background:"none",border:"1px solid #e5e7eb",borderRadius:7,padding:"5px 8px",cursor:"pointer",fontSize:13,color:"#6b7280"}}>⏏</button>}
           </div>
         </div>
@@ -1157,6 +1159,37 @@ export default function App() {
         </div>
       )}
       {/* ── ĐỔI MẬT KHẨU MODAL ── */}
+      {emailPrompt&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:105,padding:16}}>
+          <div style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:420,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
+            <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb"}}>
+              <div style={{fontWeight:700,fontSize:16}}>✉️ Email nhận nhắc việc</div>
+              <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{currentUser.full_name}</div>
+            </div>
+            <div style={{padding:20,display:"flex",flexDirection:"column",gap:12}}>
+              <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"#166534",lineHeight:1.6}}>
+                Hệ thống gửi email nhắc việc <b>mỗi sáng Thứ 2–6</b>: nhân viên nhận <b>việc của mình</b>; Trưởng/Phó phòng nhận việc <b>cả phòng</b>; Ban Giám đốc nhận việc của <b>phòng được giao phụ trách</b>. Chiều hôm trước có thêm email nhắc <b>lịch trực</b> nếu bạn được phân công.
+              </div>
+              <div>
+                <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:5,fontWeight:500}}>Email của bạn</label>
+                <input type="email" value={emailPrompt.email} onChange={e=>setEmailPrompt(x=>({...x,email:e.target.value,error:""}))} onKeyDown={e=>e.key==="Enter"&&saveEmail()} placeholder="ten@coquan.gov.vn" style={inp} autoFocus/>
+              </div>
+              {!emailPrompt.forced&&(
+                <div>
+                  <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:5,fontWeight:500}}>Mật khẩu hiện tại (để xác nhận)</label>
+                  <input type="password" value={emailPrompt.password} onChange={e=>setEmailPrompt(x=>({...x,password:e.target.value,error:""}))} onKeyDown={e=>e.key==="Enter"&&saveEmail()} placeholder="Nhập mật khẩu..." style={inp}/>
+                  <div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>Để trống ô email rồi lưu = tắt nhận email nhắc việc.</div>
+                </div>
+              )}
+              {emailPrompt.error&&<div style={{background:"#fee2e2",color:"#b91c1c",padding:"10px 14px",borderRadius:8,fontSize:13}}>⚠️ {emailPrompt.error}</div>}
+            </div>
+            <div style={{padding:"14px 20px",borderTop:"1px solid #e5e7eb",display:"flex",gap:10}}>
+              <button onClick={()=>setEmailPrompt(null)} style={{flex:1,padding:"9px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13,color:"#374151"}}>{emailPrompt.forced?"Để sau":"Đóng"}</button>
+              <button onClick={saveEmail} disabled={emailPrompt.saving} style={{flex:2,padding:"9px",background:emailPrompt.saving?"#a5b4fc":"#4f46e5",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600}}>{emailPrompt.saving?"Đang lưu…":"Lưu email"}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showChangePwd&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}}>
           <div style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:380,boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
