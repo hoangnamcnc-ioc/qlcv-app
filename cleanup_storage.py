@@ -152,7 +152,8 @@ def main():
         print("\nKhông có file mồ côi để xóa."); return
     # CHỐT CHẶN: nếu bảng nguồn tham chiếu bỗng TRỐNG thì danh sách "mồ côi" không đáng tin (file của bảng đó bị coi
     # là rác) → từ chối xóa trừ khi có --force. (Bài học: lỗi phân trang từng làm mất 93 file; bảng documents từng trống.)
-    empty = [t for t in ("tasks", "documents") if len(_get_all(t, "id")) == 0]
+    # (bảng `documents` được anh Nam xác nhận CỐ Ý để trống từ 6/10/2026 nên không đưa vào chốt chặn)
+    empty = [t for t in ("tasks",) if len(_get_all(t, "id")) == 0]
     if empty and "--force" not in sys.argv:
         print(f"\n⛔ TỪ CHỐI XÓA: bảng {', '.join(empty)} đang TRỐNG nên danh sách mồ côi không đáng tin (có thể xóa nhầm file đang dùng).")
         print("   Kiểm tra dữ liệu trước; chỉ khi chắc chắn mới chạy lại với --force."); return
