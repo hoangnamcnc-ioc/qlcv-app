@@ -367,6 +367,22 @@ export default function App() {
     deptEmps,
   } = useEmployees({ employees, setEmployees, showToast, setSaving });
   // ── Nghỉ việc: đánh dấu (không xóa) + khóa tài khoản; "Đi làm lại" để hoàn tác ──
+  const [tplHandoff,setTplHandoff]=useState(null); // {emp, rows:{[tplId]: eid | "pause" | ""}}
+  const applyTplHandoff=async()=>{
+    const{emp,rows}=tplHandoff;let moved=0,paused=0;
+    for(const[id,v]of Object.entries(rows)){
+      if(!v)continue;
+      if(v==="pause"){const{error}=await supabase.from("recurring_templates").update({active:false}).eq("id",id);if(!error){setRecurringTemplates(p=>p.map(t=>t.id===id?{...t,active:false}:t));paused++;}continue;}
+      const to=employees.find(e=>e.id===v);if(!to)continue;
+      const patch={eid:to.id,dept:to.dept};
+      const{error}=await supabase.from("recurring_templates").update(patch).eq("id",id);if(error)continue;
+      setRecurringTemplates(p=>p.map(t=>t.id===id?{...t,...patch}:t));
+      const{data:upd}=await supabase.from("tasks").update(patch).eq("template_id",id).eq("completed",false).select("id");
+      const ids=new Set((upd||[]).map(r=>r.id));if(ids.size)setTasks(p=>p.map(t=>ids.has(t.id)?{...t,...patch}:t));
+      moved++;
+    }
+    setTplHandoff(null);showToast(`Việc thường xuyên của ${emp.name}: chuyển ${moved}, tạm dừng ${paused}`);
+  };
   const leaveRpc=async(emp,disabled)=>{
     const pass=window.prompt("Nhập MẬT KHẨU quản trị của bạn để xác nhận:","");
     if(!pass)return false;
@@ -383,6 +399,8 @@ export default function App() {
     if(!await leaveRpc(emp,true))return;
     if(await updateEmployee(emp.id,{left_at:d,left_note:note})){
       showToast(`Đã cho ${emp.name} nghỉ việc — toàn bộ lịch sử được giữ nguyên`);
+      const tpls=recurringTemplates.filter(t=>t.eid===emp.id&&t.active);
+      if(tpls.length)setTplHandoff({emp,rows:Object.fromEntries(tpls.map(t=>[t.id,""]))});
       if(tasks.some(t=>t.eid===emp.id&&!t.completed&&!t.deleted)&&window.confirm("Người này còn việc đang mở. Mở màn hình Bàn giao hàng loạt ngay?")){setShowBulkHandoff(true);setBulkFromEid(emp.id);setBulkToEid("");setBulkSelectedIds([]);}
     }
   };
@@ -1365,6 +1383,25 @@ export default function App() {
       {forwardModal&&(<div onClick={()=>setForwardModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:110,padding:16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:440,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}><div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>↪ Chuyển tiếp nhiệm vụ</span><button onClick={()=>setForwardModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#9ca3af"}}>✕</button></div><div style={{padding:18}}><div style={{fontSize:13,color:"#374151",marginBottom:6,fontWeight:500}}>{forwardModal.title}</div><div style={{fontSize:12,color:"#6b7280",marginBottom:16,padding:"8px 12px",background:"#eff6ff",borderRadius:8,lineHeight:1.5}}>Bạn sẽ trở thành <b>người phụ trách</b>, nhân viên được chọn là <b>người thực hiện</b>. Nhiệm vụ không bị nhân đôi.</div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:6}}>Chọn nhân viên thực hiện *</label><select value={forwardEid} onChange={e=>setForwardEid(e.target.value)} style={inp}><option value="">— Chọn nhân viên —</option>{(employees||[]).filter(e=>e.dept===forwardModal.dept&&e.id!==forwardModal.eid&&isAssignable(e)).map(e=><option key={e.id} value={e.id}>{e.name} ({e.role})</option>)}</select></div><div style={{padding:"0 18px 18px",display:"flex",gap:10}}><button onClick={()=>setForwardModal(null)} style={{flex:1,padding:"10px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:14}}>Hủy</button><button onClick={forwardTask} disabled={!forwardEid||saving} style={{flex:1,padding:"10px",border:"none",borderRadius:8,background:!forwardEid||saving?"#cbd5e1":"#2563eb",color:"#fff",cursor:!forwardEid||saving?"not-allowed":"pointer",fontSize:14,fontWeight:600}}>{saving?"Đang chuyển…":"Chuyển tiếp"}</button></div></div></div>)}
 
       {/* ── BÀN GIAO HÀNG LOẠT (nhân viên nghỉ phép dài/nghỉ việc) ── */}
+      {tplHandoff&&(()=>{const{emp,rows}=tplHandoff;const cands=employees.filter(e=>e.dept===emp.dept&&isAssignable(e)&&e.id!==emp.id);const mgr=cands.find(e=>/Trưởng phòng/.test(e.role));
+        return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16}}>
+          <div style={{background:"#fff",borderRadius:12,maxWidth:560,width:"100%",maxHeight:"85vh",overflow:"auto",padding:18}}>
+            <div style={{fontWeight:600,fontSize:15,marginBottom:6}}>🔁 Chuyển nhiệm vụ thường xuyên của {emp.name}</div>
+            <div style={{fontSize:12.5,color:"#6b7280",marginBottom:12}}>Đề nghị Trưởng phòng{mgr?` (${mgr.name})`:""} chọn người nhận các nhiệm vụ định kỳ này. Việc đang mở của mẫu cũng được chuyển theo. Mẫu để trống sẽ vẫn giao cho người đã nghỉ.</div>
+            {Object.keys(rows).map(id=>{const t=recurringTemplates.find(x=>x.id===id);const f=FREQUENCIES.find(x=>x.value===t?.frequency);return(
+              <div key={id} style={{padding:"8px 0",borderBottom:"1px solid #f1f5f9"}}>
+                <div style={{fontSize:13,fontWeight:500}}>{t?.title} <span style={{fontSize:11,color:"#9ca3af"}}>· {f?.label||t?.frequency}</span></div>
+                <select value={rows[id]} onChange={e=>setTplHandoff(h=>({...h,rows:{...h.rows,[id]:e.target.value}}))} style={{...inp,marginTop:4}}>
+                  <option value="">— Chưa chọn (giữ nguyên) —</option>
+                  {cands.map(e=><option key={e.id} value={e.id}>{e.name} ({e.role})</option>)}
+                  <option value="pause">⏸ Tạm dừng mẫu này</option>
+                </select>
+              </div>);})}
+            <div style={{display:"flex",gap:8,marginTop:14}}>
+              <button onClick={()=>setTplHandoff(null)} style={{flex:1,padding:10,border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>Để sau</button>
+              <button onClick={applyTplHandoff} style={{flex:1,padding:10,border:"none",borderRadius:8,background:"#4f46e5",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600}}>Áp dụng</button>
+            </div>
+          </div></div>);})()}
       {showBulkHandoff&&(<div onClick={()=>setShowBulkHandoff(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:110,padding:16}}>
         <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:520,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}>
           <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff"}}><span style={{fontWeight:600,fontSize:15}}>🔁 Bàn giao hàng loạt</span><button onClick={()=>setShowBulkHandoff(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#9ca3af"}}>✕</button></div>

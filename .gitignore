@@ -42,3 +42,11 @@ missing_attachments_report.txt
 
 dondep_baocao.cmd
 storage_report*.log
+
+# Bien moi truong cuc bo (KHONG commit)
+.env
+.env.local
+.env.*.local
+
+# File tam de nhap bien len Vercel (xoa sau khi dung)
+vercel-import.env
