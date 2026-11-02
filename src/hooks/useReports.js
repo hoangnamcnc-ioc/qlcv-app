@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { DEPTS, deptLabel, isRankable, EXEC_ROLES, RATING, LATE_REASONS, STATUS_ORDER, inGradingScope } from "../constants";
+import { DEPTS, deptLabel, isRankable, EXEC_ROLES, RATING, LATE_REASONS, STATUS_ORDER, inGradingScope, isActive, wasActiveIn } from "../constants";
 // Tháng nằm TRƯỚC mốc bắt đầu xếp loại (T6/2026 là tháng thử nghiệm): coi như tháng trống để không vào xếp hạng/điểm TB.
 const EMPTY_MONTH = { total: 0, resolved: 0, done: 0, over: 0, completedLate: 0, collabTotal: 0, collabDone: 0, eligible: false, perfScore: 0, resolvedW: 0, doneW: 0, onTimeW: 0, lateW: 0, overW: 0 };
 import { isCompletedStatus, parseJSON, pendingApprovalDays, parseNowStr, workingDaysBetween } from "../helpers";
@@ -82,7 +82,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const nd = dt.filter(t => t.status === "nearly_due").length;
     const done = dt.filter(t => isCompletedStatus(t.status)).length;
     const rate = dt.length ? Math.round(done / dt.length * 100) : 0;
-    const deptEmpsList = (employees || []).filter(e => e.dept === d && isRankable(e)); // loại người khoán lương/không tính KPI khỏi đầu người phòng
+    const deptEmpsList = (employees || []).filter(e => e.dept === d && isRankable(e) && (execMonth < 0 ? isActive(e) : wasActiveIn(e, execYear, execMonth + 1))); // loại người khoán lương/không tính KPI khỏi đầu người phòng
     const overloaded = deptEmpsList.filter(e => sumW(computed.filter(t => t.eid === e.id && !isCompletedStatus(t.status))) >= overloadThreshold).length;
     const lead = deptEmpsList.find(e => ["Trưởng phòng", "TP. HCTH"].includes(e.role));
     // Số "việc quy đổi" (theo trọng số) để so sánh tải giữa các phòng cho công bằng —
@@ -194,7 +194,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     return { total: etWeight, done: s.done, onTime: s.onTime, completedLate: s.completedLate, over: s.over, resolved: s.resolved, completionRate, collabTotal, collabDone, perfScore: s.perfScore, eligible: s.eligible, breakdown: s.breakdown };
   };
 
-  const repEmpData = useMemo(() => (employees || []).filter(e => !MANAGER_EMP_ROLES.includes(e.role) && isRankable(e)).map(emp => {
+  const repEmpData = useMemo(() => (employees || []).filter(e => !MANAGER_EMP_ROLES.includes(e.role) && isRankable(e) && wasActiveIn(e, repYear, repMonth + 1)).map(emp => {
     const m = calcMonthPerf(emp.id, repYear, repMonth);
     return { ...emp, ...m, perfScore: m.perfScore };
   }).filter(e => e.total > 0).sort((a, b) => {
@@ -258,7 +258,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     if (!emp) return { dept: null, resolvedW: 0, doneW: 0, onTimeW: 0, lateW: 0, overW: 0, onTimeRate: 0, empCount: 0, perHead: 0, perfScore: 0, eligible: false, breakdown: null };
     const dept = emp.dept;
     const dt = applyExcuse(cg.filter(t => { if (t.dept !== dept) return false; const d = new Date(t.deadline); return d.getFullYear() === year && d.getMonth() === month; }));
-    const empCount = (employees || []).filter(e => e.dept === dept && isRankable(e)).length || 1;
+    const empCount = (employees || []).filter(e => e.dept === dept && isRankable(e) && wasActiveIn(e, year, month + 1)).length || 1;
     // Thống kê CHẬM DUYỆT hoàn thành (theo NGÀY LÀM VIỆC, ân hạn 1 ngày). Việc chậm ≥3 ngày vượt ân hạn tính 1.5 lượt.
     const now = new Date();
     let totalReq = 0, slowLoad = 0, slowCount = 0;
@@ -313,7 +313,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
       const collabTotal = monthly.reduce((s, m) => s + (m.collabTotal || 0), 0);
       const collabDone = monthly.reduce((s, m) => s + (m.collabDone || 0), 0);
       return { ...emp, total, resolved, done, completedLate, over, collabTotal, collabDone, eligibleMonths: eligibleMonths.length, rawScore, rate: total ? Math.round(done / total * 100) : 0, monthly };
-    }).filter(e => e.total > 0 && !MANAGER_EMP_ROLES.includes(e.role) && isRankable(e));
+    }).filter(e => e.total > 0 && !MANAGER_EMP_ROLES.includes(e.role) && isRankable(e) && wasActiveIn(e, rankYear, 1));
 
     // ── Làm công bằng hơn cho người có ÍT tháng đủ điều kiện: dùng "trung bình có điều chỉnh"
     // (Bayesian/weighted average, giống cách IMDB xếp hạng phim) thay vì trung bình cộng thô.
@@ -412,7 +412,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const emp = (employees || []).find(e => e.id === eid); if (!emp) return null;
     const y = today.getFullYear(), m = today.getMonth();
     const mine = calcMonthPerf(eid, y, m).total;
-    const totals = (employees || []).filter(e => e.dept === emp.dept && isRankable(e)).map(e => calcMonthPerf(e.id, y, m).total).filter(v => v > 0);
+    const totals = (employees || []).filter(e => e.dept === emp.dept && isRankable(e) && isActive(e)).map(e => calcMonthPerf(e.id, y, m).total).filter(v => v > 0);
     const deptAvg = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
     return { mine: Math.round(mine * 100) / 100, deptAvg: Math.round(deptAvg * 100) / 100, dept: emp.dept, n: totals.length, diffPct: deptAvg ? Math.round((mine - deptAvg) / deptAvg * 100) : 0 };
   }, [currentUser, employees, perfIndex]);
@@ -532,7 +532,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     }
     const prev = new Date(y, m - 1, 1); const py = prev.getFullYear(), pm = prev.getMonth();
     for (const emp of (employees || [])) {
-      if (!isRankable(emp)) continue;
+      if (!isRankable(emp) || !isActive(emp)) continue; // cảnh báo hiện tại: bỏ người đã nghỉ
       const cur = calcMonthPerf(emp.id, y, m), pr = calcMonthPerf(emp.id, py, pm);
       if (cur.eligible && pr.eligible && (pr.perfScore - cur.perfScore) >= 15) alerts.push({ kind: "emp_down", dept: emp.dept, name: emp.name, detail: `Điểm rớt ${pr.perfScore - cur.perfScore}đ so tháng trước (${pr.perfScore} → ${cur.perfScore})`, drop: pr.perfScore - cur.perfScore });
     }

@@ -14,7 +14,17 @@ export default function Employees({
   deptEmps,
   openCreateEmp, openEditEmp,
   deleteEmployee,
+  onLeave, onRestore,
 }) {
+  const [showLeft, setShowLeft] = React.useState(false);
+  // Người ĐÃ NGHỈ VIỆC của phòng đang xem (giữ nguyên hồ sơ/lịch sử; không còn trong danh sách giao việc)
+  const leftList = (employees || []).filter(e => e.dept === empDeptTab && e.left_at).sort((a, b) => (b.left_at || "").localeCompare(a.left_at || ""));
+  const fmtD = d => (d || "").split("-").reverse().join("/");
+  // Xóa vĩnh viễn rất nguy hiểm (mất liên kết lịch sử) → luôn hỏi lại và nhắc dùng "Nghỉ việc".
+  const confirmDelete = emp => { if (window.confirm(`XÓA VĨNH VIỄN "${emp.name}"?
+
+Việc cũ, điểm và bình luận của người này sẽ mất liên kết với tên người.
+Nếu người này chỉ NGHỈ VIỆC, hãy bấm nút 🚪 "Nghỉ việc" để giữ nguyên toàn bộ lịch sử.`)) deleteEmployee(emp.id); };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -58,7 +68,8 @@ export default function Employees({
                     {collabActiveMobile > 0 && <span style={{ background: "#ede9fe", color: "#7c3aed", fontSize: 11, padding: "2px 6px", borderRadius: 8 }}>🤝{collabActiveMobile}</span>}
                     {canCreate && <>
                       <button onClick={() => openEditEmp(emp)} style={{ padding: "3px 7px", border: "1px solid #d1d5db", borderRadius: 5, background: "#f9fafb", cursor: "pointer", fontSize: 12 }}>✏️</button>
-                      {isAdmin && <button onClick={() => deleteEmployee(emp.id)} style={{ padding: "3px 7px", border: "1px solid #fca5a5", borderRadius: 5, background: "#fff0f0", cursor: "pointer", fontSize: 12, color: "#dc2626" }}>🗑️</button>}
+                      {isAdmin && onLeave && <button onClick={() => onLeave(emp)} title="Nghỉ việc — giữ nguyên toàn bộ lịch sử" style={{ padding: "3px 7px", border: "1px solid #fdba74", borderRadius: 5, background: "#fff7ed", cursor: "pointer", fontSize: 12, color: "#c2410c" }}>🚪</button>}
+                      {isAdmin && <button onClick={() => confirmDelete(emp)} style={{ padding: "3px 7px", border: "1px solid #fca5a5", borderRadius: 5, background: "#fff0f0", cursor: "pointer", fontSize: 12, color: "#dc2626" }}>🗑️</button>}
                     </>}
                   </div>
                 </div>
@@ -101,7 +112,8 @@ export default function Employees({
                     <td style={{ padding: "10px 14px" }}>
                       {canCreate && <div style={{ display: "flex", gap: 4 }}>
                         <button onClick={() => openEditEmp(emp)} style={{ padding: "3px 7px", border: "1px solid #d1d5db", borderRadius: 5, background: "#f9fafb", cursor: "pointer", fontSize: 12 }}>✏️</button>
-                        {isAdmin && <button onClick={() => deleteEmployee(emp.id)} style={{ padding: "3px 7px", border: "1px solid #fca5a5", borderRadius: 5, background: "#fff0f0", cursor: "pointer", fontSize: 12, color: "#dc2626" }}>🗑️</button>}
+                        {isAdmin && onLeave && <button onClick={() => onLeave(emp)} title="Nghỉ việc — giữ nguyên toàn bộ lịch sử" style={{ padding: "3px 7px", border: "1px solid #fdba74", borderRadius: 5, background: "#fff7ed", cursor: "pointer", fontSize: 12, color: "#c2410c" }}>🚪</button>}
+                      {isAdmin && <button onClick={() => confirmDelete(emp)} style={{ padding: "3px 7px", border: "1px solid #fca5a5", borderRadius: 5, background: "#fff0f0", cursor: "pointer", fontSize: 12, color: "#dc2626" }}>🗑️</button>}
                       </div>}
                     </td>
                   </tr>
@@ -111,6 +123,26 @@ export default function Employees({
           </table>
         )}
       </div>
+
+      {leftList.length > 0 && (
+        <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+          <div onClick={() => setShowLeft(v => !v)} style={{ padding: "10px 16px", background: "#f9fafb", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", fontWeight: 600, fontSize: 13, color: "#6b7280" }}>
+            <span>🚪 Đã nghỉ việc — {deptLabel(empDeptTab)} ({leftList.length})</span><span>{showLeft ? "▲" : "▼"}</span>
+          </div>
+          {showLeft && leftList.map(emp => {
+            const open = (computed || []).filter(t => t.eid === emp.id && !isCompletedStatus(t.status)).length;
+            return (
+              <div key={emp.id} style={{ padding: "10px 16px", borderTop: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", opacity: 0.85 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 500, fontSize: 13, color: "#374151" }}>{emp.name} <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400 }}>· {emp.role}</span></div>
+                  <div style={{ fontSize: 11.5, color: "#6b7280" }}>Nghỉ từ <b>{fmtD(emp.left_at)}</b>{emp.left_note ? ` · ${emp.left_note}` : ""}{open > 0 ? <span style={{ color: "#b91c1c", fontWeight: 600 }}> · còn {open} việc đang mở chưa bàn giao</span> : ""}</div>
+                </div>
+                {isAdmin && onRestore && <button onClick={() => onRestore(emp)} style={{ padding: "4px 10px", border: "1px solid #86efac", borderRadius: 6, background: "#f0fdf4", color: "#15803d", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>↩️ Đi làm lại</button>}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

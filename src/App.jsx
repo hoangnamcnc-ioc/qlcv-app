@@ -12,7 +12,7 @@ const Documents = lazy(()=>import("./Documents"));
 const SupportCases = lazy(()=>import("./SupportCases"));
 const MyQueue = lazy(()=>import("./MyQueue"));
 const Chat = lazy(()=>import("./Chat"));
-import { DEPTS, DEPT_COLOR, deptLabel, isRankable, isAssignable, DEFAULT_DEPARTMENTS, setDepartments, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
+import { DEPTS, DEPT_COLOR, deptLabel, isRankable, isAssignable, wasActiveIn, DEFAULT_DEPARTMENTS, setDepartments, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
 import { addDays, today, todayStr, nowStr, parseNowStr, getNextDate, freqWeight, isCompletedLateByDate, getStatus, isCompletedStatus, isLateStatus, parseJSON, hashPwd, getFileIcon, sanitizeFileName, fmtDate, pendingApprovalDays } from "./helpers";
 import { ProgressBar, RoleBadge, RatingBadge, Chip, PChip } from "./components/ui";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -295,6 +295,7 @@ export default function App() {
       const{data:edBase}=await supabase.from("employees").select("id,name,dept,role,no_kpi").order("dept");
       let ed=edBase;
       {const{data:edEx}=await supabase.from("employees").select("id,oversees_dept,hr_audit");if(edEx&&edEx.length){const m={};edEx.forEach(r=>m[r.id]=r);ed=(edBase||[]).map(e=>({...e,...(m[e.id]||{})}));}}
+      {const{data:edL}=await supabase.from("employees").select("id,left_at,left_note");if(edL&&edL.length){const m={};edL.forEach(r=>m[r.id]=r);ed=(ed||[]).map(e=>({...e,...(m[e.id]||{})}));}} // trạng thái NGHỈ VIỆC (chịu lỗi nếu chưa chạy SQL 48)
       // PHÂN TRANG: PostgREST chỉ trả tối đa 1000 dòng/lần — bảng tasks đã >1000 (việc định kỳ sinh thêm mỗi ngày),
       // nếu không phân trang thì các việc cũ bị bỏ sót âm thầm → báo cáo/xếp hạng sai. Sắp thêm theo id để thứ tự ổn định.
       const fetchAll=async(tbl,sel,ordCol,asc=false)=>{let out=[],off=0;for(;;){const{data,error}=await supabase.from(tbl).select(sel).order(ordCol,{ascending:asc}).order("id").range(off,off+999);if(error)return{data:null,error};out=out.concat(data||[]);if(!data||data.length<1000)break;off+=1000;}return{data:out,error:null};};
@@ -365,6 +366,31 @@ export default function App() {
     empForm, setEmpForm, empDeptTab, setEmpDeptTab, openCreateEmp, openEditEmp, submitEmp,
     deptEmps,
   } = useEmployees({ employees, setEmployees, showToast, setSaving });
+  // ── Nghỉ việc: đánh dấu (không xóa) + khóa tài khoản; "Đi làm lại" để hoàn tác ──
+  const leaveRpc=async(emp,disabled)=>{
+    const pass=window.prompt("Nhập MẬT KHẨU quản trị của bạn để xác nhận:","");
+    if(!pass)return false;
+    const{error}=await supabase.rpc("admin_set_account_disabled",{p_admin_user:currentUser?.username,p_admin_pass:pass,p_employee_id:emp.id,p_disabled:disabled});
+    if(error){showToast(/function|schema cache|does not exist/i.test(error.message||"")?"Cần chạy SQL 48 (supabase/48-nhan-vien-nghi-viec.sql) trước":"Lỗi: "+error.message,"error");return false;}
+    return true;
+  };
+  const leaveEmployee=async emp=>{
+    const today=new Date().toISOString().slice(0,10);
+    const d=window.prompt(`Ngày nghỉ việc của ${emp.name} (YYYY-MM-DD):`,today);
+    if(!d)return;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){showToast("Ngày không hợp lệ","error");return;}
+    const note=window.prompt("Ghi chú (không bắt buộc):","")||"";
+    if(!await leaveRpc(emp,true))return;
+    if(await updateEmployee(emp.id,{left_at:d,left_note:note})){
+      showToast(`Đã cho ${emp.name} nghỉ việc — toàn bộ lịch sử được giữ nguyên`);
+      if(tasks.some(t=>t.eid===emp.id&&!t.completed&&!t.deleted)&&window.confirm("Người này còn việc đang mở. Mở màn hình Bàn giao hàng loạt ngay?")){setShowBulkHandoff(true);setBulkFromEid(emp.id);setBulkToEid("");setBulkSelectedIds([]);}
+    }
+  };
+  const restoreEmployee=async emp=>{
+    if(!window.confirm(`Cho ${emp.name} đi làm lại? Tài khoản đăng nhập sẽ được mở khóa.`))return;
+    if(!await leaveRpc(emp,false))return;
+    if(await updateEmployee(emp.id,{left_at:null,left_note:null}))showToast(`${emp.name} đã đi làm lại`);
+  };
   const {
     userModal, setUserModal, userForm, setUserForm, userEditId, setUserEditId, submitUser, deleteUser, resetUserPwd,
   } = useUsers({ users, setUsers, showToast, setSaving, currentUser });
@@ -413,7 +439,7 @@ export default function App() {
   // mJs = tháng theo JS (0-11); trong DB lưu 1-12 cho dễ đọc.
   const snapshotMonth=async(y,mJs,opts={})=>{
     const rows=(employees||[]).map(emp=>{
-      if(!isRankable(emp))return null; // Ban Giám đốc / người khoán KPI: không chốt sổ điểm, không xếp hạng
+      if(!isRankable(emp)||!wasActiveIn(emp,y,mJs+1))return null; // Ban Giám đốc / người khoán KPI / người đã nghỉ TRƯỚC tháng này: không chốt sổ điểm, không xếp hạng
       // Cấp quản lý (TP/PP) chốt theo ĐIỂM ĐIỀU HÀNH (kết quả phòng); nhân viên theo điểm hiệu suất cá nhân.
       const isMgr=MANAGER_EMP_ROLES.includes(emp.role);
       if(isMgr){
@@ -930,7 +956,7 @@ export default function App() {
               overloadedEmps={overloadedEmps}
               deptEmps={deptEmps}
               openCreateEmp={openCreateEmp} openEditEmp={openEditEmp}
-              deleteEmployee={deleteEmployee} updateEmployee={updateEmployee}
+              deleteEmployee={deleteEmployee} updateEmployee={updateEmployee} onLeave={leaveEmployee} onRestore={restoreEmployee}
               deptRows={deptRows} addDept={addDept} updateDept={updateDept} deleteDept={deleteDept} deptAudit={deptAudit}
               deptOversight={deptOversight} setDeptOverseer={setDeptOverseer}
               transferDept={transferEmployeeDept}

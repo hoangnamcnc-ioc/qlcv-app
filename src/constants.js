@@ -28,7 +28,12 @@ export const GRADING_START = { year: 2026, month: 7 };
 export const inGradingScope = (year, month) => year > GRADING_START.year || (year === GRADING_START.year && month >= GRADING_START.month);
 export const isRankable = e => !!e && !e.no_kpi && !EXEC_ROLES.includes(e.role);
 // Người được GIAO VIỆC / chọn phối hợp: loại người khoán KPI (no_kpi) VÀ Ban Giám đốc (Giám đốc/Phó Giám đốc)
-export const isAssignable = e => !!e && !e.no_kpi && !EXEC_ROLES.includes(e.role);
+// NGHỈ VIỆC: nhân viên được ĐÁNH DẤU (employees.left_at = ngày nghỉ) chứ KHÔNG bị xóa → giữ nguyên lịch sử việc/điểm/bình luận.
+//  isActive: còn đang làm (dùng cho danh sách giao việc, đầu người phòng, dashboard hiện tại).
+//  wasActiveIn(e, năm, tháng 1-12): có còn làm ở ĐẦU tháng đó không (dùng cho báo cáo/xếp hạng theo tháng → người nghỉ vẫn được tính cho những tháng họ còn làm).
+export const isActive = e => !!e && !e.left_at;
+export const wasActiveIn = (e, y, m1) => !!e && (!e.left_at || e.left_at >= `${y}-${String(m1).padStart(2, "0")}-01`);
+export const isAssignable = e => !!e && !e.no_kpi && !EXEC_ROLES.includes(e.role) && isActive(e);
 export const VI_MONTHS = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
 export const VI_DAYS = ["CN","T2","T3","T4","T5","T6","T7"];
 export const ROLE_LABELS = {admin:"Quản trị viên",director:"Ban Giám đốc",manager_hcth:"TP. HCTH",manager:"Trưởng phòng",deputy_manager:"Phó trưởng phòng",staff:"Nhân viên"};

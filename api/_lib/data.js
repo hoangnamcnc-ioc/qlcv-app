@@ -17,8 +17,9 @@ export async function getAll(table, select, order = "id") {
 
 export async function loadDigestData() {
   const [users, employees, tasks, depts, cfg, duty] = await Promise.all([
-    getAll("users", "id,username,full_name,role,employee_id,email"),
-    getAll("employees", "id,name,dept,role,oversees_dept"),
+    // disabled / left_at là cột mới (SQL 48) — chưa chạy SQL thì tự lùi về bản cũ để email vẫn chạy bình thường
+    getAll("users", "id,username,full_name,role,employee_id,email,disabled").catch(() => getAll("users", "id,username,full_name,role,employee_id,email")),
+    getAll("employees", "id,name,dept,role,oversees_dept,left_at").catch(() => getAll("employees", "id,name,dept,role,oversees_dept")),
     getAll("tasks", "id,title,eid,dept,deadline,completed,deleted,pending_create,create_rejected,completion_requested,template_id,weight"),
     getAll("departments", "code,name", "code").catch(() => []),
     getAll("app_config", "key,value", "key").catch(() => []),

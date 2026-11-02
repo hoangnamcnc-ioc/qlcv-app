@@ -20,7 +20,8 @@ export default function useEmployees({ employees, setEmployees, showToast, setSa
     if (dup && !window.confirm(`Phòng ${data.dept} đã có người tên "${nm}". Vẫn thêm?`)) return;
     const ok = editId ? await updateEmployee(editId, data) : await addEmployee(data); if (ok === false) return; setEmpForm(null); };
 
-  const deptEmps = dept => (employees || []).filter(e => e.dept === dept).sort((a, b) => { const ra = ROLE_RANK[a.role] ?? 2, rb = ROLE_RANK[b.role] ?? 2; if (ra !== rb) return ra - rb; const fa = (a.name || "").trim().split(" ").pop(); const fb = (b.name || "").trim().split(" ").pop(); const c = fa.localeCompare(fb, "vi"); return c !== 0 ? c : (a.name || "").localeCompare(b.name || "", "vi"); });
+  // includeLeft=true: kèm người ĐÃ NGHỈ VIỆC (xem hồ sơ/lịch sử). Mặc định chỉ người đang làm → các danh sách chọn/giao việc không còn thấy họ.
+  const deptEmps = (dept, includeLeft = false) => (employees || []).filter(e => e.dept === dept && (includeLeft || !e.left_at)).sort((a, b) => { const ra = ROLE_RANK[a.role] ?? 2, rb = ROLE_RANK[b.role] ?? 2; if (ra !== rb) return ra - rb; const fa = (a.name || "").trim().split(" ").pop(); const fb = (b.name || "").trim().split(" ").pop(); const c = fa.localeCompare(fb, "vi"); return c !== 0 ? c : (a.name || "").localeCompare(b.name || "", "vi"); });
 
   return {
     addEmployee, updateEmployee, deleteEmployee,

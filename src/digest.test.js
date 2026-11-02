@@ -145,3 +145,13 @@ test("nhac lich truc: nguoi bi ghi bien the ten van duoc nhac", () => {
   const out = buildDutyReminders({ date: "2026-10-24", row, users: us, employees: emps });
   assert.deepEqual(out.map(o => o.to).sort(), ["h@x.vn", "n@x.vn"]);
 });
+
+test("nguoi da nghi viec / tai khoan bi khoa: khong gui email nhac viec va lich truc", () => {
+  const out = buildDigests({ today: TODAY, users: [{ ...users[0], disabled: true }, users[1]], employees, tasks });
+  assert.deepEqual(out.map(x => x.to), ["tp@x.vn"]);
+  const emps2 = employees.map(e => e.id === "eM" ? { ...e, left_at: "2026-10-01" } : e);
+  assert.equal(buildDigests({ today: TODAY, users: [users[1]], employees: emps2, tasks }).length, 0);
+  const d = duty("2026-10-23");
+  const out2 = buildDutyReminders({ date: "2026-10-23", row: d, users: [users[0], { ...users[1], disabled: true }], employees });
+  assert.deepEqual(out2.map(x => x.to), ["staff@x.vn"]);
+});

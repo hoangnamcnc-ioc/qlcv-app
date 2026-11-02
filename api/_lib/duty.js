@@ -55,6 +55,7 @@ export function buildDutyReminders({ date, row, users, employees, holidays = [],
     const email = String(u.email || "").trim().toLowerCase();
     if (!isValidEmail(email) || seen.has(email)) continue;
     const emp = empById.get(u.employee_id);
+    if (u.disabled || emp?.left_at) continue; // đã nghỉ việc / tài khoản bị khóa: không nhắc
     const who = emp?.name || u.full_name;
     const mine = asg.filter(a => sameName(who, a.name) || sameName(who, stripWeekday(a.name)));
     if (!mine.length) continue;

@@ -88,6 +88,7 @@ export function buildDigests({ today, users, employees, tasks, holidays = [], de
     const email = String(u.email || "").trim().toLowerCase();
     if (!isValidEmail(email) || seen.has(email)) continue;
     const emp = empById.get(u.employee_id);
+    if (u.disabled || emp?.left_at) continue; // tài khoản bị khóa / nhân viên đã nghỉ việc: không gửi nữa
     const scope = scopeOf(u, emp);
     const isDutyAdmin = (u.role === "admin" || u.role === "director") && dutyWarn;
     if (scope.kind === "none" && !isDutyAdmin) continue;

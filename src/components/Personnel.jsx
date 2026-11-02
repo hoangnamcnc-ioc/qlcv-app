@@ -145,7 +145,7 @@ function ProfileTab({ employees, computed, canEditHr, canManageHR, meId, canMana
   const [xfer, setXfer] = useState(null); // { toDept, moveTasks } khi đang mở form chuyển phòng
 
   const depts = ownMode ? [] : (canSeeAll ? DEPTS : userDept ? [userDept] : []);
-  const list = ownMode ? (employees || []).filter(e => e.id === meId) : deptEmps(empDeptTab || depts[0]);
+  const list = ownMode ? (employees || []).filter(e => e.id === meId) : deptEmps(empDeptTab || depts[0], true);
   const sel = employees.find(e => e.id === selId);
   useEffect(() => { if (ownMode && meId && selId !== meId) setSelId(meId); }, [ownMode, meId]);
 
@@ -188,7 +188,7 @@ function ProfileTab({ employees, computed, canEditHr, canManageHR, meId, canMana
         <div style={{ maxHeight: 420, overflowY: "auto" }}>
           {list.map(e => { const hr = hrOf(e.id); const done = hr.dob || hr.phone || hr.education; return (
             <div key={e.id} onClick={() => open(e)} style={{ padding: "9px 12px", borderBottom: "1px solid #f8fafc", cursor: "pointer", background: selId === e.id ? "#eef2ff" : "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div><div style={{ fontSize: 13, fontWeight: selId === e.id ? 600 : 400 }}>{e.name}</div><div style={{ fontSize: 11, color: "#9ca3af" }}>{e.role}</div></div>
+              <div><div style={{ fontSize: 13, fontWeight: selId === e.id ? 600 : 400 }}>{e.name}{e.left_at && <span style={{ marginLeft: 6, fontSize: 10, color: "#b45309", background: "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>Đã nghỉ</span>}</div><div style={{ fontSize: 11, color: "#9ca3af" }}>{e.role}</div></div>
               <span title={done ? "Đã có hồ sơ" : "Chưa cập nhật hồ sơ"} style={{ fontSize: 11 }}>{done ? "✅" : "◻️"}</span>
             </div>
           ); })}
