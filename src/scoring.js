@@ -4,6 +4,7 @@
 // Mọi thay đổi công thức chỉ sửa Ở ĐÂY; useReports.js chỉ gọi lại. Có bộ test scoring.test.js đi kèm.
 // ─────────────────────────────────────────────────────────────────────────────
 import { RATING } from "./constants.js";
+import { KPI_DEFAULT } from "./kpiConfig.js";
 
 // Trọng số 1 "việc": mặc định 1; nhiệm vụ định kỳ (ngày 0.25 … năm 3) và hỗ trợ (khó/TB/nhanh) gắn sẵn t.weight.
 export const w = t => t.weight ?? 1;
@@ -18,7 +19,7 @@ const ratingScore = t => (RATING[t.rating] ? RATING[t.rating].score : 2);
 //   Chỉ tính trên việc đã đến hạn; đủ điều kiện xếp hạng khi resolved ≥ 5.
 //   Lưu ý công bằng: việc HOÀN THÀNH TRỄ vẫn được tính điểm CHẤT LƯỢNG (đã bị hạ ở phần Thời hạn rồi,
 //   không trừ thêm), và PHẠT tính theo TỶ LỆ quá hạn (giống điểm điều hành) thay vì tuyệt đối 2đ/việc.
-export function staffScore(items) {
+export function staffScore(items, cfg = KPI_DEFAULT) {
   const onTimeTasks = items.filter(t => t.status === "completed");
   const doneTasks = items.filter(t => t.status === "completed" || t.status === "completed_late"); // cả trễ vẫn tính chất lượng
   const onTime = sumW(onTimeTasks);
@@ -26,17 +27,17 @@ export function staffScore(items) {
   const over = sumW(items.filter(t => t.status === "overdue"));
   const done = Math.round((onTime + completedLate) * 100) / 100;
   const resolved = Math.round((onTime + completedLate + over) * 100) / 100;
-  const eligible = resolved >= 5;
+  const eligible = resolved >= cfg.minResolved;
   let perfScore = 0, breakdown = null;
   if (resolved > 0) {
-    const timeliness = (onTime * 60 + completedLate * 30) / resolved;                          // ① 0..60
+    const timeliness = (onTime * cfg.timelinessMax + completedLate * cfg.timelinessMax * cfg.lateFactor) / resolved;                          // ① 0..60
     const qualitySum = doneTasks.reduce((s, t) => s + ratingScore(t) * w(t), 0);
-    const quality = qualitySum / (resolved * 4) * 40;                                           // ② 0..40 (gồm cả việc trễ)
-    const penalty = Math.round(over / resolved * 10 * 10) / 10;                                 // ③ tỷ lệ tồn đọng quá hạn, 0..10
-    const workloadBonus = Math.max(0, Math.min((resolved - 15) * 1, 10));                       // ④ thưởng khối lượng cá nhân
+    const quality = qualitySum / (resolved * 4) * cfg.qualityMax;                                           // ② 0..40 (gồm cả việc trễ)
+    const penalty = Math.round(over / resolved * cfg.overduePenaltyMax * 10) / 10;                                 // ③ tỷ lệ tồn đọng quá hạn, 0..10
+    const workloadBonus = Math.max(0, Math.min((resolved - cfg.staffBonusFrom) * cfg.staffBonusPerTask, cfg.staffBonusMax));                       // ④ thưởng khối lượng cá nhân
     // ⑤ Thưởng ưu tiên: +0.5đ mỗi việc ƯU TIÊN CAO hoàn thành ĐÚNG HẠN, tối đa +5. Chỉ CỘNG THÊM (không phạt mới)
     // — ghi nhận người gánh việc khó/gấp. Việc không đánh dấu ưu tiên (mặc định Trung bình) không ảnh hưởng.
-    const prioBonus = Math.min(onTimeTasks.filter(t => t.prio === "high").length * 0.5, 5);
+    const prioBonus = Math.min(onTimeTasks.filter(t => t.prio === "high").length * cfg.prioBonusPer, cfg.prioBonusMax);
     perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + workloadBonus + prioBonus)));
     breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, workloadBonus, prioBonus };
   }
@@ -49,7 +50,7 @@ export function staffScore(items) {
 //        − Phạt CHẬM DUYỆT hoàn thành (tỷ lệ việc duyệt chậm >1 ngày làm việc, tối đa 10; việc chậm ≥3 ngày tính 1.5 lượt)
 //        + Thưởng khối lượng điều hành theo BÌNH QUÂN ĐẦU NGƯỜI (>10/người mới thưởng, tối đa +10 khi ≥20/người).
 // approve (tùy chọn) = { slowLoad, totalReq, slowCount }: thống kê duyệt chậm do useReports tính (theo ngày làm việc).
-export function managerScore(items, empCount, approve) {
+export function managerScore(items, empCount, approve, cfg = KPI_DEFAULT) {
   const onTimeTasks = items.filter(t => t.status === "completed");
   const doneTasks = items.filter(t => t.status === "completed" || t.status === "completed_late"); // cả trễ vẫn tính chất lượng
   const onTimeW = sumW(onTimeTasks);
@@ -57,19 +58,19 @@ export function managerScore(items, empCount, approve) {
   const overW = sumW(items.filter(t => t.status === "overdue"));
   const doneW = Math.round((onTimeW + lateW) * 100) / 100;
   const resolvedW = Math.round((onTimeW + lateW + overW) * 100) / 100;
-  const eligible = resolvedW >= 5;
+  const eligible = resolvedW >= cfg.minResolved;
   const ec = empCount || 1;
   const perHead = resolvedW / ec;
   const onTimeRate = resolvedW > 0 ? Math.round(onTimeW / resolvedW * 100) : 0;
   let perfScore = 0, breakdown = null;
   if (resolvedW > 0) {
-    const timeliness = (onTimeW * 60 + lateW * 30) / resolvedW;                                 // ① 0..60
+    const timeliness = (onTimeW * cfg.timelinessMax + lateW * cfg.timelinessMax * cfg.lateFactor) / resolvedW;                                 // ① 0..60
     const qualitySum = doneTasks.reduce((s, t) => s + ratingScore(t) * w(t), 0);
-    const quality = qualitySum / (resolvedW * 4) * 40;                                          // ② 0..40 (gồm cả việc trễ)
-    const penalty = Math.round(overW / resolvedW * 10 * 10) / 10;                               // ③ tỷ lệ tồn đọng, 0..10
-    const mgmtBonus = Math.max(0, Math.min(perHead - 10, 10));                                  // ④ khối lượng bình quân/người
+    const quality = qualitySum / (resolvedW * 4) * cfg.qualityMax;                                          // ② 0..40 (gồm cả việc trễ)
+    const penalty = Math.round(overW / resolvedW * cfg.overduePenaltyMax * 10) / 10;                               // ③ tỷ lệ tồn đọng, 0..10
+    const mgmtBonus = Math.max(0, Math.min(perHead - cfg.mgrBonusFrom, cfg.mgrBonusMax));                                  // ④ khối lượng bình quân/người
     // ⑤ Phạt CHẬM DUYỆT: tỷ lệ lượt duyệt chậm / tổng lượt cần duyệt × 10 (tối đa 10).
-    const slowPenalty = (approve && approve.totalReq > 0) ? Math.round(Math.min(10, approve.slowLoad / approve.totalReq * 10) * 10) / 10 : 0;
+    const slowPenalty = (approve && approve.totalReq > 0) ? Math.round(Math.min(cfg.slowPenaltyMax, approve.slowLoad / approve.totalReq * cfg.slowPenaltyMax) * 10) / 10 : 0;
     perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty - slowPenalty + mgmtBonus)));
     breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, slowPenalty, slowCount: approve?.slowCount || 0, reqCount: approve?.totalReq || 0, mgmtBonus: Math.round(mgmtBonus * 10) / 10 };
   }

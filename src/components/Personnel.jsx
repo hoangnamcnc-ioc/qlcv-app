@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
+import KpiConfig from "./KpiConfig";
 import { DEPTS, DEPT_COLOR, deptLabel } from "../constants";
 import Employees from "./Employees";
 
@@ -41,7 +42,7 @@ export default function Personnel(props) {
   const inp = { padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 13, background: "#fff", color: "#111", width: "100%", boxSizing: "border-box" };
   const card = { background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 };
   // Mọi người XEM được các tab; chỉ Admin/Giám đốc mới thêm–sửa–xóa. Tab Hồ sơ: người thường chỉ xem của chính mình.
-  const TABS = [["workload", "📋 Khối lượng việc"], ["profile", canManageHR ? "👤 Hồ sơ nhân sự" : "👤 Hồ sơ của tôi"], ["stats", "📊 Cơ cấu nhân sự"], ["depts", "🏢 Phòng/Ban"]];
+  const TABS = [["workload", "📋 Khối lượng việc"], ["profile", canManageHR ? "👤 Hồ sơ nhân sự" : "👤 Hồ sơ của tôi"], ["stats", "📊 Cơ cấu nhân sự"], ["depts", "🏢 Phòng/Ban"], ...(canManageHR ? [["kpi", "⚙️ Cấu hình KPI"]] : [])];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -53,6 +54,7 @@ export default function Personnel(props) {
 
       {tab === "workload" && <Employees {...props} canCreate={canManageHR} isAdmin={canManageHR} />}
       {tab === "profile" && <ProfileTab {...{ employees, computed, canEditHr, canManageHR, meId, canManageDept: canManageHR, isAdmin, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName, hrById, saveHr }} />}
+      {tab === "kpi" && canManageHR && <KpiConfig versions={props.kpiVersions} canEdit={canManageHR} onSave={props.saveKpiVersion} card={card} inp={props.inp} />}
       {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} hrById={hrById} />}
       {tab === "depts" && <DeptTab {...{ readOnly: !canManageHR, deptRows, addDept, updateDept, deleteDept, deptAudit: props.deptAudit, deptOversight: props.deptOversight, setDeptOverseer: props.setDeptOverseer, employees, isMobile, inp, card }} />}
     </div>

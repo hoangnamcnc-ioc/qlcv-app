@@ -4,6 +4,7 @@ import { DEPTS, deptLabel, isRankable, EXEC_ROLES, RATING, LATE_REASONS, STATUS_
 const EMPTY_MONTH = { total: 0, resolved: 0, done: 0, over: 0, completedLate: 0, collabTotal: 0, collabDone: 0, eligible: false, perfScore: 0, resolvedW: 0, doneW: 0, onTimeW: 0, lateW: 0, overW: 0 };
 import { isCompletedStatus, parseJSON, pendingApprovalDays, parseNowStr, workingDaysBetween } from "../helpers";
 import { w, sumW, staffScore, managerScore } from "../scoring";
+import { kpiCfgFor } from "../kpiConfig";
 
 // Toàn bộ logic tính hiệu suất/báo cáo: tổng hợp theo phòng ban, công thức điểm hiệu suất tháng,
 // bảng xếp hạng năm, thống kê nguyên nhân trễ, cảnh báo quá tải, tiến bộ cá nhân.
@@ -27,7 +28,7 @@ export const SUPPORT_WEIGHT = { hard: 1, medium: 0.5, easy: 0.25 };
 // Chức danh (nhãn nhân viên) được coi là CẤP QUẢN LÝ — chấm "điểm điều hành" theo kết quả phòng, xếp hạng riêng.
 export const MANAGER_EMP_ROLES = ["Trưởng phòng", "Phó trưởng phòng", "TP. HCTH", "PP. HCTH"];
 
-export default function useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks, holidays }) {
+export default function useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks, holidays, kpiVersions }) {
   // Báo cáo/xếp hạng dùng dữ liệu TOÀN CỤC để mọi vai trò thấy giống nhau; nếu vì lý do nào đó
   // không truyền computedGlobal thì lùi về computed (an toàn).
   const cg = computedGlobal || computed;
@@ -184,7 +185,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const et = applyExcuse(perfIndex.byEid.get(`${empId}|${ym}`) || []);
     // Điểm cá nhân tính bằng công thức thuần trong scoring.js (nguồn duy nhất, có test). Đủ ĐK: resolved ≥ 5.
     // Người <5 việc đến hạn vẫn ra điểm để làm "điểm tham khảo", nhưng cờ eligible=false → không xếp hạng/chốt sổ.
-    const s = staffScore(et);
+    const s = staffScore(et, kpiCfgFor(kpiVersions, year, month + 1)); // month = 0-11
     const etWeight = sumW(et);
     const completionRate = etWeight ? Math.round(s.done / etWeight * 100) : 0;
     // Task phối hợp trong tháng (đã cộng ½ trọng số vào et qua collabPseudoTasks; đây chỉ để hiển thị thống kê riêng)
@@ -272,7 +273,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
       if (exceed >= 1) { slowLoad += exceed >= 3 ? 1.5 : 1; slowCount++; }
     }
     // Điểm điều hành tính bằng công thức thuần managerScore (nguồn duy nhất, có test): kết quả cả phòng + khối lượng/người + phạt chậm duyệt.
-    const m = managerScore(dt, empCount, { slowLoad, totalReq, slowCount });
+    const m = managerScore(dt, empCount, { slowLoad, totalReq, slowCount }, kpiCfgFor(kpiVersions, year, month + 1));
     return { dept, empCount, slowCount, reqCount: totalReq, ...m };
   };
 
