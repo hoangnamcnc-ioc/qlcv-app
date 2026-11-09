@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import RaterStats from "./RaterStats";
 import { GRADING_START, GRADE_MINS } from "../constants";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { DEPTS, DEPT_COLOR, deptLabel, VI_MONTHS, RATING, STATUS } from "../constants";
@@ -171,6 +172,7 @@ export default function Reports({
       </>)}
 
       {repTab === "leaderboard" && (<>
+        {canExec && <RaterStats tasks={computed} year={rankYear} card={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb" }} />}
         <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>🏆 Xếp hạng năm</span>
           <select value={rankYear} onChange={e => setRankYear(Number(e.target.value))} style={{ ...inp, width: 100, padding: "6px 10px" }}>{[2023,2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
@@ -196,7 +198,7 @@ export default function Reports({
                       </div>
                       <div style={{ textAlign: "right" }}>
                         {e.score === null
-                          ? <span style={{ fontSize: 11, color: "#9ca3af" }}>Chưa đủ ĐK</span>
+                          ? <span style={{ fontSize: 11, color: "#9ca3af" }}>{e.provisional ? `Tạm tính ~${e.rawScore}đ · ${e.eligibleMonths}/${e.needMonths} tháng tối thiểu` : "Chưa đủ ĐK"}</span>
                           : <span onClick={() => setWhyYear(e)} style={{ cursor: "pointer", fontSize: 22, fontWeight: 800, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ <span style={{ fontSize: 12 }}>ℹ️</span></span>
                         }
                         <div style={{ fontSize: 10, color: "#9ca3af" }}>{e.eligibleMonths} tháng · {e.rate}% HT</div>
@@ -235,7 +237,7 @@ export default function Reports({
                         <td style={{ padding: "10px 12px", color: "#9ca3af" }}>{Math.round((e.total - e.resolved) * 100) / 100 || 0}</td>
                         <td style={{ padding: "10px 12px" }}>{e.collabTotal > 0 ? <span style={{ fontSize: 12, background: "#ede9fe", color: "#7c3aed", padding: "2px 7px", borderRadius: 8 }}>🤝 {r2(e.collabDone)}/{r2(e.collabTotal)}</span> : <span style={{ color: "#9ca3af" }}>–</span>}</td>
                         <td style={{ padding: "10px 12px", textAlign: "center" }}>{e.eligibleMonths}/12</td>
-                        <td style={{ padding: "10px 12px" }}>{e.score === null ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Chưa có dữ liệu</span> : <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 15, fontWeight: 700, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ</span><button onClick={() => setWhyYear(e)} title="Vì sao điểm này?" style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 6, padding: "1px 6px", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>ℹ️</button></span>}</td>
+                        <td style={{ padding: "10px 12px" }}>{e.score === null ? <span style={{ fontSize: 12, color: "#9ca3af" }}>{e.provisional ? `Tạm tính ~${e.rawScore}đ (cần ≥ ${e.needMonths} tháng đủ ĐK)` : "Chưa có dữ liệu"}</span> : <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 15, fontWeight: 700, color: e.score >= 80 ? "#15803d" : e.score >= 50 ? "#92400e" : "#b91c1c" }}>{e.score}đ</span><button onClick={() => setWhyYear(e)} title="Vì sao điểm này?" style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 6, padding: "1px 6px", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>ℹ️</button></span>}</td>
                         <td style={{ padding: "10px 12px" }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 60, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: e.rate + "%", background: e.rate >= 80 ? "#16a34a" : e.rate >= 50 ? "#f59e0b" : "#dc2626", borderRadius: 6 }} /></div><span style={{ fontSize: 12, fontWeight: 700, color: e.rate >= 80 ? "#15803d" : e.rate >= 50 ? "#92400e" : "#b91c1c" }}>{e.rate}%</span></div></td>
                       </tr>
                     );

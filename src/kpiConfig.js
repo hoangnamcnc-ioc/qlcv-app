@@ -61,6 +61,13 @@ export const validateKpiCfg = c => {
   if (c.timelinessMax + c.qualityMax > 100) errs.push("Điểm Thời hạn + Chất lượng không được vượt 100");
   return errs;
 };
+// Số tháng đủ ĐK tối thiểu để được XẾP HẠNG NĂM chính thức = một nửa số tháng (đã kết thúc, từ mốc xếp loại) của năm đó, tối thiểu 1.
+// Người ít tháng hơn ở nhóm "tạm tính" (không chen vào bảng, hết cảnh thiếu dữ liệu lại xếp trên người đủ dữ liệu).
+export const rankMinMonths = (year, now = new Date(), inScope = () => true) => {
+  const last = year < now.getFullYear() ? 12 : year === now.getFullYear() ? now.getMonth() : 0; // tháng đã kết thúc
+  let n = 0; for (let m = 1; m <= last; m++) if (inScope(year, m)) n++;
+  return Math.max(1, Math.ceil(n / 2));
+};
 const ym = (y, m1) => `${y}-${String(m1).padStart(2, "0")}`;
 // versions = [{from:"YYYY-MM", cfg, by, at}]; trả hệ số áp dụng cho (năm, tháng 1-12).
 export const kpiCfgFor = (versions, y, m1) => {

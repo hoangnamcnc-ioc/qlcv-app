@@ -46,3 +46,12 @@ test("kiểm tra mốc & ngưỡng xếp loại", () => {
   assert.ok(validateKpiGlobal({ ...KPI_GLOBAL_DEFAULT, gradingStart: "2026-13" }).length > 0);
   assert.equal(normalizeKpiGlobal({ excellent: "x" }).excellent, 90);
 });
+
+import { rankMinMonths } from "./kpiConfig.js";
+test("số tháng tối thiểu để xếp hạng năm = một nửa số tháng đã qua từ mốc xếp loại", () => {
+  const scope = (y, m) => y > 2026 || (y === 2026 && m >= 7);
+  assert.equal(rankMinMonths(2026, new Date(2026, 10, 9), scope), 2); // T7..T10 = 4 tháng → 2
+  assert.equal(rankMinMonths(2026, new Date(2026, 6, 9), scope), 1);  // chưa hết tháng nào → tối thiểu 1
+  assert.equal(rankMinMonths(2026, new Date(2027, 0, 5), scope), 3);  // T7..T12 = 6 tháng → 3
+  assert.equal(rankMinMonths(2027, new Date(2027, 11, 5), scope), 6); // T1..T11 = 11 → 6
+});

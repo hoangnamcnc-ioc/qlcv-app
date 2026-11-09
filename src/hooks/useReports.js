@@ -4,7 +4,7 @@ import { DEPTS, deptLabel, isRankable, EXEC_ROLES, RATING, LATE_REASONS, STATUS_
 const EMPTY_MONTH = { total: 0, resolved: 0, done: 0, over: 0, completedLate: 0, collabTotal: 0, collabDone: 0, eligible: false, perfScore: 0, resolvedW: 0, doneW: 0, onTimeW: 0, lateW: 0, overW: 0 };
 import { isCompletedStatus, parseJSON, pendingApprovalDays, parseNowStr, workingDaysBetween } from "../helpers";
 import { w, sumW, staffScore, managerScore } from "../scoring";
-import { kpiCfgFor } from "../kpiConfig";
+import { kpiCfgFor, rankMinMonths } from "../kpiConfig";
 
 // Toàn bộ logic tính hiệu suất/báo cáo: tổng hợp theo phòng ban, công thức điểm hiệu suất tháng,
 // bảng xếp hạng năm, thống kê nguyên nhân trễ, cảnh báo quá tải, tiến bộ cá nhân.
@@ -297,7 +297,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const PRIOR = 2; let sumAll = 0, cntAll = 0;
     raw.forEach(e => e.monthly.filter(m => m.eligible).forEach(m => { sumAll += m.perfScore; cntAll++; }));
     const baseline = cntAll ? sumAll / cntAll : 0;
-    return raw.map(e => { const v = e.eligibleMonths; const score = v ? Math.round((v / (v + PRIOR)) * e.rawScore + (PRIOR / (v + PRIOR)) * baseline) : null; return { ...e, rawScore: v ? Math.round(e.rawScore) : null, baseline: Math.round(baseline), score }; })
+    return raw.map(e => { const v = e.eligibleMonths; const score = v ? Math.round((v / (v + PRIOR)) * e.rawScore + (PRIOR / (v + PRIOR)) * baseline) : null; const need = rankMinMonths(rankYear, new Date(), inGradingScope), prov = v > 0 && v < need; return { ...e, rawScore: v ? Math.round(e.rawScore) : null, baseline: Math.round(baseline), score: prov ? null : score, provisional: prov, needMonths: need }; })
       .sort((a, b) => { const aH = a.score !== null, bH = b.score !== null; if (aH !== bH) return aH ? -1 : 1; if (aH && bH && b.score !== a.score) return b.score - a.score; return (b.doneW || 0) - (a.doneW || 0); });
   }, [employees, rankYear, cg, kpiKey]);
 
@@ -331,11 +331,13 @@ export default function useReports({ computed, computedGlobal, employees, curren
     return raw.map(e => {
       const v = e.eligibleMonths;
       const score = v ? Math.round((v / (v + PRIOR_MONTHS)) * e.rawScore + (PRIOR_MONTHS / (v + PRIOR_MONTHS)) * baseline) : null;
-      return { ...e, rawScore: v ? Math.round(e.rawScore) : null, baseline: Math.round(baseline), score };
+      const need = rankMinMonths(rankYear, new Date(), inGradingScope), prov = v > 0 && v < need; // tạm tính: chưa đủ số tháng để xếp hạng
+      return { ...e, rawScore: v ? Math.round(e.rawScore) : null, baseline: Math.round(baseline), score: prov ? null : score, provisional: prov, needMonths: need };
     }).sort((a, b) => {
       const aHas = a.score !== null, bHas = b.score !== null;
       if (aHas !== bHas) return aHas ? -1 : 1;
       if (aHas && bHas && b.score !== a.score) return b.score - a.score;
+      if (!aHas && !bHas && (b.rawScore || 0) !== (a.rawScore || 0)) return (b.rawScore || 0) - (a.rawScore || 0);
       return b.rate - a.rate;
     });
   }, [cg, employees, rankYear, projPseudoTasks, supportPseudoTasks, collabPseudoTasks, kpiKey]);
