@@ -54,7 +54,7 @@ export default function Personnel(props) {
 
       {tab === "workload" && <Employees {...props} canCreate={canManageHR} isAdmin={canManageHR} />}
       {tab === "profile" && <ProfileTab {...{ employees, computed, canEditHr, canManageHR, meId, canManageDept: canManageHR, isAdmin, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName, hrById, saveHr }} />}
-      {tab === "kpi" && canManageHR && <KpiConfig versions={props.kpiVersions} canEdit={canManageHR} onSave={props.saveKpiVersion} card={card} inp={props.inp} />}
+      {tab === "kpi" && canManageHR && <KpiConfig versions={props.kpiVersions} canEdit={canManageHR} onSave={props.saveKpiVersion} kpiGlobal={props.kpiGlobal} onSaveGlobal={props.saveKpiGlobal} card={card} inp={props.inp} />}
       {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} hrById={hrById} />}
       {tab === "depts" && <DeptTab {...{ readOnly: !canManageHR, deptRows, addDept, updateDept, deleteDept, deptAudit: props.deptAudit, deptOversight: props.deptOversight, setDeptOverseer: props.setDeptOverseer, employees, isMobile, inp, card }} />}
     </div>

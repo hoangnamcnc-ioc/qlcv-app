@@ -25,6 +25,14 @@ export const EXEC_ROLES = ["Giám đốc","Phó Giám đốc"];
 // Mốc BẮT ĐẦU tính xếp loại/đánh giá chính thức: từ tháng 7/2026. Các tháng trước (T6/2026 là tháng thử nghiệm)
 // không đưa vào bảng Xếp loại (dữ liệu sổ điểm vẫn giữ nguyên, chỉ không tính). Muốn đổi mốc thì sửa ở đây.
 export const GRADING_START = { year: 2026, month: 7 };
+// Ngưỡng điểm xếp loại cuối kỳ (Hoàn thành xuất sắc / tốt / hoàn thành) — chỉnh được ở Quản lý nhân sự > Cấu hình KPI.
+export const GRADE_MINS = { excellent: 90, good: 75, pass: 50 };
+export function setGradingGlobal(g) {
+  if (!g) return;
+  const m = /^(\d{4})-(\d{2})$/.exec(g.gradingStart || "");
+  if (m) { GRADING_START.year = +m[1]; GRADING_START.month = +m[2]; }
+  for (const k of ["excellent", "good", "pass"]) if (Number.isFinite(Number(g[k]))) GRADE_MINS[k] = Number(g[k]);
+}
 export const inGradingScope = (year, month) => year > GRADING_START.year || (year === GRADING_START.year && month >= GRADING_START.month);
 export const isRankable = e => !!e && !e.no_kpi && !EXEC_ROLES.includes(e.role);
 // Người được GIAO VIỆC / chọn phối hợp: loại người khoán KPI (no_kpi) VÀ Ban Giám đốc (Giám đốc/Phó Giám đốc)

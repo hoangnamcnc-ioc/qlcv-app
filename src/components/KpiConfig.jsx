@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { KPI_DEFAULT, KPI_SCHEMA, KPI_GROUPS, kpiCfgFor, normalizeKpiCfg, validateKpiCfg } from "../kpiConfig";
+import { KPI_DEFAULT, KPI_SCHEMA, KPI_GROUPS, KPI_GLOBAL_DEFAULT, kpiCfgFor, normalizeKpiCfg, validateKpiCfg, normalizeKpiGlobal, validateKpiGlobal } from "../kpiConfig";
 import { staffScore, managerScore } from "../scoring";
 
 const mkItems = (n, status, rating = "tot") => Array.from({ length: n }, () => ({ status, rating, weight: 1 }));
@@ -7,7 +7,12 @@ const curMonth = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 const fmtYm = s => s.split("-").reverse().join("/");
 
 // Tab "Cấu hình KPI": chỉnh hệ số điểm, áp dụng từ tháng chọn (các tháng trước giữ nguyên). Chỉ Admin/Giám đốc sửa.
-export default function KpiConfig({ versions, canEdit, onSave, card, inp }) {
+export default function KpiConfig({ versions, canEdit, onSave, kpiGlobal, onSaveGlobal, card, inp }) {
+  const [gd, setGd] = useState(null);
+  const gcur = gd || kpiGlobal || KPI_GLOBAL_DEFAULT;
+  const gnum = { gradingStart: gcur.gradingStart, excellent: Number(gcur.excellent), good: Number(gcur.good), pass: Number(gcur.pass) };
+  const gerrs = validateKpiGlobal(gnum);
+  const gchanged = Object.keys(KPI_GLOBAL_DEFAULT).some(k => String(gnum[k]) !== String((kpiGlobal || KPI_GLOBAL_DEFAULT)[k]));
   const [from, setFrom] = useState(curMonth());
   const base = useMemo(() => { const [y, m] = from.split("-").map(Number); return kpiCfgFor(versions, y, m); }, [versions, from]);
   const [draft, setDraft] = useState(null); // null = chưa sửa → hiện hệ số đang áp dụng cho tháng chọn
@@ -64,6 +69,22 @@ export default function KpiConfig({ versions, canEdit, onSave, card, inp }) {
             {draft && <button onClick={() => setDraft(null)} style={{ padding: "9px 14px", border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer" }}>Bỏ thay đổi</button>}
           </div>
         ) : <div style={{ marginTop: 10, fontSize: 12, color: "#9ca3af" }}>Chỉ Admin/Giám đốc được thay đổi.</div>}
+      </div>
+
+      <div style={{ ...card, padding: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>🏅 Mốc & ngưỡng xếp loại (áp dụng chung cho mọi tháng)</div>
+        <div style={{ fontSize: 11.5, color: "#9ca3af", marginBottom: 8 }}>Đổi mốc bắt đầu sẽ thêm/bớt các tháng được đưa vào Xếp loại; đổi ngưỡng sẽ đổi xếp loại cuối kỳ (tính lại theo điểm đã chốt).</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12.5, alignItems: "center" }}>
+          <label>Bắt đầu tính xếp loại từ: <input type="month" disabled={!canEdit} value={gcur.gradingStart} onChange={e => e.target.value && setGd({ ...gcur, gradingStart: e.target.value })} style={{ ...inp, width: 150, display: "inline-block" }} /></label>
+          {[["excellent", "Xuất sắc ≥"], ["good", "Tốt ≥"], ["pass", "Hoàn thành ≥"]].map(([k, l]) => (
+            <label key={k}>{l} <input type="number" min={0} max={100} disabled={!canEdit} value={gcur[k]} onChange={e => setGd({ ...gcur, [k]: e.target.value })} style={nBox} /></label>
+          ))}
+        </div>
+        {gerrs.length > 0 && <div style={{ marginTop: 8, fontSize: 12.5, color: "#b91c1c" }}>{gerrs.map((e, i) => <div key={i}>⚠ {e}</div>)}</div>}
+        {canEdit && <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button disabled={gerrs.length > 0 || !gchanged} onClick={async () => { await onSaveGlobal(normalizeKpiGlobal(gnum)); setGd(null); }} style={{ padding: "8px 14px", border: "none", borderRadius: 8, background: gerrs.length || !gchanged ? "#c7d2fe" : "#4f46e5", color: "#fff", fontWeight: 600, fontSize: 13, cursor: gerrs.length || !gchanged ? "default" : "pointer" }}>💾 Lưu mốc & ngưỡng</button>
+          <button onClick={() => setGd({ ...KPI_GLOBAL_DEFAULT })} style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 8, background: "#f9fafb", fontSize: 13, cursor: "pointer" }}>↺ Mặc định</button>
+        </div>}
       </div>
 
       <div style={{ ...card, padding: 16 }}>

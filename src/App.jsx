@@ -12,7 +12,8 @@ const Documents = lazy(()=>import("./Documents"));
 const SupportCases = lazy(()=>import("./SupportCases"));
 const MyQueue = lazy(()=>import("./MyQueue"));
 const Chat = lazy(()=>import("./Chat"));
-import { addKpiVersion } from "./kpiConfig";
+import { addKpiVersion, kpiCfgFor, freqWeightCfg, normalizeKpiGlobal, KPI_GLOBAL_DEFAULT } from "./kpiConfig";
+import { setGradingGlobal } from "./constants";
 import { DEPTS, DEPT_COLOR, deptLabel, isRankable, isAssignable, wasActiveIn, DEFAULT_DEPARTMENTS, setDepartments, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
 import { addDays, today, todayStr, nowStr, parseNowStr, getNextDate, freqWeight, isCompletedLateByDate, getStatus, isCompletedStatus, isLateStatus, parseJSON, hashPwd, getFileIcon, sanitizeFileName, fmtDate, pendingApprovalDays } from "./helpers";
 import { ProgressBar, RoleBadge, RatingBadge, Chip, PChip } from "./components/ui";
@@ -69,14 +70,18 @@ export default function App() {
   const saveKpiOnTime=async v=>{setKpiOnTime(v);localStorage.setItem("qlcv_kpi_ontime",v);try{const{data}=await supabase.from("app_config").select("key").eq("key","kpi_ontime");if(data&&data.length)await supabase.from("app_config").update({value:String(v)}).eq("key","kpi_ontime");else await supabase.from("app_config").insert({key:"kpi_ontime",value:String(v)});}catch(e){showToast("Đã lưu tạm trên máy này, nhưng chưa đồng bộ được lên hệ thống","error");}};
   // Hệ số điểm KPI chỉnh được (Quản lý nhân sự > Cấu hình KPI), lưu app_config key="kpi_formula" theo phiên bản "áp dụng từ tháng".
   const [kpiVersions,setKpiVersions]=useState([]);
-  const saveKpiVersion=async(from,cfg)=>{
-    const next=addKpiVersion(kpiVersions,from,cfg,currentUser?.full_name,new Date().toISOString());
-    const value=JSON.stringify({versions:next});
+  const [kpiGlobal,setKpiGlobal]=useState(KPI_GLOBAL_DEFAULT);
+  setGradingGlobal(kpiGlobal); // cập nhật mốc/ngưỡng xếp loại (hằng số dùng chung) ngay trong lúc render
+  const kpiKey=JSON.stringify(kpiVersions)+JSON.stringify(kpiGlobal);
+  const saveKpiDoc=async(versions,global)=>{
+    const value=JSON.stringify({versions,global});
     const{data,error:e0}=await supabase.from("app_config").select("key").eq("key","kpi_formula");
     const{error}=(!e0&&data&&data.length)?await supabase.from("app_config").update({value}).eq("key","kpi_formula"):await supabase.from("app_config").insert({key:"kpi_formula",value});
-    if(error){showToast("Lỗi lưu cấu hình KPI: "+error.message,"error");return;}
-    setKpiVersions(next);showToast(`Đã lưu hệ số KPI — áp dụng từ ${from.split("-").reverse().join("/")}`);
+    if(error){showToast("Lỗi lưu cấu hình KPI: "+error.message,"error");return false;}
+    setKpiVersions(versions);setKpiGlobal(global);return true;
   };
+  const saveKpiVersion=async(from,cfg)=>{if(await saveKpiDoc(addKpiVersion(kpiVersions,from,cfg,currentUser?.full_name,new Date().toISOString()),kpiGlobal))showToast(`Đã lưu hệ số KPI — áp dụng từ ${from.split("-").reverse().join("/")}`);};
+  const saveKpiGlobal=async g=>{if(await saveKpiDoc(kpiVersions,{...normalizeKpiGlobal(g),by:currentUser?.full_name,at:new Date().toISOString()}))showToast("Đã lưu mốc & ngưỡng xếp loại");};
   const [showNotif,setShowNotif]=useState(false);
   const [showZoom,setShowZoom]=useState(false);
   const [quickRate,setQuickRate]=useState(null);
@@ -314,7 +319,7 @@ export default function App() {
       const[{data:td},{data:ud},{data:rtd},{data:otd},{data:pjd},{data:scd},{data:cmd},{data:dgd},{data:msd}]=await Promise.all([tasksQ,supabase.from("users").select("id,username,full_name,role,employee_id"),supabase.from("recurring_templates").select("*").order("title"),supabase.from("other_tasks").select("*").order("created",{ascending:false}),supabase.from("projects").select("id,name,dept,lead_eid,steps,quality_rating,quality_rated_at,quality_on_time,deadline,ext_proposed,ext_reason,ext_requested_by,ext_requested_at"),supabase.from("support_cases").select("id,eid,collab_eids,difficulty,created,content,category").eq("deleted",false),fetchAll("comments","task_id,user_name,created_at","created_at"),supabase.from("approval_delegations").select("*").order("start_date",{ascending:false}),supabase.from("monthly_scores").select("*")]);
       if(!ed||ed.length===0){if(!background){await supabase.from("employees").insert(DEFAULT_EMPLOYEES);setEmployees(DEFAULT_EMPLOYEES);}}else setEmployees(ed);
       setTasks(td||[]);setUsers(ud||[]);setRecurringTemplates(rtd||[]);setOtherTasks(otd||[]);setProjectsForScoring(pjd||[]);setSupportCasesForScoring(scd||[]);setAllComments(cmd||[]);setDelegations(dgd||[]);setMonthlyScores(msd||[]);
-      try{const{data:acd}=await supabase.from("app_config").select("key,value");const kpi=(acd||[]).find(r=>r.key==="kpi_ontime");if(kpi&&kpi.value!=null&&!isNaN(parseInt(kpi.value))){setKpiOnTime(parseInt(kpi.value));localStorage.setItem("qlcv_kpi_ontime",parseInt(kpi.value));}const hol=(acd||[]).find(r=>r.key==="holidays");if(hol)setHolidays(parseJSON(hol.value,[]));const kf=(acd||[]).find(r=>r.key==="kpi_formula");if(kf){const o=parseJSON(kf.value,{});if(Array.isArray(o.versions))setKpiVersions(o.versions);}const da=(acd||[]).find(r=>r.key==="dept_audit");if(da)setDeptAudit(parseJSON(da.value,[]));}catch{}
+      try{const{data:acd}=await supabase.from("app_config").select("key,value");const kpi=(acd||[]).find(r=>r.key==="kpi_ontime");if(kpi&&kpi.value!=null&&!isNaN(parseInt(kpi.value))){setKpiOnTime(parseInt(kpi.value));localStorage.setItem("qlcv_kpi_ontime",parseInt(kpi.value));}const hol=(acd||[]).find(r=>r.key==="holidays");if(hol)setHolidays(parseJSON(hol.value,[]));const kf=(acd||[]).find(r=>r.key==="kpi_formula");if(kf){const o=parseJSON(kf.value,{});if(Array.isArray(o.versions))setKpiVersions(o.versions);if(o.global)setKpiGlobal(normalizeKpiGlobal(o.global));}const da=(acd||[]).find(r=>r.key==="dept_audit");if(da)setDeptAudit(parseJSON(da.value,[]));}catch{}
       try{let{data:dpd}=await supabase.from("departments").select("*").order("ord");if(!dpd||dpd.length===0){if(!background){await supabase.from("departments").insert(DEFAULT_DEPARTMENTS);dpd=DEFAULT_DEPARTMENTS;}else dpd=null;}if(dpd){setDepartments(dpd);setDeptRows(dpd);}}catch{if(!background)setDeptRows(DEFAULT_DEPARTMENTS);}
       if(canSeeAll){try{const{data:docd}=await supabase.from("documents").select("id,type,doc_number,title,created,created_by,forwards");setDocsForLog(docd||[]);}catch{}}
     }catch{if(!background){showToast("Lỗi kết nối database","error");setEmployees(DEFAULT_EMPLOYEES);setTasks([]);}}
@@ -356,7 +361,7 @@ export default function App() {
         const deadline=tpl.frequency==="daily"?dailyDeadline:addDays(today,tpl.deadline_days||7);
         // created_by_id/created_by_name copy từ người tạo mẫu, để chính người đó (thường là TP/PP) duyệt được
         // hoàn thành nhiệm vụ tự sinh — nếu không, canApprove() sẽ chỉ còn đúng Admin/BGĐ được duyệt.
-        const newTask={id:`t${Date.now()}_${Math.random().toString(36).slice(2,6)}`,title:`🔄 ${tpl.title}`,description:tpl.description||"",dept:tpl.dept,eid:tpl.eid,prio:tpl.prio,deadline,completed:false,created:todayStr,progress:0,attachments:"[]",collab_eids:tpl.collab_eids||"[]",collab_note:tpl.collab_note||"",template_id:tpl.id,weight:freqWeight(tpl.frequency),created_by_id:tpl.created_by_id||null,created_by_name:tpl.created_by||"",forwarded_by:"",history:JSON.stringify([{action:`Tạo tự động từ mẫu định kỳ "${tpl.title}"`,by:"Hệ thống",at:nowStr()}]),rating:"",rating_note:"",rated_by:"",rated_at:"",late_reason:"",late_note:""};
+        const newTask={id:`t${Date.now()}_${Math.random().toString(36).slice(2,6)}`,title:`🔄 ${tpl.title}`,description:tpl.description||"",dept:tpl.dept,eid:tpl.eid,prio:tpl.prio,deadline,completed:false,created:todayStr,progress:0,attachments:"[]",collab_eids:tpl.collab_eids||"[]",collab_note:tpl.collab_note||"",template_id:tpl.id,weight:freqWeightCfg(kpiCfgFor(kpiVersions,new Date().getFullYear(),new Date().getMonth()+1),tpl.frequency),created_by_id:tpl.created_by_id||null,created_by_name:tpl.created_by||"",forwarded_by:"",history:JSON.stringify([{action:`Tạo tự động từ mẫu định kỳ "${tpl.title}"`,by:"Hệ thống",at:nowStr()}]),rating:"",rating_note:"",rated_by:"",rated_at:"",late_reason:"",late_note:""};
         const{error}=await supabase.from("tasks").insert(newTask);
         if(!error){setTasks(p=>[newTask,...p]);const nextDate=getNextDate(tpl.next_date,tpl.frequency);await supabase.from("recurring_templates").update({next_date:nextDate,last_created:todayStr}).eq("id",tpl.id);setRecurringTemplates(p=>p.map(r=>r.id===tpl.id?{...r,next_date:nextDate,last_created:todayStr}:r));created++;}
       }
@@ -461,7 +466,7 @@ export default function App() {
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList, dataHealth,
     empReliability, execNarrative, lateInsights,
     calcMonthPerf, managerPerf,
-  } = useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks, holidays, kpiVersions });
+  } = useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks, holidays, kpiVersions, kpiKey });
 
   // ── Chốt sổ điểm tháng: lưu snapshot cố định điểm hiệu suất vào monthly_scores để điểm quá khứ
   // không thay đổi khi dữ liệu sống bị sửa/xóa về sau — phục vụ phiếu xếp loại quý/năm (bình xét thi đua).
@@ -985,7 +990,7 @@ export default function App() {
               overloadedEmps={overloadedEmps}
               deptEmps={deptEmps}
               openCreateEmp={openCreateEmp} openEditEmp={openEditEmp}
-              deleteEmployee={deleteEmployee} updateEmployee={updateEmployee} kpiVersions={kpiVersions} saveKpiVersion={saveKpiVersion} onLeave={leaveEmployee} onRestore={restoreEmployee}
+              deleteEmployee={deleteEmployee} updateEmployee={updateEmployee} kpiVersions={kpiVersions} saveKpiVersion={saveKpiVersion} kpiGlobal={kpiGlobal} saveKpiGlobal={saveKpiGlobal} onLeave={leaveEmployee} onRestore={restoreEmployee}
               deptRows={deptRows} addDept={addDept} updateDept={updateDept} deleteDept={deleteDept} deptAudit={deptAudit}
               deptOversight={deptOversight} setDeptOverseer={setDeptOverseer}
               transferDept={transferEmployeeDept}

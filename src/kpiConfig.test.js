@@ -33,3 +33,16 @@ test("kiểm tra hợp lệ", () => {
   assert.equal(normalizeKpiCfg({ lateFactor: "abc", qualityMax: 30 }).lateFactor, 0.5);
   assert.equal(normalizeKpiCfg({ qualityMax: 30 }).qualityMax, 30);
 });
+
+import { freqWeightCfg, validateKpiGlobal, normalizeKpiGlobal, KPI_GLOBAL_DEFAULT } from "./kpiConfig.js";
+import { FREQUENCIES } from "./constants.js";
+test("hệ số tần suất mặc định khớp FREQUENCIES hiện tại", () => {
+  for (const f of FREQUENCIES) assert.equal(freqWeightCfg(KPI_DEFAULT, f.value), f.weight);
+  assert.equal(freqWeightCfg({ ...KPI_DEFAULT, freq_daily: 0.5 }, "daily"), 0.5);
+});
+test("kiểm tra mốc & ngưỡng xếp loại", () => {
+  assert.deepEqual(validateKpiGlobal(KPI_GLOBAL_DEFAULT), []);
+  assert.ok(validateKpiGlobal({ ...KPI_GLOBAL_DEFAULT, good: 95 }).length > 0);
+  assert.ok(validateKpiGlobal({ ...KPI_GLOBAL_DEFAULT, gradingStart: "2026-13" }).length > 0);
+  assert.equal(normalizeKpiGlobal({ excellent: "x" }).excellent, 90);
+});

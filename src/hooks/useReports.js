@@ -28,7 +28,7 @@ export const SUPPORT_WEIGHT = { hard: 1, medium: 0.5, easy: 0.25 };
 // Chức danh (nhãn nhân viên) được coi là CẤP QUẢN LÝ — chấm "điểm điều hành" theo kết quả phòng, xếp hạng riêng.
 export const MANAGER_EMP_ROLES = ["Trưởng phòng", "Phó trưởng phòng", "TP. HCTH", "PP. HCTH"];
 
-export default function useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks, holidays, kpiVersions }) {
+export default function useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks, holidays, kpiVersions, kpiKey }) {
   // Báo cáo/xếp hạng dùng dữ liệu TOÀN CỤC để mọi vai trò thấy giống nhau; nếu vì lý do nào đó
   // không truyền computedGlobal thì lùi về computed (an toàn).
   const cg = computedGlobal || computed;
@@ -202,7 +202,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     if (a.eligible !== b.eligible) return a.eligible ? -1 : 1; // người đủ điều kiện hiện trước
     if (b.perfScore !== a.perfScore) return b.perfScore - a.perfScore;
     return b.done - a.done; // cùng điểm -> ai hoàn thành nhiều việc hơn xếp trên
-  }), [employees, repYear, repMonth, cg, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
+  }), [employees, repYear, repMonth, cg, projPseudoTasks, supportPseudoTasks, collabPseudoTasks, kpiKey]);
 
   const repMonthTrend = useMemo(() => { const months = []; for (let i = 5; i >= 0; i--) { const d = new Date(repYear, repMonth - i, 1); const m = d.getMonth(), y = d.getFullYear(); const mt = cg.filter(t => { const td = new Date(t.deadline); return td.getFullYear() === y && td.getMonth() === m; }); months.push({ name: `T${m + 1}`, done: mt.filter(t => isCompletedStatus(t.status)).length, total: mt.length, doneW: sumW(mt.filter(t => isCompletedStatus(t.status))), totalW: sumW(mt) }); } return months; }, [cg, repYear, repMonth]);
 
@@ -282,7 +282,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     .filter(e => MANAGER_EMP_ROLES.includes(e.role))
     .map(e => ({ ...e, ...managerPerf(e.id, repYear, repMonth) }))
     .sort((a, b) => { if (a.eligible !== b.eligible) return a.eligible ? -1 : 1; if (b.perfScore !== a.perfScore) return b.perfScore - a.perfScore; return (b.doneW || 0) - (a.doneW || 0); }),
-    [employees, repYear, repMonth, cg]);
+    [employees, repYear, repMonth, cg, kpiKey]);
 
   // Bảng điểm điều hành NĂM (trung bình có điều chỉnh theo số tháng đủ ĐK, giống bảng nhân viên)
   const managerLeaderboard = useMemo(() => {
@@ -299,7 +299,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const baseline = cntAll ? sumAll / cntAll : 0;
     return raw.map(e => { const v = e.eligibleMonths; const score = v ? Math.round((v / (v + PRIOR)) * e.rawScore + (PRIOR / (v + PRIOR)) * baseline) : null; return { ...e, rawScore: v ? Math.round(e.rawScore) : null, baseline: Math.round(baseline), score }; })
       .sort((a, b) => { const aH = a.score !== null, bH = b.score !== null; if (aH !== bH) return aH ? -1 : 1; if (aH && bH && b.score !== a.score) return b.score - a.score; return (b.doneW || 0) - (a.doneW || 0); });
-  }, [employees, rankYear, cg]);
+  }, [employees, rankYear, cg, kpiKey]);
 
   const leaderboard = useMemo(() => {
     const raw = (employees || []).map(emp => {
@@ -338,7 +338,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
       if (aHas && bHas && b.score !== a.score) return b.score - a.score;
       return b.rate - a.rate;
     });
-  }, [cg, employees, rankYear, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
+  }, [cg, employees, rankYear, projPseudoTasks, supportPseudoTasks, collabPseudoTasks, kpiKey]);
 
   const lateReasonStats = useMemo(() => { const lt = cg.filter(t => t.late_reason); const total = lt.length; return LATE_REASONS.map(r => { const tasksForReason = lt.filter(t => t.late_reason === r.value); return { ...r, count: tasksForReason.length, pct: total ? Math.round(tasksForReason.length / total * 100) : 0, tasks: tasksForReason }; }).filter(r => r.count > 0).sort((a, b) => b.count - a.count); }, [cg]);
   // Cảnh báo quá tải tính theo KHỐI LƯỢNG QUY ĐỔI (activeW) chứ không đếm thô đầu việc — người ôm 12 việc
@@ -416,7 +416,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const totals = (employees || []).filter(e => e.dept === emp.dept && isRankable(e) && isActive(e)).map(e => calcMonthPerf(e.id, y, m).total).filter(v => v > 0);
     const deptAvg = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
     return { mine: Math.round(mine * 100) / 100, deptAvg: Math.round(deptAvg * 100) / 100, dept: emp.dept, n: totals.length, diffPct: deptAvg ? Math.round((mine - deptAvg) / deptAvg * 100) : 0 };
-  }, [currentUser, employees, perfIndex]);
+  }, [currentUser, employees, perfIndex, kpiKey]);
 
   // Việc tôi ĐÃ HOÀN THÀNH trong tháng hiện tại (gộp mọi module) — để tự soi lại trước kỳ đánh giá
   const myDoneList = useMemo(() => {
@@ -538,7 +538,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
       if (cur.eligible && pr.eligible && (pr.perfScore - cur.perfScore) >= 15) alerts.push({ kind: "emp_down", dept: emp.dept, name: emp.name, detail: `Điểm rớt ${pr.perfScore - cur.perfScore}đ so tháng trước (${pr.perfScore} → ${cur.perfScore})`, drop: pr.perfScore - cur.perfScore });
     }
     return alerts.sort((a, b) => b.drop - a.drop);
-  }, [cg, employees, perfIndex, today]);
+  }, [cg, employees, perfIndex, today, kpiKey]);
 
   // ── TV7 TÓM TẮT ĐIỀU HÀNH BẰNG LỜI (BGĐ): tự ghép các chỉ số & cảnh báo thành một đoạn "đọc là hiểu" ──
   // (Đặt SAU watchList/staffingAdvice/dataHealth vì phụ thuộc chúng — tránh lỗi truy cập trước khởi tạo.)

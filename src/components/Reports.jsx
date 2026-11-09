@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { GRADING_START, GRADE_MINS } from "../constants";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { DEPTS, DEPT_COLOR, deptLabel, VI_MONTHS, RATING, STATUS } from "../constants";
 import { fmtDate } from "../helpers";
@@ -32,7 +33,7 @@ export default function Reports({
         ))}
       </div>
 
-      {repTab === "grading" && canExec && <GradingTab isMobile={isMobile} inp={inp} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} syncManagerSnapshots={syncManagerSnapshots} currentUser={currentUser} />}
+      {repTab === "grading" && canExec && <GradingTab key={`${GRADING_START.year}-${GRADING_START.month}-${GRADE_MINS.excellent}-${GRADE_MINS.good}-${GRADE_MINS.pass}`} isMobile={isMobile} inp={inp} monthlyScores={monthlyScores} snapshotMonth={snapshotMonth} syncManagerSnapshots={syncManagerSnapshots} currentUser={currentUser} />}
       {repTab === "exec" && canExec && <ExecTab isMobile={isMobile} computed={computed} getEmp={getEmp} setModal={setModal} loadComments={loadComments} overloadThreshold={overloadThreshold} deptLeaderName={deptLeaderName} hideApprovers={hideApprovers} />}
       {repTab === "kq_nv" && canExec && <TaskResultReportTab inp={inp} computed={computed} getEmp={getEmp} currentUser={currentUser} />}
       {repTab === "catalog" && <CatalogTab isMobile={isMobile} inp={inp} computed={computed} getEmp={getEmp} repMonth={repMonth} setRepMonth={setRepMonth} repYear={repYear} setRepYear={setRepYear} />}

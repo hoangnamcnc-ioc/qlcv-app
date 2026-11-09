@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { DEPTS, DEPT_COLOR, deptLabel, STATUS, VI_MONTHS, RATING, GRADING_START, inGradingScope } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel, STATUS, VI_MONTHS, RATING, GRADING_START, GRADE_MINS, inGradingScope } from "../constants";
 import { isCompletedStatus, parseNowStr, fmtDate } from "../helpers";
 const RATING_KEYS = ["xuat_sac", "tot", "tb", "kem"];
 
@@ -12,7 +12,8 @@ const GRADES = [
   { min: 50, label: "Hoàn thành", col: "#92400e", bg: "#fef9c3" },
   { min: 0, label: "Không hoàn thành", col: "#b91c1c", bg: "#fee2e2" },
 ];
-const gradeOf = (score) => GRADES.find(g => score >= g.min);
+const gradeMin = g => (g.min === 90 ? GRADE_MINS.excellent : g.min === 75 ? GRADE_MINS.good : g.min === 50 ? GRADE_MINS.pass : g.min);
+const gradeOf = (score) => GRADES.find(g => score >= gradeMin(g));
 
 // ═════════ TAB "XẾP LOẠI" — sổ điểm đã chốt theo tháng + phiếu xếp loại quý/năm ═════════
 export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, syncManagerSnapshots, currentUser }) {

@@ -5,6 +5,22 @@ export const KPI_DEFAULT = {
   timelinessMax: 60, qualityMax: 40, lateFactor: 0.5, overduePenaltyMax: 10, minResolved: 5,
   staffBonusFrom: 15, staffBonusPerTask: 1, staffBonusMax: 10, prioBonusPer: 0.5, prioBonusMax: 5,
   mgrBonusFrom: 10, mgrBonusMax: 10, slowPenaltyMax: 10,
+  // Quy đổi 1 lần tạo nhiệm vụ định kỳ = bao nhiêu "việc" (gắn vào việc LÚC SINH RA → chỉ tác động việc sinh sau khi đổi)
+  freq_daily: 0.25, freq_weekly: 1, freq_biweekly: 1.5, freq_monthly: 2.5, freq_quarterly: 3, freq_semiannual: 3, freq_yearly: 3,
+};
+// Cài đặt TOÀN CỤC (không theo phiên bản): mốc bắt đầu xếp loại + ngưỡng xếp loại cuối kỳ.
+export const KPI_GLOBAL_DEFAULT = { gradingStart: "2026-07", excellent: 90, good: 75, pass: 50 };
+export const normalizeKpiGlobal = g => {
+  const o = { ...KPI_GLOBAL_DEFAULT };
+  if (g && /^\d{4}-\d{2}$/.test(g.gradingStart || "")) o.gradingStart = g.gradingStart;
+  for (const k of ["excellent", "good", "pass"]) if (g && g[k] !== "" && g[k] != null && Number.isFinite(Number(g[k]))) o[k] = Number(g[k]);
+  return o;
+};
+export const validateKpiGlobal = g => {
+  const errs = [];
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(g.gradingStart || "")) errs.push("Tháng bắt đầu xếp loại không hợp lệ");
+  if (!(g.excellent <= 100 && g.excellent > g.good && g.good > g.pass && g.pass >= 0)) errs.push("Ngưỡng phải thỏa: 100 ≥ Xuất sắc > Tốt > Hoàn thành ≥ 0");
+  return errs;
 };
 // group: chung | staff | mgr
 export const KPI_SCHEMA = [
@@ -21,9 +37,17 @@ export const KPI_SCHEMA = [
   { k: "mgrBonusFrom", g: "mgr", label: "Thưởng điều hành — mốc việc bình quân/người", hint: "Vượt mốc mới được thưởng (1 điểm / việc vượt)", min: 1, max: 50, step: 1 },
   { k: "mgrBonusMax", g: "mgr", label: "Thưởng điều hành — tối đa", hint: "", min: 0, max: 20, step: 1 },
   { k: "slowPenaltyMax", g: "mgr", label: "Trừ tối đa vì CHẬM DUYỆT", hint: "Theo tỷ lệ lượt duyệt chậm hơn 1 ngày làm việc", min: 0, max: 30, step: 1 },
+  { k: "freq_daily", g: "freq", label: "Hàng ngày", hint: "", min: 0.05, max: 10, step: 0.05 },
+  { k: "freq_weekly", g: "freq", label: "Hàng tuần", hint: "", min: 0.05, max: 10, step: 0.05 },
+  { k: "freq_biweekly", g: "freq", label: "2 tuần/lần", hint: "", min: 0.05, max: 10, step: 0.05 },
+  { k: "freq_monthly", g: "freq", label: "Hàng tháng", hint: "", min: 0.05, max: 10, step: 0.05 },
+  { k: "freq_quarterly", g: "freq", label: "Hàng quý", hint: "", min: 0.05, max: 10, step: 0.05 },
+  { k: "freq_semiannual", g: "freq", label: "6 tháng/lần", hint: "", min: 0.05, max: 10, step: 0.05 },
+  { k: "freq_yearly", g: "freq", label: "Hàng năm", hint: "", min: 0.05, max: 10, step: 0.05 },
 ];
-export const KPI_GROUPS = { chung: "Chung (cá nhân & điều hành)", staff: "Điểm cá nhân (nhân viên/chuyên viên)", mgr: "Điểm điều hành (Trưởng/Phó phòng)" };
+export const KPI_GROUPS = { chung: "Chung (cá nhân & điều hành)", staff: "Điểm cá nhân (nhân viên/chuyên viên)", mgr: "Điểm điều hành (Trưởng/Phó phòng)", freq: "Hệ số quy đổi việc định kỳ (chỉ áp dụng cho việc sinh ra SAU khi đổi)" };
 
+export const freqWeightCfg = (cfg, freq) => { const v = cfg?.["freq_" + freq]; return Number.isFinite(v) ? v : 1; };
 // Hợp nhất với mặc định, bỏ khóa lạ / giá trị không phải số.
 export const normalizeKpiCfg = c => {
   const out = { ...KPI_DEFAULT };
