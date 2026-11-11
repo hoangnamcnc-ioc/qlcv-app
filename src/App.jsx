@@ -327,9 +327,9 @@ export default function App() {
     if(background)setRefreshing(false);else setLoading(false);
   };
   useEffect(()=>{ if(currentUser)loadAllData(false); },[currentUser]);
-  // Tự làm mới NGẦM khi quay lại tab (nếu dữ liệu đã cũ > 45s) — tránh thấy trạng thái lỗi thời khi nhiều người dùng.
+  // Tự làm mới NGẦM khi quay lại tab (nếu dữ liệu đã cũ > 5 phút; tải lại toàn bộ rất tốn băng thông Supabase) — tránh thấy trạng thái lỗi thời khi nhiều người dùng.
   useEffect(()=>{
-    const onVis=()=>{ if(document.visibilityState==="visible"&&currentUser&&Date.now()-lastLoadRef.current>45000)loadAllData(true); };
+    const onVis=()=>{ if(document.visibilityState==="visible"&&currentUser&&Date.now()-lastLoadRef.current>300000)loadAllData(true); };
     window.addEventListener("visibilitychange",onVis);window.addEventListener("focus",onVis);
     return()=>{window.removeEventListener("visibilitychange",onVis);window.removeEventListener("focus",onVis);};
   },[currentUser]);
