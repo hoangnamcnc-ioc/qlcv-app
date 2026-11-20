@@ -36,7 +36,7 @@ const lbl = { fontSize: 11.5, color: "#6b7280", display: "block", marginBottom: 
 export default function Personnel(props) {
   const { employees, computed, canManageHR, meId, isAdmin, canManageDept, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, deptRows, addDept, updateDept, deleteDept, hrById, loadHr, saveHr } = props;
   // CHỈ Admin/Giám đốc được thêm–sửa–xóa & quản lý cơ cấu. Người khác chỉ XEM hồ sơ của CHÍNH MÌNH.
-  const [tab, setTab] = useState("workload");
+  const [tab, setTab] = useState(props.initialTab || "workload");
   const canEditHr = !!canManageHR;
   // PII hồ sơ (hr) chỉ tải qua RPC có xác thực khi vào tab Hồ sơ / Cơ cấu — không nằm trong bản employees chung.
   useEffect(() => { if ((tab === "profile" || tab === "stats") && !hrById && loadHr) loadHr(); }, [tab]);

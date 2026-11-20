@@ -12,6 +12,7 @@ const Documents = lazy(()=>import("./Documents"));
 const SupportCases = lazy(()=>import("./SupportCases"));
 const MyQueue = lazy(()=>import("./MyQueue"));
 const Chat = lazy(()=>import("./Chat"));
+import KpiNotice from "./components/KpiNotice";
 import { CatalogPicker } from "./components/KpiCatalog";
 import { addKpiVersion, kpiCfgFor, freqWeightCfg, normalizeKpiGlobal, KPI_GLOBAL_DEFAULT } from "./kpiConfig";
 import { setGradingGlobal } from "./constants";
@@ -70,6 +71,7 @@ export default function App() {
   const [kpiOnTime,setKpiOnTime]=useState(()=>parseInt(localStorage.getItem("qlcv_kpi_ontime")||"85"));
   const saveKpiOnTime=async v=>{setKpiOnTime(v);localStorage.setItem("qlcv_kpi_ontime",v);try{const{data}=await supabase.from("app_config").select("key").eq("key","kpi_ontime");if(data&&data.length)await supabase.from("app_config").update({value:String(v)}).eq("key","kpi_ontime");else await supabase.from("app_config").insert({key:"kpi_ontime",value:String(v)});}catch(e){showToast("Đã lưu tạm trên máy này, nhưng chưa đồng bộ được lên hệ thống","error");}};
   // Hệ số điểm KPI chỉnh được (Quản lý nhân sự > Cấu hình KPI), lưu app_config key="kpi_formula" theo phiên bản "áp dụng từ tháng".
+  const [personnelTab,setPersonnelTab]=useState(null); // mở sẵn tab nào của Quản lý nhân sự (từ thông báo)
   const [kpiVersions,setKpiVersions]=useState([]);
   const [kpiGlobal,setKpiGlobal]=useState(KPI_GLOBAL_DEFAULT);
   // Điểm tiêu chí chung (3 lượt chấm) & danh mục sản phẩm chuẩn — SQL 49 (chưa chạy thì để rỗng, app vẫn chạy)
@@ -1005,7 +1007,7 @@ export default function App() {
               overloadedEmps={overloadedEmps}
               deptEmps={deptEmps}
               openCreateEmp={openCreateEmp} openEditEmp={openEditEmp}
-              deleteEmployee={deleteEmployee} updateEmployee={updateEmployee} kpiCommon={kpiCommon} saveKpiCommon={saveKpiCommon} kpiCatalog={kpiCatalog} saveCatalogItem={saveCatalogItem} currentUser={currentUser} kpiVersions={kpiVersions} saveKpiVersion={saveKpiVersion} kpiGlobal={kpiGlobal} saveKpiGlobal={saveKpiGlobal} onLeave={leaveEmployee} onRestore={restoreEmployee}
+              deleteEmployee={deleteEmployee} updateEmployee={updateEmployee} initialTab={personnelTab} kpiCommon={kpiCommon} saveKpiCommon={saveKpiCommon} kpiCatalog={kpiCatalog} saveCatalogItem={saveCatalogItem} currentUser={currentUser} kpiVersions={kpiVersions} saveKpiVersion={saveKpiVersion} kpiGlobal={kpiGlobal} saveKpiGlobal={saveKpiGlobal} onLeave={leaveEmployee} onRestore={restoreEmployee}
               deptRows={deptRows} addDept={addDept} updateDept={updateDept} deleteDept={deleteDept} deptAudit={deptAudit}
               deptOversight={deptOversight} setDeptOverseer={setDeptOverseer}
               transferDept={transferEmployeeDept}
@@ -1414,6 +1416,7 @@ export default function App() {
       {forwardModal&&(<div onClick={()=>setForwardModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:110,padding:16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:440,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.2)"}}><div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:15}}>↪ Chuyển tiếp nhiệm vụ</span><button onClick={()=>setForwardModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#9ca3af"}}>✕</button></div><div style={{padding:18}}><div style={{fontSize:13,color:"#374151",marginBottom:6,fontWeight:500}}>{forwardModal.title}</div><div style={{fontSize:12,color:"#6b7280",marginBottom:16,padding:"8px 12px",background:"#eff6ff",borderRadius:8,lineHeight:1.5}}>Bạn sẽ trở thành <b>người phụ trách</b>, nhân viên được chọn là <b>người thực hiện</b>. Nhiệm vụ không bị nhân đôi.</div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:6}}>Chọn nhân viên thực hiện *</label><select value={forwardEid} onChange={e=>setForwardEid(e.target.value)} style={inp}><option value="">— Chọn nhân viên —</option>{(employees||[]).filter(e=>e.dept===forwardModal.dept&&e.id!==forwardModal.eid&&isAssignable(e)).map(e=><option key={e.id} value={e.id}>{e.name} ({e.role})</option>)}</select></div><div style={{padding:"0 18px 18px",display:"flex",gap:10}}><button onClick={()=>setForwardModal(null)} style={{flex:1,padding:"10px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:14}}>Hủy</button><button onClick={forwardTask} disabled={!forwardEid||saving} style={{flex:1,padding:"10px",border:"none",borderRadius:8,background:!forwardEid||saving?"#cbd5e1":"#2563eb",color:"#fff",cursor:!forwardEid||saving?"not-allowed":"pointer",fontSize:14,fontWeight:600}}>{saving?"Đang chuyển…":"Chuyển tiếp"}</button></div></div></div>)}
 
       {/* ── BÀN GIAO HÀNG LOẠT (nhân viên nghỉ phép dài/nghỉ việc) ── */}
+      {currentUser&&!loading&&<KpiNotice role={currentUser.role} canCreate={canCreate} onGo={()=>{setPersonnelTab("common");setView("employees");}}/>}
       {tplHandoff&&(()=>{const{emp,rows}=tplHandoff;const cands=employees.filter(e=>e.dept===emp.dept&&isAssignable(e)&&e.id!==emp.id);const mgr=cands.find(e=>/Trưởng phòng/.test(e.role));
         return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16}}>
           <div style={{background:"#fff",borderRadius:12,maxWidth:560,width:"100%",maxHeight:"85vh",overflow:"auto",padding:18}}>
