@@ -15,7 +15,7 @@ export default function KpiBreakdown({ b }) {
     <div style={{ padding: "0 0 4px" }}>
       <Line icon="①" label="Số lượng" sub="Số lượng quy đổi hoàn thành ÷ số lượng quy đổi được giao (việc đã đến hạn trong tháng)" val={`${b.qty}%`} />
       <Line icon="②" label="Tiến độ" sub="Mỗi ngày chậm so với hạn trừ 25% giá trị sản phẩm đó" val={`${b.progress}%`} />
-      <Line icon="③" label="Chất lượng" sub="Mỗi lần bị yêu cầu làm lại trừ 25% giá trị sản phẩm đó" val={`${b.quality}%`} />
+      <Line icon="③" label="Chất lượng" sub="Gồm số lần bị yêu cầu làm lại (−25%/lần) và mức nghiệm thu Xuất sắc/Tốt/TB/Kém (chưa chấm = Tốt)" val={`${b.quality}%`} />
       <Line icon="=" label="Điểm đánh giá nhiệm vụ" sub="Trung bình cộng 3 tỷ lệ trên" val={`${b.evalPct}%`} />
       {b.provisional
         ? <div style={{ margin: "8px 0", fontSize: 11.5, color: "#b45309", background: "#fffbeb", borderRadius: 8, padding: "8px 12px" }}>Chưa có điểm <b>tiêu chí chung</b> của tháng này (chấm ở Quản lý nhân sự → 📝 Tiêu chí chung) nên đây là <b>điểm tạm tính</b> quy từ phần nhiệm vụ về thang 100.</div>

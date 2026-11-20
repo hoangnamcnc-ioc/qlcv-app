@@ -6,7 +6,8 @@ import { KPI_DEFAULT } from "./kpiConfig.js";
 import { frameworkScore, roundTotal, commonFinal, difficultyCoef, gradeFor } from "./kpiFramework.js";
 
 const mk = (n, status, extra = {}) => Array.from({ length: n }, () => ({ status, weight: 1, ...extra }));
-const one = { ...KPI_DEFAULT, minResolved: 1 };
+const pure = { ...KPI_DEFAULT, ratingWeight: 0 }; // đúng khung: chất lượng chỉ theo số lần làm lại
+const one = { ...pure, minResolved: 1 };
 
 test("sumW cộng trọng số & làm tròn", () => {
   assert.equal(sumW([]), 0);
@@ -21,7 +22,7 @@ test("rỗng → 0 điểm, chưa đủ ĐK", () => {
 test("ví dụ trong tài liệu: 26 điểm chung + 92,44% × 70 ≈ 90,7", () => {
   // số lượng 100%, tiến độ 100%, chất lượng 77,3% (1436,6 / 1858,2) → TB 92,4%
   const grp = [{ status: "completed", weight: 1436.6, rework: 0 }, { status: "completed", weight: 421.6, rework: 4 }];
-  const s = frameworkScore(grp, KPI_DEFAULT, { total: 26, from: "center" });
+  const s = frameworkScore(grp, pure, { total: 26, from: "center" });
   assert.equal(s.breakdown.qty, 100); assert.equal(s.breakdown.progress, 100);
   assert.equal(s.breakdown.quality, 77.3);
   assert.equal(s.perfScore, 91);
@@ -43,9 +44,9 @@ test("chậm quá 4 ngày không âm điểm (kẹp 0)", () => {
 
 test("chưa có điểm tiêu chí chung → tạm tính thang 100; có điểm chung → cộng + 70%", () => {
   const items = mk(10, "completed");
-  const t = staffScore(items, KPI_DEFAULT, null);
+  const t = staffScore(items, pure, null);
   assert.equal(t.perfScore, 100); assert.equal(t.breakdown.provisional, true);
-  const f = staffScore(items, KPI_DEFAULT, { total: 24, from: "dept" });
+  const f = staffScore(items, pure, { total: 24, from: "dept" });
   assert.equal(f.perfScore, 94); assert.equal(f.breakdown.provisional, false);
 });
 
@@ -55,7 +56,7 @@ test("đủ điều kiện xếp hạng khi việc quy đổi ≥ minResolved", 
 });
 
 test("điểm điều hành dùng cùng công thức, kèm khối lượng/người", () => {
-  const m = managerScore([...mk(8, "completed"), ...mk(2, "overdue")], 2, { totalReq: 4, slowCount: 1 }, KPI_DEFAULT, { total: 28, from: "center" });
+  const m = managerScore([...mk(8, "completed"), ...mk(2, "overdue")], 2, { totalReq: 4, slowCount: 1 }, pure, { total: 28, from: "center" });
   assert.equal(m.resolvedW, 10); assert.equal(m.perHead, 5); assert.equal(m.onTimeRate, 80);
   assert.equal(m.breakdown.reqCount, 4);
   assert.equal(m.perfScore, Math.round(28 + 80 * 0.7));
@@ -81,4 +82,13 @@ test("hệ số quy đổi: giờ × độ khó TB ÷ 5 (khớp ví dụ tài li
 test("xếp loại 90/70/50", () => {
   const m = { excellent: 90, good: 70, pass: 50 };
   assert.deepEqual([90, 89.9, 70, 69, 50, 49].map(s => gradeFor(s, m)), ["excellent", "good", "good", "pass", "pass", "fail"]);
+});
+
+test("trọng số mức nghiệm thu: Xuất sắc 100% · Tốt 75% · TB 50% · Kém 0%; chưa chấm = Tốt", () => {
+  const cfg = { ...KPI_DEFAULT, ratingWeight: 0.3, minResolved: 1 };
+  const q = rating => frameworkScore([{ status: "completed", weight: 1, rating }], cfg, null).breakdown.quality;
+  assert.equal(q("xuat_sac"), 100); assert.equal(q("tot"), 92.5); assert.equal(q("tb"), 85); assert.equal(q("kem"), 70);
+  assert.equal(q(""), 92.5);
+  // kết hợp với làm lại: (0,7 × 75%) + (0,3 × 100%) = 82,5%
+  assert.equal(frameworkScore([{ status: "completed", weight: 1, rating: "xuat_sac", rework: 1 }], cfg, null).breakdown.quality, 82.5);
 });

@@ -3,8 +3,11 @@
 //   Điểm đánh giá nhiệm vụ = trung bình 3 tỷ lệ tính trên số lượng QUY ĐỔI (hệ số quy đổi × số lượng):
 //     số lượng  = hoàn thành / được giao
 //     tiến độ   = Σ(hoàn thành × (1 − 25% × số ngày chậm)) / được giao
-//     chất lượng = Σ(hoàn thành × (1 − 25% × số lần phải làm lại)) / được giao
+//     chất lượng = Σ(hoàn thành × hệ số chất lượng) / được giao, hệ số = (1−w)×(1 − 25% × số lần làm lại) + w×(mức nghiệm thu: Xuất sắc 100% · Tốt 75% · TB 50% · Kém 0%),
+//                  w = trọng số mức nghiệm thu (mặc định 30%; chưa chấm mức = Tốt)
 //   Xếp loại: ≥90 Xuất sắc · 70–<90 Tốt · 50–<70 Hoàn thành · <50 Không hoàn thành.
+
+import { RATING } from "./constants.js";
 
 // ── Tiêu chí chung: 3 phần × tối đa 10 điểm; chấm 3 lượt (cá nhân → lãnh đạo phòng → lãnh đạo Trung tâm) ──
 export const COMMON_SECTIONS = [
@@ -42,8 +45,12 @@ export function frameworkScore(items, cfg, common) {
   const eligible = assigned >= cfg.minResolved;
   if (assigned <= 0) return { onTime, completedLate, over, done, resolved: assigned, eligible, perfScore: 0, breakdown: null };
   const late = t => (t.status === "completed_late" ? Math.max(1, Math.round(t.lateDays || 1)) : 0);
-  const progW = sum(t => (isDone(t) ? w(t) * Math.max(0, 1 - cfg.lateDayPenalty * late(t)) : 0));
-  const qualW = sum(t => (isDone(t) ? w(t) * Math.max(0, 1 - cfg.reworkPenalty * Math.max(0, t.rework || 0)) : 0));
+  const raw = f => items.reduce((a, t) => a + f(t), 0); // không làm tròn để % tiến độ/chất lượng chính xác
+  const progW = raw(t => (isDone(t) ? w(t) * Math.max(0, 1 - cfg.lateDayPenalty * late(t)) : 0));
+  const rw = cfg.ratingWeight ?? 0;
+  const ratingFactor = t => (RATING[t.rating] ? RATING[t.rating].score / 4 : 0.75); // chưa chấm mức = Tốt
+  const qFactor = t => (1 - rw) * Math.max(0, 1 - cfg.reworkPenalty * Math.max(0, t.rework || 0)) + rw * ratingFactor(t);
+  const qualW = raw(t => (isDone(t) ? w(t) * qFactor(t) : 0));
   const qty = done / assigned * 100, prog = progW / assigned * 100, qual = qualW / assigned * 100;
   const evalPct = (qty + prog + qual) / 3;
   const entered = !!common;

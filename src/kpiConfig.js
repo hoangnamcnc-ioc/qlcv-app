@@ -2,7 +2,7 @@
 // Lưu theo PHIÊN BẢN có "áp dụng từ tháng" (app_config key="kpi_formula"): tháng nào dùng bộ hệ số của phiên bản
 // có from ≤ tháng đó → đổi hệ số KHÔNG làm đổi điểm các tháng trước. Mặc định = đúng công thức đang chạy.
 export const KPI_DEFAULT = {
-  commonMax: 30, evalWeight: 70, lateDayPenalty: 0.25, reworkPenalty: 0.25, minResolved: 5,
+  commonMax: 30, evalWeight: 70, lateDayPenalty: 0.25, reworkPenalty: 0.25, ratingWeight: 0.3, minResolved: 5,
   // Quy đổi 1 lần tạo nhiệm vụ định kỳ = bao nhiêu "việc" (gắn vào việc LÚC SINH RA → chỉ tác động việc sinh sau khi đổi)
   freq_daily: 0.25, freq_weekly: 1, freq_biweekly: 1.5, freq_monthly: 2.5, freq_quarterly: 3, freq_semiannual: 3, freq_yearly: 3,
 };
@@ -26,6 +26,7 @@ export const KPI_SCHEMA = [
   { k: "evalWeight", g: "chung", label: "Trọng số — Đánh giá nhiệm vụ (%)", hint: "Khung đơn vị: 70", min: 50, max: 100, step: 1 },
   { k: "lateDayPenalty", g: "chung", label: "Trừ tiến độ — mỗi ngày chậm (tỷ lệ giá trị sản phẩm)", hint: "Khung đơn vị: 0,25 (= 25%/ngày)", min: 0, max: 1, step: 0.05 },
   { k: "reworkPenalty", g: "chung", label: "Trừ chất lượng — mỗi lần phải làm lại", hint: "Khung đơn vị: 0,25 (= 25%/lần)", min: 0, max: 1, step: 0.05 },
+  { k: "ratingWeight", g: "chung", label: "Chất lượng — trọng số mức nghiệm thu", hint: "0 = chỉ tính số lần làm lại (đúng khung) · 0,3 = 30% theo mức Xuất sắc/Tốt/TB/Kém (chưa chấm = Tốt)", min: 0, max: 1, step: 0.05 },
   { k: "minResolved", g: "chung", label: "Số việc quy đổi tối thiểu để được xếp hạng", hint: "Đã đến hạn trong tháng", min: 1, max: 30, step: 1 },
   { k: "freq_daily", g: "freq", label: "Hàng ngày", hint: "", min: 0.05, max: 10, step: 0.05 },
   { k: "freq_weekly", g: "freq", label: "Hàng tuần", hint: "", min: 0.05, max: 10, step: 0.05 },
