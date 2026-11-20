@@ -5,6 +5,7 @@ const EMPTY_MONTH = { total: 0, resolved: 0, done: 0, over: 0, completedLate: 0,
 import { isCompletedStatus, parseJSON, pendingApprovalDays, parseNowStr, workingDaysBetween } from "../helpers";
 import { w, sumW, staffScore, managerScore } from "../scoring";
 import { kpiCfgFor, rankMinMonths } from "../kpiConfig";
+import { commonFinal } from "../kpiFramework";
 
 // Toàn bộ logic tính hiệu suất/báo cáo: tổng hợp theo phòng ban, công thức điểm hiệu suất tháng,
 // bảng xếp hạng năm, thống kê nguyên nhân trễ, cảnh báo quá tải, tiến bộ cá nhân.
@@ -28,7 +29,7 @@ export const SUPPORT_WEIGHT = { hard: 1, medium: 0.5, easy: 0.25 };
 // Chức danh (nhãn nhân viên) được coi là CẤP QUẢN LÝ — chấm "điểm điều hành" theo kết quả phòng, xếp hạng riêng.
 export const MANAGER_EMP_ROLES = ["Trưởng phòng", "Phó trưởng phòng", "TP. HCTH", "PP. HCTH"];
 
-export default function useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks, holidays, kpiVersions, kpiKey }) {
+export default function useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects, supportCases, otherTasks, holidays, kpiVersions, kpiKey, kpiCommon }) {
   // Báo cáo/xếp hạng dùng dữ liệu TOÀN CỤC để mọi vai trò thấy giống nhau; nếu vì lý do nào đó
   // không truyền computedGlobal thì lùi về computed (an toàn).
   const cg = computedGlobal || computed;
@@ -144,7 +145,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
       if (!isCompletedStatus(t.status)) continue;
       for (const cid of parseJSON(t.collab_eids, [])) {
         if (cid === t.eid) continue; // tránh trùng nếu dữ liệu lỗi gán chính mình vào phối hợp
-        out.push({ id: `collab_${t.id}_${cid}`, eid: cid, deadline: t.deadline, status: t.status, rating: t.rating, collab_eids: "[]", suspicious_completion: false, weight: (t.weight ?? 1) * 0.5 });
+        out.push({ id: `collab_${t.id}_${cid}`, eid: cid, deadline: t.deadline, status: t.status, rating: t.rating, collab_eids: "[]", suspicious_completion: false, weight: (t.weight ?? 1) * 0.5, requested_at: t.requested_at, completed_at: t.completed_at, rework_count: 0 });
       }
     }
     return out;
@@ -180,12 +181,32 @@ export default function useReports({ computed, computedGlobal, employees, curren
   // cá nhân lẫn điểm điều hành. Pseudo-task (hỗ trợ/dự án/phối hợp) không có cờ này nên không ảnh hưởng.
   const applyExcuse = arr => arr.map(t => t.late_excused ? (t.status === "completed_late" ? { ...t, status: "completed" } : { ...t, status: "__excused" }) : t).filter(t => t.status !== "__excused");
 
+  // Điểm tiêu chí chung theo (người, tháng) — bảng kpi_common (3 lượt chấm); chưa có → null (điểm tạm tính).
+  const commonMap = useMemo(() => {
+    const m = new Map();
+    for (const r of kpiCommon || []) {
+      const c = commonFinal({ self: parseJSON(r.self, null), dept: parseJSON(r.dept, null), center: parseJSON(r.center, null) });
+      if (c) m.set(`${r.eid}|${r.year}|${r.month}`, c);
+    }
+    return m;
+  }, [kpiCommon]);
+  const commonFor = (eid, year, month0) => commonMap.get(`${eid}|${year}|${month0 + 1}`) || null;
+  // Bổ sung số ngày chậm (so mốc yêu cầu duyệt/hoàn thành với hạn) và số lần làm lại cho công thức khung KPI.
+  const enrich = t => {
+    let lateDays = 0;
+    if (t.status === "completed_late" && t.deadline) {
+      const dl = new Date(t.deadline); dl.setHours(0, 0, 0, 0);
+      const fa = t.requested_at ? parseNowStr(t.requested_at) : (t.completed_at ? new Date(t.completed_at) : null);
+      if (fa && !isNaN(fa)) { fa.setHours(0, 0, 0, 0); lateDays = Math.max(1, Math.round((fa - dl) / 86400000)); }
+    }
+    return { ...t, lateDays, rework: t.rework_count || 0 };
+  };
   const calcMonthPerf = (empId, year, month) => {
     const ym = `${year}|${month}`;
     const et = applyExcuse(perfIndex.byEid.get(`${empId}|${ym}`) || []);
     // Điểm cá nhân tính bằng công thức thuần trong scoring.js (nguồn duy nhất, có test). Đủ ĐK: resolved ≥ 5.
     // Người <5 việc đến hạn vẫn ra điểm để làm "điểm tham khảo", nhưng cờ eligible=false → không xếp hạng/chốt sổ.
-    const s = staffScore(et, kpiCfgFor(kpiVersions, year, month + 1)); // month = 0-11
+    const s = staffScore(et.map(enrich), kpiCfgFor(kpiVersions, year, month + 1), commonFor(empId, year, month)); // month = 0-11
     const etWeight = sumW(et);
     const completionRate = etWeight ? Math.round(s.done / etWeight * 100) : 0;
     // Task phối hợp trong tháng (đã cộng ½ trọng số vào et qua collabPseudoTasks; đây chỉ để hiển thị thống kê riêng)
@@ -273,7 +294,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
       if (exceed >= 1) { slowLoad += exceed >= 3 ? 1.5 : 1; slowCount++; }
     }
     // Điểm điều hành tính bằng công thức thuần managerScore (nguồn duy nhất, có test): kết quả cả phòng + khối lượng/người + phạt chậm duyệt.
-    const m = managerScore(dt, empCount, { slowLoad, totalReq, slowCount }, kpiCfgFor(kpiVersions, year, month + 1));
+    const m = managerScore(dt.map(enrich), empCount, { slowLoad, totalReq, slowCount }, kpiCfgFor(kpiVersions, year, month + 1), commonFor(empId, year, month));
     return { dept, empCount, slowCount, reqCount: totalReq, ...m };
   };
 

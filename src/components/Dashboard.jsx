@@ -60,7 +60,7 @@ export default function Dashboard({
       <h1>BẢN TỰ ĐÁNH GIÁ CÔNG VIỆC</h1>
       <div style="font-size:13px;color:#444">${esc(p.emp.name)} — ${esc(deptLabel(p.emp.dept))} · ${esc(p.emp.role)} · Kỳ: tháng ${now.getMonth() + 1}/${now.getFullYear()}</div>
       <p>Điểm hiệu suất tháng: <span class="big">${p.cur.resolved > 0 ? p.cur.perfScore : "—"}</span>${p.cur.resolved > 0 && !p.cur.eligible ? " (tham khảo — chưa đủ 5 việc đến hạn)" : ""} &nbsp;·&nbsp; Tỷ lệ đúng hạn: <b>${p.onTimeRate}%</b></div>
-      ${b ? `<div style="font-size:13px">Cấu thành: Thời hạn ${b.timeliness} + Chất lượng ${b.quality}${b.penalty > 0 ? ` − Phạt ${b.penalty}` : ""}${b.workloadBonus > 0 ? ` + Thưởng KL ${b.workloadBonus}` : ""}${b.prioBonus > 0 ? ` + Thưởng ưu tiên ${b.prioBonus}` : ""}</div>` : ""}
+      ${b && b.mode === "framework" ? `<div style="font-size:13px">KPI: số lượng ${b.qty}% · tiến độ ${b.progress}% · chất lượng ${b.quality}% → đánh giá nhiệm vụ ${b.evalPct}%${b.provisional ? " (tạm tính, chưa có điểm tiêu chí chung)" : ` × ${b.evalWeight}% + tiêu chí chung ${b.common}/30`}</div>` : ""}
       <div style="font-size:13px;margin-top:6px">Tính chủ động: hoàn thành sớm hạn <b>${p.proactive.earlyRate}%</b> (${p.proactive.early}/${p.proactive.doneOnTime} việc) · Khối lượng phối hợp: ${p.proactive.collabW}</div>
       <h3>Xu hướng điểm 6 tháng</h3><table><tr>${trendHead}</tr><tr>${trendRow}</tr></table>
       <h3>Nguyên nhân trễ (mọi thời gian)</h3><ul style="font-size:13px">${lateRows}</ul>
@@ -624,8 +624,7 @@ function EmpProfileModal({ profile, isMobile, overloadThreshold, onClose, onOpen
             </div>
             {cur.breakdown && (
               <div style={{ fontSize: 11.5, color: "#6b7280", marginTop: 8, lineHeight: 1.6 }}>
-                Cấu thành điểm{isManager ? " điều hành (kết quả phòng)" : ""}: ⏱️ {isManager ? "đúng hạn phòng" : "thời hạn"} <b>{cur.breakdown.timeliness}</b> + ⭐ chất lượng <b>{cur.breakdown.quality}</b>{cur.breakdown.penalty > 0 && <> − {isManager ? "tồn đọng" : "phạt trễ"} <b style={{ color: "#b91c1c" }}>{cur.breakdown.penalty}</b></>}{cur.breakdown.workloadBonus > 0 && <> + thưởng KL <b style={{ color: "#15803d" }}>{cur.breakdown.workloadBonus}</b></>}{cur.breakdown.mgmtBonus > 0 && <> + thưởng KL điều hành <b style={{ color: "#15803d" }}>{cur.breakdown.mgmtBonus}</b></>}{cur.breakdown.prioBonus > 0 && <> + thưởng ưu tiên <b style={{ color: "#15803d" }}>{cur.breakdown.prioBonus}</b></>}
-                {!cur.eligible && cur.resolved > 0 && <span style={{ fontStyle: "italic" }}> · chưa đủ 5 việc đến hạn nên chỉ là điểm tham khảo</span>}
+                {cur.breakdown.mode === "framework" ? <>Cấu thành KPI{isManager ? " điều hành (kết quả phòng)" : ""}: số lượng <b>{cur.breakdown.qty}%</b> · tiến độ <b>{cur.breakdown.progress}%</b> · chất lượng <b>{cur.breakdown.quality}%</b> → đánh giá nhiệm vụ <b>{cur.breakdown.evalPct}%</b>{cur.breakdown.provisional ? <> · <span style={{ color: "#b45309" }}>chưa có điểm tiêu chí chung → điểm tạm tính</span></> : <> × {cur.breakdown.evalWeight}% + tiêu chí chung <b>{cur.breakdown.common}/30</b></>}</> : null}
               </div>
             )}
           </div>

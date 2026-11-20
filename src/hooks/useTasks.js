@@ -156,7 +156,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
   };
   const rejectCompletionRequest = async (task) => {
     if (!window.confirm("Từ chối yêu cầu hoàn thành và trả nhiệm vụ về cho người thực hiện làm lại?")) return;
-    await updateTask(task.id, { completion_requested: false }, "Từ chối yêu cầu hoàn thành, yêu cầu làm lại");
+    await updateTask(task.id, { completion_requested: false, ...("rework_count" in task ? { rework_count: (task.rework_count || 0) + 1 } : {}) }, "Từ chối yêu cầu hoàn thành, yêu cầu làm lại");
     showToast("Đã từ chối, nhiệm vụ trở lại trạng thái thực hiện");
   };
 

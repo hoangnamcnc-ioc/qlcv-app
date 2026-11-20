@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { KPI_DEFAULT, KPI_SCHEMA, KPI_GROUPS, KPI_GLOBAL_DEFAULT, kpiCfgFor, normalizeKpiCfg, validateKpiCfg, normalizeKpiGlobal, validateKpiGlobal } from "../kpiConfig";
 import { staffScore, managerScore } from "../scoring";
 
+const SAMPLE_COMMON = { total: 26, from: "center" }; // ví dụ trong tài liệu
 const mkItems = (n, status, rating = "tot") => Array.from({ length: n }, () => ({ status, rating, weight: 1 }));
 const curMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 const fmtYm = s => s.split("-").reverse().join("/");
@@ -20,15 +21,15 @@ export default function KpiConfig({ versions, canEdit, onSave, kpiGlobal, onSave
   const num = c => Object.fromEntries(KPI_SCHEMA.map(f => [f.k, Number(c[f.k])]));
   const errs = validateKpiCfg(num(cfg));
   const changed = KPI_SCHEMA.some(f => Number(cfg[f.k]) !== base[f.k]);
-  const [sample, setSample] = useState({ ok: 8, late: 3, over: 2, prio: 2 });
+  const [sample, setSample] = useState({ ok: 8, late: 3, over: 2, days: 2, redo: 1 });
   const sampleItems = [
-    ...mkItems(Math.max(0, sample.ok - sample.prio), "completed"),
-    ...Array.from({ length: Math.min(sample.prio, sample.ok) }, () => ({ status: "completed", rating: "tot", weight: 1, prio: "high" })),
-    ...mkItems(sample.late, "completed_late"), ...mkItems(sample.over, "overdue"),
+    ...Array.from({ length: sample.ok }, (_, i) => ({ status: "completed", weight: 1, rework: i < sample.redo ? 1 : 0 })),
+    ...Array.from({ length: sample.late }, () => ({ status: "completed_late", weight: 1, lateDays: sample.days })),
+    ...Array.from({ length: sample.over }, () => ({ status: "overdue", weight: 1 })),
   ];
   const next = errs.length ? null : normalizeKpiCfg(num(cfg));
-  const before = staffScore(sampleItems, base), after = next && staffScore(sampleItems, next);
-  const mBefore = managerScore(sampleItems, 1, null, base), mAfter = next && managerScore(sampleItems, 1, null, next);
+  const before = staffScore(sampleItems, base, SAMPLE_COMMON), after = next && staffScore(sampleItems, next, SAMPLE_COMMON);
+  const mBefore = managerScore(sampleItems, 1, null, base, SAMPLE_COMMON), mAfter = next && managerScore(sampleItems, 1, null, next, SAMPLE_COMMON);
   const nBox = { width: 64, padding: "5px 6px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 13, textAlign: "right" };
   const hist = [...(versions || [])].reverse();
   const canSave = canEdit && !errs.length && changed;
@@ -90,7 +91,7 @@ export default function KpiConfig({ versions, canEdit, onSave, kpiGlobal, onSave
       <div style={{ ...card, padding: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>🧪 Xem thử điểm (không lưu gì)</div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 12.5, alignItems: "center" }}>
-          {[["ok", "Đúng hạn"], ["late", "Hoàn thành trễ"], ["over", "Quá hạn"], ["prio", "Trong đó ưu tiên cao"]].map(([k, l]) => (
+          {[["ok", "Đúng hạn"], ["late", "Hoàn thành trễ"], ["days", "Số ngày chậm mỗi việc trễ"], ["over", "Quá hạn chưa xong"], ["redo", "Việc đúng hạn bị làm lại 1 lần"]].map(([k, l]) => (
             <label key={k}>{l}: <input type="number" min={0} max={60} value={sample[k]} onChange={e => setSample(s => ({ ...s, [k]: Math.max(0, Math.min(60, Number(e.target.value) || 0)) }))} style={{ ...nBox, width: 52 }} /></label>
           ))}
         </div>
@@ -98,7 +99,7 @@ export default function KpiConfig({ versions, canEdit, onSave, kpiGlobal, onSave
           Nhân viên: <b>{before.perfScore}</b> điểm → <b style={{ color: after && after.perfScore !== before.perfScore ? "#4338ca" : "inherit" }}>{after ? after.perfScore : "—"}</b>
           {"  ·  "}Trưởng/Phó phòng (phòng 1 người): <b>{mBefore.perfScore}</b> → <b>{mAfter ? mAfter.perfScore : "—"}</b>
         </div>
-        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>Việc chất lượng "Tốt". Trái = hệ số đang áp dụng cho tháng đã chọn, phải = hệ số anh đang nhập.</div>
+        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>Giả sử điểm tiêu chí chung 26/30. Trái = hệ số đang áp dụng cho tháng đã chọn, phải = hệ số anh đang nhập.</div>
       </div>
 
       <div style={{ ...card, padding: 16 }}>

@@ -2,14 +2,12 @@
 // Lưu theo PHIÊN BẢN có "áp dụng từ tháng" (app_config key="kpi_formula"): tháng nào dùng bộ hệ số của phiên bản
 // có from ≤ tháng đó → đổi hệ số KHÔNG làm đổi điểm các tháng trước. Mặc định = đúng công thức đang chạy.
 export const KPI_DEFAULT = {
-  timelinessMax: 60, qualityMax: 40, lateFactor: 0.5, overduePenaltyMax: 10, minResolved: 5,
-  staffBonusFrom: 15, staffBonusPerTask: 1, staffBonusMax: 10, prioBonusPer: 0.5, prioBonusMax: 5,
-  mgrBonusFrom: 10, mgrBonusMax: 10, slowPenaltyMax: 10,
+  commonMax: 30, evalWeight: 70, lateDayPenalty: 0.25, reworkPenalty: 0.25, minResolved: 5,
   // Quy đổi 1 lần tạo nhiệm vụ định kỳ = bao nhiêu "việc" (gắn vào việc LÚC SINH RA → chỉ tác động việc sinh sau khi đổi)
   freq_daily: 0.25, freq_weekly: 1, freq_biweekly: 1.5, freq_monthly: 2.5, freq_quarterly: 3, freq_semiannual: 3, freq_yearly: 3,
 };
 // Cài đặt TOÀN CỤC (không theo phiên bản): mốc bắt đầu xếp loại + ngưỡng xếp loại cuối kỳ.
-export const KPI_GLOBAL_DEFAULT = { gradingStart: "2026-07", excellent: 90, good: 75, pass: 50 };
+export const KPI_GLOBAL_DEFAULT = { gradingStart: "2026-07", excellent: 90, good: 70, pass: 50 };
 export const normalizeKpiGlobal = g => {
   const o = { ...KPI_GLOBAL_DEFAULT };
   if (g && /^\d{4}-\d{2}$/.test(g.gradingStart || "")) o.gradingStart = g.gradingStart;
@@ -24,19 +22,11 @@ export const validateKpiGlobal = g => {
 };
 // group: chung | staff | mgr
 export const KPI_SCHEMA = [
-  { k: "timelinessMax", g: "chung", label: "Điểm tối đa — Thời hạn", hint: "Việc hoàn thành đúng hạn được trọn số điểm này", min: 10, max: 90, step: 1 },
-  { k: "qualityMax", g: "chung", label: "Điểm tối đa — Chất lượng", hint: "Theo mức nghiệm thu (Xuất sắc…Kém)", min: 10, max: 90, step: 1 },
-  { k: "lateFactor", g: "chung", label: "Hệ số việc hoàn thành TRỄ", hint: "0 = như quá hạn · 0,5 = nửa điểm thời hạn · 1 = như đúng hạn", min: 0, max: 1, step: 0.05 },
-  { k: "overduePenaltyMax", g: "chung", label: "Trừ tối đa vì quá hạn tồn đọng", hint: "Tính theo tỷ lệ việc quá hạn chưa xong", min: 0, max: 30, step: 1 },
-  { k: "minResolved", g: "chung", label: "Số việc tối thiểu để được xếp hạng", hint: "Quy đổi theo trọng số, đã đến hạn trong tháng", min: 1, max: 30, step: 1 },
-  { k: "staffBonusFrom", g: "staff", label: "Thưởng khối lượng — bắt đầu từ việc thứ", hint: "Chỉ việc vượt mốc này mới được thưởng", min: 1, max: 100, step: 1 },
-  { k: "staffBonusPerTask", g: "staff", label: "Thưởng khối lượng — điểm mỗi việc vượt", hint: "", min: 0, max: 5, step: 0.1 },
-  { k: "staffBonusMax", g: "staff", label: "Thưởng khối lượng — tối đa", hint: "", min: 0, max: 20, step: 1 },
-  { k: "prioBonusPer", g: "staff", label: "Thưởng việc ưu tiên cao đúng hạn — mỗi việc", hint: "", min: 0, max: 5, step: 0.1 },
-  { k: "prioBonusMax", g: "staff", label: "Thưởng việc ưu tiên cao — tối đa", hint: "", min: 0, max: 20, step: 1 },
-  { k: "mgrBonusFrom", g: "mgr", label: "Thưởng điều hành — mốc việc bình quân/người", hint: "Vượt mốc mới được thưởng (1 điểm / việc vượt)", min: 1, max: 50, step: 1 },
-  { k: "mgrBonusMax", g: "mgr", label: "Thưởng điều hành — tối đa", hint: "", min: 0, max: 20, step: 1 },
-  { k: "slowPenaltyMax", g: "mgr", label: "Trừ tối đa vì CHẬM DUYỆT", hint: "Theo tỷ lệ lượt duyệt chậm hơn 1 ngày làm việc", min: 0, max: 30, step: 1 },
+  { k: "commonMax", g: "chung", label: "Điểm tối đa — Tiêu chí chung", hint: "Khung đơn vị: 30 (3 phần × 10). Phần nhiệm vụ = 100 − số này", min: 0, max: 50, step: 1 },
+  { k: "evalWeight", g: "chung", label: "Trọng số — Đánh giá nhiệm vụ (%)", hint: "Khung đơn vị: 70", min: 50, max: 100, step: 1 },
+  { k: "lateDayPenalty", g: "chung", label: "Trừ tiến độ — mỗi ngày chậm (tỷ lệ giá trị sản phẩm)", hint: "Khung đơn vị: 0,25 (= 25%/ngày)", min: 0, max: 1, step: 0.05 },
+  { k: "reworkPenalty", g: "chung", label: "Trừ chất lượng — mỗi lần phải làm lại", hint: "Khung đơn vị: 0,25 (= 25%/lần)", min: 0, max: 1, step: 0.05 },
+  { k: "minResolved", g: "chung", label: "Số việc quy đổi tối thiểu để được xếp hạng", hint: "Đã đến hạn trong tháng", min: 1, max: 30, step: 1 },
   { k: "freq_daily", g: "freq", label: "Hàng ngày", hint: "", min: 0.05, max: 10, step: 0.05 },
   { k: "freq_weekly", g: "freq", label: "Hàng tuần", hint: "", min: 0.05, max: 10, step: 0.05 },
   { k: "freq_biweekly", g: "freq", label: "2 tuần/lần", hint: "", min: 0.05, max: 10, step: 0.05 },
@@ -45,7 +35,7 @@ export const KPI_SCHEMA = [
   { k: "freq_semiannual", g: "freq", label: "6 tháng/lần", hint: "", min: 0.05, max: 10, step: 0.05 },
   { k: "freq_yearly", g: "freq", label: "Hàng năm", hint: "", min: 0.05, max: 10, step: 0.05 },
 ];
-export const KPI_GROUPS = { chung: "Chung (cá nhân & điều hành)", staff: "Điểm cá nhân (nhân viên/chuyên viên)", mgr: "Điểm điều hành (Trưởng/Phó phòng)", freq: "Hệ số quy đổi việc định kỳ (chỉ áp dụng cho việc sinh ra SAU khi đổi)" };
+export const KPI_GROUPS = { chung: "Công thức KPI (khung đơn vị)", freq: "Hệ số quy đổi việc định kỳ (chỉ áp dụng cho việc sinh ra SAU khi đổi)" };
 
 export const freqWeightCfg = (cfg, freq) => { const v = cfg?.["freq_" + freq]; return Number.isFinite(v) ? v : 1; };
 // Hợp nhất với mặc định, bỏ khóa lạ / giá trị không phải số.
@@ -58,7 +48,7 @@ export const normalizeKpiCfg = c => {
 export const validateKpiCfg = c => {
   const errs = [];
   for (const f of KPI_SCHEMA) { const v = c[f.k]; if (!Number.isFinite(v) || v < f.min || v > f.max) errs.push(`"${f.label}" phải từ ${f.min} đến ${f.max}`); }
-  if (c.timelinessMax + c.qualityMax > 100) errs.push("Điểm Thời hạn + Chất lượng không được vượt 100");
+  if (Math.abs(c.commonMax + c.evalWeight - 100) > 0.001) errs.push("Điểm tiêu chí chung + trọng số đánh giá nhiệm vụ phải bằng 100");
   return errs;
 };
 // Số tháng đủ ĐK tối thiểu để được XẾP HẠNG NĂM chính thức = một nửa số tháng (đã kết thúc, từ mốc xếp loại) của năm đó, tối thiểu 1.

@@ -1,78 +1,28 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// CÔNG THỨC ĐIỂM THUẦN (không phụ thuộc React) — nguồn DUY NHẤT cho điểm hiệu suất.
-// Tách khỏi useReports.js để (1) tránh trùng lặp công thức, (2) kiểm thử tự động độc lập.
-// Mọi thay đổi công thức chỉ sửa Ở ĐÂY; useReports.js chỉ gọi lại. Có bộ test scoring.test.js đi kèm.
+// ĐIỂM HIỆU SUẤT (KPI) — nguồn DUY NHẤT; công thức theo KHUNG KPI CỦA ĐƠN VỊ (xem kpiFramework.js).
+// useReports.js chỉ gọi lại các hàm ở đây. Có bộ test scoring.test.js / kpiConfig.test.js đi kèm.
 // ─────────────────────────────────────────────────────────────────────────────
-import { RATING } from "./constants.js";
 import { KPI_DEFAULT } from "./kpiConfig.js";
+import { frameworkScore } from "./kpiFramework.js";
 
-// Trọng số 1 "việc": mặc định 1; nhiệm vụ định kỳ (ngày 0.25 … năm 3) và hỗ trợ (khó/TB/nhanh) gắn sẵn t.weight.
+// Trọng số = hệ số quy đổi của sản phẩm (mặc định 1; nhiệm vụ định kỳ/hỗ trợ gắn sẵn t.weight).
 export const w = t => t.weight ?? 1;
 export const sumW = arr => Math.round(arr.reduce((s, t) => s + w(t), 0) * 100) / 100;
-// Điểm chất lượng của 1 việc theo mức nghiệm thu (chưa đánh giá = Trung bình = 2). Thang RATING: 0..4.
-const ratingScore = t => (RATING[t.rating] ? RATING[t.rating].score : 2);
 
-// ── ĐIỂM HIỆU SUẤT CÁ NHÂN ──────────────────────────────────────────────────
-// items = danh sách việc ĐÃ ĐẾN HẠN trong tháng của 1 người, mỗi việc { status, rating, weight }.
-// status: "completed" (đúng hạn), "completed_late" (HT trễ), "overdue" (quá hạn chưa xong).
-//   Điểm = Thời hạn(60) + Chất lượng(40) − Phạt(tỷ lệ tồn đọng quá hạn, tối đa 10) + Thưởng khối lượng(+1đ/việc vượt 15, tối đa 10).
-//   Chỉ tính trên việc đã đến hạn; đủ điều kiện xếp hạng khi resolved ≥ 5.
-//   Lưu ý công bằng: việc HOÀN THÀNH TRỄ vẫn được tính điểm CHẤT LƯỢNG (đã bị hạ ở phần Thời hạn rồi,
-//   không trừ thêm), và PHẠT tính theo TỶ LỆ quá hạn (giống điểm điều hành) thay vì tuyệt đối 2đ/việc.
-export function staffScore(items, cfg = KPI_DEFAULT) {
-  const onTimeTasks = items.filter(t => t.status === "completed");
-  const doneTasks = items.filter(t => t.status === "completed" || t.status === "completed_late"); // cả trễ vẫn tính chất lượng
-  const onTime = sumW(onTimeTasks);
-  const completedLate = sumW(items.filter(t => t.status === "completed_late"));
-  const over = sumW(items.filter(t => t.status === "overdue"));
-  const done = Math.round((onTime + completedLate) * 100) / 100;
-  const resolved = Math.round((onTime + completedLate + over) * 100) / 100;
-  const eligible = resolved >= cfg.minResolved;
-  let perfScore = 0, breakdown = null;
-  if (resolved > 0) {
-    const timeliness = (onTime * cfg.timelinessMax + completedLate * cfg.timelinessMax * cfg.lateFactor) / resolved;                          // ① 0..60
-    const qualitySum = doneTasks.reduce((s, t) => s + ratingScore(t) * w(t), 0);
-    const quality = qualitySum / (resolved * 4) * cfg.qualityMax;                                           // ② 0..40 (gồm cả việc trễ)
-    const penalty = Math.round(over / resolved * cfg.overduePenaltyMax * 10) / 10;                                 // ③ tỷ lệ tồn đọng quá hạn, 0..10
-    const workloadBonus = Math.max(0, Math.min((resolved - cfg.staffBonusFrom) * cfg.staffBonusPerTask, cfg.staffBonusMax));                       // ④ thưởng khối lượng cá nhân
-    // ⑤ Thưởng ưu tiên: +0.5đ mỗi việc ƯU TIÊN CAO hoàn thành ĐÚNG HẠN, tối đa +5. Chỉ CỘNG THÊM (không phạt mới)
-    // — ghi nhận người gánh việc khó/gấp. Việc không đánh dấu ưu tiên (mặc định Trung bình) không ảnh hưởng.
-    const prioBonus = Math.min(onTimeTasks.filter(t => t.prio === "high").length * cfg.prioBonusPer, cfg.prioBonusMax);
-    perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty + workloadBonus + prioBonus)));
-    breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, workloadBonus, prioBonus };
-  }
-  return { onTime, completedLate, over, done, resolved, eligible, perfScore, breakdown };
+// Điểm cá nhân. items = việc ĐÃ ĐẾN HẠN trong tháng { status, weight, lateDays, rework }; common = điểm tiêu chí chung (hoặc null).
+export function staffScore(items, cfg = KPI_DEFAULT, common = null) {
+  return frameworkScore(items, cfg, common);
 }
 
-// ── ĐIỂM ĐIỀU HÀNH (Trưởng/Phó phòng) ───────────────────────────────────────
-// items = danh sách việc CẢ PHÒNG đã đến hạn trong tháng; empCount = số người của phòng.
-//   Điểm = Đúng hạn phòng(60) + Chất lượng phòng(40) − Tồn đọng quá hạn(tỷ lệ, tối đa 10)
-//        − Phạt CHẬM DUYỆT hoàn thành (tỷ lệ việc duyệt chậm >1 ngày làm việc, tối đa 10; việc chậm ≥3 ngày tính 1.5 lượt)
-//        + Thưởng khối lượng điều hành theo BÌNH QUÂN ĐẦU NGƯỜI (>10/người mới thưởng, tối đa +10 khi ≥20/người).
-// approve (tùy chọn) = { slowLoad, totalReq, slowCount }: thống kê duyệt chậm do useReports tính (theo ngày làm việc).
-export function managerScore(items, empCount, approve, cfg = KPI_DEFAULT) {
-  const onTimeTasks = items.filter(t => t.status === "completed");
-  const doneTasks = items.filter(t => t.status === "completed" || t.status === "completed_late"); // cả trễ vẫn tính chất lượng
-  const onTimeW = sumW(onTimeTasks);
-  const lateW = sumW(items.filter(t => t.status === "completed_late"));
-  const overW = sumW(items.filter(t => t.status === "overdue"));
-  const doneW = Math.round((onTimeW + lateW) * 100) / 100;
-  const resolvedW = Math.round((onTimeW + lateW + overW) * 100) / 100;
-  const eligible = resolvedW >= cfg.minResolved;
+// Điểm điều hành (Trưởng/Phó phòng): cùng công thức, tính trên việc CẢ PHÒNG đã đến hạn; kèm thống kê khối lượng/người.
+export function managerScore(items, empCount, approve, cfg = KPI_DEFAULT, common = null) {
+  const s = frameworkScore(items, cfg, common);
   const ec = empCount || 1;
-  const perHead = resolvedW / ec;
-  const onTimeRate = resolvedW > 0 ? Math.round(onTimeW / resolvedW * 100) : 0;
-  let perfScore = 0, breakdown = null;
-  if (resolvedW > 0) {
-    const timeliness = (onTimeW * cfg.timelinessMax + lateW * cfg.timelinessMax * cfg.lateFactor) / resolvedW;                                 // ① 0..60
-    const qualitySum = doneTasks.reduce((s, t) => s + ratingScore(t) * w(t), 0);
-    const quality = qualitySum / (resolvedW * 4) * cfg.qualityMax;                                          // ② 0..40 (gồm cả việc trễ)
-    const penalty = Math.round(overW / resolvedW * cfg.overduePenaltyMax * 10) / 10;                               // ③ tỷ lệ tồn đọng, 0..10
-    const mgmtBonus = Math.max(0, Math.min(perHead - cfg.mgrBonusFrom, cfg.mgrBonusMax));                                  // ④ khối lượng bình quân/người
-    // ⑤ Phạt CHẬM DUYỆT: tỷ lệ lượt duyệt chậm / tổng lượt cần duyệt × 10 (tối đa 10).
-    const slowPenalty = (approve && approve.totalReq > 0) ? Math.round(Math.min(cfg.slowPenaltyMax, approve.slowLoad / approve.totalReq * cfg.slowPenaltyMax) * 10) / 10 : 0;
-    perfScore = Math.max(0, Math.min(100, Math.round(timeliness + quality - penalty - slowPenalty + mgmtBonus)));
-    breakdown = { timeliness: Math.round(timeliness * 10) / 10, quality: Math.round(quality * 10) / 10, penalty, slowPenalty, slowCount: approve?.slowCount || 0, reqCount: approve?.totalReq || 0, mgmtBonus: Math.round(mgmtBonus * 10) / 10 };
-  }
-  return { onTimeW, lateW, overW, doneW, resolvedW, eligible, perHead: Math.round(perHead * 10) / 10, onTimeRate, perfScore, breakdown };
+  const onTimeRate = s.resolved > 0 ? Math.round(s.onTime / s.resolved * 100) : 0;
+  const slow = approve && approve.totalReq > 0 ? { slowCount: approve.slowCount || 0, reqCount: approve.totalReq } : { slowCount: 0, reqCount: 0 };
+  return {
+    onTimeW: s.onTime, lateW: s.completedLate, overW: s.over, doneW: s.done, resolvedW: s.resolved, eligible: s.eligible,
+    perHead: Math.round(s.resolved / ec * 10) / 10, onTimeRate, perfScore: s.perfScore,
+    breakdown: s.breakdown ? { ...s.breakdown, ...slow } : null,
+  };
 }

@@ -8,11 +8,11 @@ const RATING_KEYS = ["xuat_sac", "tot", "tb", "kem"];
 // Ngưỡng tham khảo, thống nhất với thang màu điểm đang dùng trong Báo cáo; có thể điều chỉnh theo quy chế cơ quan.
 const GRADES = [
   { min: 90, label: "Hoàn thành xuất sắc", col: "#15803d", bg: "#dcfce7" },
-  { min: 75, label: "Hoàn thành tốt", col: "#1d4ed8", bg: "#dbeafe" },
+  { min: 70, label: "Hoàn thành tốt", col: "#1d4ed8", bg: "#dbeafe" },
   { min: 50, label: "Hoàn thành", col: "#92400e", bg: "#fef9c3" },
   { min: 0, label: "Không hoàn thành", col: "#b91c1c", bg: "#fee2e2" },
 ];
-const gradeMin = g => (g.min === 90 ? GRADE_MINS.excellent : g.min === 75 ? GRADE_MINS.good : g.min === 50 ? GRADE_MINS.pass : g.min);
+const gradeMin = g => (g.min === 90 ? GRADE_MINS.excellent : g.min === 70 ? GRADE_MINS.good : g.min === 50 ? GRADE_MINS.pass : g.min);
 const gradeOf = (score) => GRADES.find(g => score >= gradeMin(g));
 
 // ═════════ TAB "XẾP LOẠI" — sổ điểm đã chốt theo tháng + phiếu xếp loại quý/năm ═════════

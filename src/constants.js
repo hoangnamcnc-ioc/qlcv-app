@@ -26,7 +26,7 @@ export const EXEC_ROLES = ["Giám đốc","Phó Giám đốc"];
 // không đưa vào bảng Xếp loại (dữ liệu sổ điểm vẫn giữ nguyên, chỉ không tính). Muốn đổi mốc thì sửa ở đây.
 export const GRADING_START = { year: 2026, month: 7 };
 // Ngưỡng điểm xếp loại cuối kỳ (Hoàn thành xuất sắc / tốt / hoàn thành) — chỉnh được ở Quản lý nhân sự > Cấu hình KPI.
-export const GRADE_MINS = { excellent: 90, good: 75, pass: 50 };
+export const GRADE_MINS = { excellent: 90, good: 70, pass: 50 };
 export function setGradingGlobal(g) {
   if (!g) return;
   const m = /^(\d{4})-(\d{2})$/.exec(g.gradingStart || "");

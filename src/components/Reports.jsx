@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import KpiBreakdown from "./KpiBreakdown";
 import RaterStats from "./RaterStats";
 import { GRADING_START, GRADE_MINS } from "../constants";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
@@ -297,11 +298,7 @@ export default function Reports({
                 <button onClick={() => setWhyEmp(null)} style={{ background: "#f3f4f6", border: "none", cursor: "pointer", fontSize: 16, color: "#374151", width: 28, height: 28, borderRadius: "50%" }}>✕</button>
               </div>
               <div style={{ padding: "8px 18px 0" }}>
-                <Row icon="①" label="Điểm thời hạn" sub={`(${e.onTime} đúng hạn ×60 + ${e.completedLate} trễ ×30) ÷ ${e.resolved} việc đã đến hạn · tối đa 60`} val={b.timeliness} />
-                <Row icon="②" label="Điểm chất lượng" sub={`Đánh giá kết quả ${e.onTime} việc đúng hạn (chưa ĐG = Trung bình) · tối đa 40`} val={b.quality} />
-                <Row icon="③" label="Phạt trễ & quá hạn" sub={`(${e.completedLate} HT trễ + ${e.over} quá hạn) × 2đ`} val={b.penalty} neg />
-                <Row icon="④" label="Thưởng khối lượng" sub={`Vượt ${Math.max(e.resolved - 15, 0)} việc so với mốc 15 · tối đa +10`} val={b.workloadBonus} />
-                {b.prioBonus > 0 && <Row icon="⑤" label="Thưởng ưu tiên" sub="Việc ưu tiên Cao hoàn thành đúng hạn · +0.5đ/việc, tối đa +5" val={b.prioBonus} />}
+                <KpiBreakdown b={b} />
               </div>
               {e.collabTotal > 0 && <div style={{ margin: "0 18px 10px", fontSize: 11.5, color: "#7c3aed", background: "#f5f3ff", borderRadius: 8, padding: "8px 12px" }}>🤝 Đã gồm {e.collabDone}/{e.collabTotal} việc phối hợp hoàn thành, mỗi việc tính = 1/2 việc chủ trì trong điểm ① và ② ở trên.</div>}
               <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f8fafc", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -376,11 +373,7 @@ export default function Reports({
               {!e.yearly && e.breakdown ? (<>
                 <div style={{ padding: "10px 18px 0", fontSize: 11.5, color: "#6b7280", lineHeight: 1.5 }}>Điểm điều hành chấm theo <b>kết quả cả phòng {e.dept}</b> trong tháng (mọi số theo việc quy đổi), không phải vài việc giao riêng.</div>
                 <div style={{ padding: "6px 18px 0" }}>
-                  <MRow icon="①" label="Đúng hạn phòng" sub={`(${r2(e.onTimeW)} đúng hạn ×60 + ${r2(e.lateW)} trễ ×30) ÷ ${r2(e.resolvedW)} việc phòng đã đến hạn · tối đa 60`} val={e.breakdown.timeliness} />
-                  <MRow icon="②" label="Chất lượng phòng" sub={`Trung bình nghiệm thu ${r2(e.onTimeW)} việc đúng hạn của phòng (chưa ĐG = Trung bình) · tối đa 40`} val={e.breakdown.quality} />
-                  <MRow icon="③" label="Tồn đọng quá hạn" sub={`Tỷ lệ việc phòng còn quá hạn chưa xong: ${r2(e.overW)}/${r2(e.resolvedW)} · tối đa −10`} val={e.breakdown.penalty} neg />
-                  {(e.breakdown.reqCount > 0) && <MRow icon="④" label="Chậm duyệt hoàn thành" sub={`${e.breakdown.slowCount}/${e.breakdown.reqCount} lượt duyệt CHẬM quá 1 ngày làm việc (việc chậm ≥3 ngày tính 1.5 lượt) · tối đa −10`} val={e.breakdown.slowPenalty} neg />}
-                  <MRow icon="⑤" label="Thưởng khối lượng điều hành" sub={`Phòng ${e.empCount} người xử lý ${r2(e.resolvedW)} việc đã đến hạn → bình quân ${r2(e.perHead)}/người (thưởng khi >10, tối đa +10 khi ≥20/người)`} val={e.breakdown.mgmtBonus} />
+                  <KpiBreakdown b={e.breakdown} />
                 </div>
                 <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f0f9ff", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>Tổng điểm điều hành <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400 }}>(giới hạn 0–100)</span></span>
