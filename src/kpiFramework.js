@@ -9,19 +9,27 @@
 
 import { RATING } from "./constants.js";
 
+import { COMMON_CRITERIA } from "./kpiCommonItems.js";
 // ── Tiêu chí chung: 3 phần × tối đa 10 điểm; chấm 3 lượt (cá nhân → lãnh đạo phòng → lãnh đạo Trung tâm) ──
-export const COMMON_SECTIONS = [
-  { k: "a", label: "I. Phẩm chất chính trị, đạo đức, ý thức kỷ luật", max: 10 },
-  { k: "b", label: "II. Năng lực chuyên môn, tinh thần trách nhiệm, thái độ phục vụ, phối hợp", max: 10 },
-  { k: "c", label: "III. Năng lực đổi mới, sáng tạo, dám nghĩ dám làm", max: 10 },
-];
+export const COMMON_SECTIONS = COMMON_CRITERIA.map(s => ({ k: s.k, label: `${s.no}. ${s.label}`, max: s.max, items: s.items }));
 export const COMMON_ROUNDS = [["self", "Cá nhân tự chấm"], ["dept", "Lãnh đạo phòng chấm"], ["center", "Lãnh đạo Trung tâm chấm"]];
 const num = v => (v === "" || v == null ? null : Number.isFinite(Number(v)) ? Number(v) : null);
-// Tổng 1 lượt chấm {a,b,c}; null nếu chưa nhập gì. Mỗi phần được kẹp trong [0, max].
+// Điểm 1 phần (I/II/III) của 1 lượt chấm: ưu tiên cộng các tiêu chí con r.items[id] (kẹp theo điểm tối đa từng mục);
+// không có thì dùng tổng phần r[k] (dữ liệu cũ). null nếu chưa nhập.
+export const sectionScore = (r, s) => {
+  if (r && r.items) {
+    let any = false, sum = 0;
+    for (const it of s.items) { const v = num(r.items[it.id]); if (v != null) { any = true; sum += Math.max(0, Math.min(v, it.max)); } }
+    if (any) return Math.round(sum * 100) / 100;
+  }
+  const v = num(r?.[s.k]);
+  return v == null ? null : Math.max(0, Math.min(v, s.max));
+};
+// Tổng 1 lượt chấm {items?,a,b,c}; null nếu chưa nhập gì.
 export const roundTotal = r => {
   if (!r) return null;
   let any = false, sum = 0;
-  for (const s of COMMON_SECTIONS) { const v = num(r[s.k]); if (v != null) { any = true; sum += Math.max(0, Math.min(v, s.max)); } }
+  for (const s of COMMON_SECTIONS) { const v = sectionScore(r, s); if (v != null) { any = true; sum += v; } }
   return any ? Math.round(sum * 100) / 100 : null;
 };
 // Điểm tiêu chí chung CHÍNH THỨC = lượt cao nhất đã có (Trung tâm > Phòng > Cá nhân). row = {self,dept,center}.

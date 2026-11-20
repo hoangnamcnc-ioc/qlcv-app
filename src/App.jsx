@@ -1007,7 +1007,7 @@ export default function App() {
               overloadedEmps={overloadedEmps}
               deptEmps={deptEmps}
               openCreateEmp={openCreateEmp} openEditEmp={openEditEmp}
-              deleteEmployee={deleteEmployee} updateEmployee={updateEmployee} initialTab={personnelTab} kpiCommon={kpiCommon} saveKpiCommon={saveKpiCommon} kpiCatalog={kpiCatalog} saveCatalogItem={saveCatalogItem} currentUser={currentUser} kpiVersions={kpiVersions} saveKpiVersion={saveKpiVersion} kpiGlobal={kpiGlobal} saveKpiGlobal={saveKpiGlobal} onLeave={leaveEmployee} onRestore={restoreEmployee}
+              deleteEmployee={deleteEmployee} updateEmployee={updateEmployee} calcMonthPerf={calcMonthPerf} managerPerf={managerPerf} initialTab={personnelTab} kpiCommon={kpiCommon} saveKpiCommon={saveKpiCommon} kpiCatalog={kpiCatalog} saveCatalogItem={saveCatalogItem} currentUser={currentUser} kpiVersions={kpiVersions} saveKpiVersion={saveKpiVersion} kpiGlobal={kpiGlobal} saveKpiGlobal={saveKpiGlobal} onLeave={leaveEmployee} onRestore={restoreEmployee}
               deptRows={deptRows} addDept={addDept} updateDept={updateDept} deleteDept={deleteDept} deptAudit={deptAudit}
               deptOversight={deptOversight} setDeptOverseer={setDeptOverseer}
               transferDept={transferEmployeeDept}
