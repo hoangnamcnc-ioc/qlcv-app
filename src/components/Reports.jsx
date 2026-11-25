@@ -118,7 +118,7 @@ export default function Reports({
                         <div style={{ textAlign: "right" }}>
                           {!e.eligible
                             ? <span style={{ fontSize: 11, color: "#9ca3af" }}>{e.resolved > 0 && <><b style={{ color: "#6b7280" }}>~{e.perfScore}đ</b> <span style={{ fontStyle: "italic" }}>(tham khảo)</span><br/></>}Chưa đủ ĐK <span style={{ fontSize: 10 }}>({e.resolved} việc đến hạn)</span></span>
-                            : <span onClick={() => setWhyEmp(e)} style={{ cursor: "pointer", fontSize: 20, fontWeight: 800, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ <span style={{ fontSize: 12 }}>ℹ️</span></span>
+                            : <span onClick={() => setWhyEmp(e)} style={{ cursor: "pointer", fontSize: 20, fontWeight: 800, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ <span style={{ fontSize: 12 }}>ℹ️</span>{e.loadBonus > 0 && <span title={`Khối lượng ×${e.loadRatio} trung vị cùng phòng → +${e.loadBonus} điểm xếp hạng`} style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 600, color: "#7c3aed", background: "#f5f3ff", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap" }}>⚖️ +{e.loadBonus} KL</span>}</span>
                           }
                         </div>
                       </div>
@@ -156,7 +156,7 @@ export default function Reports({
                           {!e.eligible ? <span style={{ fontSize: 12, color: "#9ca3af" }}>{e.resolved > 0 && <b style={{ color: "#6b7280", marginRight: 6 }}>~{e.perfScore}đ (tham khảo)</b>}Chưa đủ ĐK <span style={{ fontSize: 10 }}>(cần ≥5, hiện {e.resolved})</span></span> : (
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <div style={{ width: 60, height: 6, background: "#e5e7eb", borderRadius: 6, overflow: "hidden" }}><div style={{ height: "100%", width: e.perfScore + "%", background: e.perfScore >= 80 ? "#16a34a" : e.perfScore >= 50 ? "#f59e0b" : "#dc2626", borderRadius: 6 }} /></div>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: e.perfScore >= 80 ? "#15803d" : e.perfScore >= 50 ? "#92400e" : "#b91c1c" }}>{e.perfScore}đ{e.loadBonus > 0 && <span title={`Khối lượng ×${e.loadRatio} trung vị cùng phòng → +${e.loadBonus} điểm xếp hạng`} style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 600, color: "#7c3aed", background: "#f5f3ff", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap" }}>⚖️ +{e.loadBonus} KL</span>}</span>
                               <button onClick={() => setWhyEmp(e)} title="Vì sao điểm này?" style={{ background: "none", border: "1px solid #e5e7eb", borderRadius: 6, padding: "1px 6px", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>ℹ️</button>
                             </div>
                           )}
@@ -299,6 +299,10 @@ export default function Reports({
               </div>
               <div style={{ padding: "8px 18px 0" }}>
                 <KpiBreakdown b={b} />
+                {e.loadRatio != null && (
+                  <div style={{ margin: "6px 0", fontSize: 11.5, color: "#6d28d9", background: "#f5f3ff", borderRadius: 8, padding: "8px 12px" }}>
+                    ⚖️ Khối lượng đã xử lý trong tháng = <b>×{e.loadRatio}</b> trung vị cùng phòng{e.loadBonus > 0 ? <> → <b>+{e.loadBonus} điểm xếp hạng</b> (điểm xếp hạng {e.rankScore}; điểm KPI chính thức vẫn là {e.perfScore})</> : " → không cộng điểm xếp hạng"}.
+                  </div>)}
               </div>
               {e.collabTotal > 0 && <div style={{ margin: "0 18px 10px", fontSize: 11.5, color: "#7c3aed", background: "#f5f3ff", borderRadius: 8, padding: "8px 12px" }}>🤝 Đã gồm {e.collabDone}/{e.collabTotal} việc phối hợp hoàn thành, mỗi việc tính = 1/2 việc chủ trì trong điểm ① và ② ở trên.</div>}
               <div style={{ margin: "10px 18px 18px", padding: "12px 14px", background: "#f8fafc", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

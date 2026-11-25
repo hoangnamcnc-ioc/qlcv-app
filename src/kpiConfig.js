@@ -9,6 +9,8 @@ export const KPI_DEFAULT = {
   grp_N1: 0.2, grp_N2: 2.4, grp_N3: 9.6, grp_N4: 19.2, grp_N5: 48,
   // Hỗ trợ người dùng: khó / trung bình / nhanh (cùng thang với danh mục)
   sup_hard: 2.4, sup_medium: 1.2, sup_easy: 0.2,
+  // Điểm CỘNG KHỐI LƯỢNG cho bảng XẾP HẠNG (không đổi điểm KPI chính thức): tối đa khi khối lượng ≥ 2 × trung vị cùng phòng
+  loadBonusMax: 5,
 };
 // Cài đặt TOÀN CỤC (không theo phiên bản): mốc bắt đầu xếp loại + ngưỡng xếp loại cuối kỳ.
 export const KPI_GLOBAL_DEFAULT = { gradingStart: "2026-07", excellent: 90, good: 70, pass: 50 };
@@ -45,11 +47,12 @@ export const KPI_SCHEMA = [
   { k: "grp_N3", g: "grp", label: "Nhóm N3 — nghiên cứu, báo cáo chuyên đề", hint: "Trung vị danh mục chung: 9,6", min: 0.05, max: 200, step: 0.05 },
   { k: "grp_N4", g: "grp", label: "Nhóm N4 — xây dựng văn bản quy phạm, kế hoạch mới", hint: "Trung vị danh mục chung: 19,2", min: 0.05, max: 200, step: 0.05 },
   { k: "grp_N5", g: "grp", label: "Nhóm N5 — chiến lược, đề án lớn", hint: "Trung vị danh mục chung: 48", min: 0.05, max: 200, step: 0.05 },
+  { k: "loadBonusMax", g: "load", label: "Điểm cộng khối lượng — tối đa (chỉ cho xếp hạng)", hint: "Cộng tuyến tính khi khối lượng quy đổi vượt trung vị cùng phòng; đạt tối đa khi gấp đôi. 0 = tắt", min: 0, max: 15, step: 0.5 },
   { k: "sup_hard", g: "sup", label: "Hỗ trợ — trường hợp KHÓ", hint: "Mỗi lượt hỗ trợ người dùng được ghi nhận = số này (luôn đúng hạn)", min: 0.05, max: 50, step: 0.05 },
   { k: "sup_medium", g: "sup", label: "Hỗ trợ — trường hợp TRUNG BÌNH", hint: "", min: 0.05, max: 50, step: 0.05 },
   { k: "sup_easy", g: "sup", label: "Hỗ trợ — trường hợp NHANH", hint: "", min: 0.05, max: 50, step: 0.05 },
 ];
-export const KPI_GROUPS = { chung: "Công thức KPI (khung đơn vị)", freq: "Hệ số mặc định việc định kỳ chưa gắn sản phẩm chuẩn (chỉ áp dụng cho việc sinh ra SAU khi đổi)", grp: "Hệ số mặc định theo nhóm N1–N5 (việc ngoài danh mục, chờ đưa vào danh mục)", sup: "Hỗ trợ người dùng" };
+export const KPI_GROUPS = { chung: "Công thức KPI (khung đơn vị)", freq: "Hệ số mặc định việc định kỳ chưa gắn sản phẩm chuẩn (chỉ áp dụng cho việc sinh ra SAU khi đổi)", grp: "Hệ số mặc định theo nhóm N1–N5 (việc ngoài danh mục, chờ đưa vào danh mục)", sup: "Hỗ trợ người dùng", load: "Điều chỉnh khối lượng cho bảng xếp hạng" };
 
 // Hệ số mặc định của nhóm N1–N5 (việc ngoài danh mục) và của 1 lượt hỗ trợ người dùng.
 export const groupCoefCfg = (cfg, grp) => { const v = cfg?.["grp_" + grp]; return Number.isFinite(v) ? v : cfg?.grp_N2 ?? 2.4; };

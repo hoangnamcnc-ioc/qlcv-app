@@ -208,6 +208,38 @@ export default function useReports({ computed, computedGlobal, employees, curren
   // cá nhân lẫn điểm điều hành. Pseudo-task (hỗ trợ/dự án/phối hợp) không có cờ này nên không ảnh hưởng.
   const applyExcuse = arr => arr.map(t => t.late_excused ? (t.status === "completed_late" ? { ...t, status: "completed" } : { ...t, status: "__excused" }) : t).filter(t => t.status !== "__excused");
 
+  // ── Khối lượng việc & điều chỉnh khi XẾP HẠNG: so khối lượng quy đổi của 1 người với TRUNG VỊ những người cùng phòng
+  // (cùng thang hệ số) → người gánh nhiều hơn được cộng điểm (chỉ vào điểm xếp hạng, KHÔNG đổi điểm KPI chính thức) ──
+  const loadCache = useMemo(() => new Map(), [perfIndex, employees, kpiKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const loadOf = (eid, y, m0, all) => {
+    const arr = applyExcuse(perfIndex.byEid.get(`${eid}|${y}|${m0}`) || []);
+    return Math.round(arr.filter(t => all || ["completed", "completed_late", "overdue"].includes(t.status)).reduce((s, t) => s + w(t), 0) * 100) / 100;
+  };
+  const peerMedian = (dept, y, m0, all) => {
+    const key = `${dept}|${y}|${m0}|${all ? 1 : 0}`;
+    if (loadCache.has(key)) return loadCache.get(key);
+    const loads = (employees || []).filter(e => e.dept === dept && !MANAGER_EMP_ROLES.includes(e.role) && isRankable(e) && wasActiveIn(e, y, m0 + 1))
+      .map(e => loadOf(e.id, y, m0, all)).filter(x => x > 0).sort((a, b) => a - b);
+    const med = loads.length >= 3 ? (loads.length % 2 ? loads[(loads.length - 1) / 2] : (loads[loads.length / 2 - 1] + loads[loads.length / 2]) / 2) : null;
+    loadCache.set(key, med);
+    return med;
+  };
+  const loadInfo = (eid, y, m0, all = false) => {
+    const emp = (employees || []).find(e => e.id === eid);
+    const load = loadOf(eid, y, m0, all);
+    const med = emp ? peerMedian(emp.dept, y, m0, all) : null;
+    return { load, median: med, ratio: med && load ? Math.round(load / med * 100) / 100 : null };
+  };
+  // Khối lượng THÁNG HIỆN TẠI (mọi việc có hạn trong tháng, cả chưa xong) — hiển thị khi giao việc
+  const monthLoadInfo = eid => loadInfo(eid, today.getFullYear(), today.getMonth(), true);
+  // Điểm cộng khối lượng cho xếp hạng của 1 người trong tháng
+  const loadBonusOf = (eid, y, m0) => {
+    const { ratio } = loadInfo(eid, y, m0, false);
+    const cfg = kpiCfgFor(kpiVersions, y, m0 + 1);
+    if (!ratio || !cfg.loadBonusMax) return { ratio: ratio || null, bonus: 0 };
+    return { ratio, bonus: Math.round(cfg.loadBonusMax * Math.max(0, Math.min(ratio - 1, 1)) * 10) / 10 };
+  };
+
   // Điểm tiêu chí chung theo (người, tháng) — bảng kpi_common (3 lượt chấm); chưa có → null (điểm tạm tính).
   const commonMap = useMemo(() => {
     const m = new Map();
@@ -240,7 +272,8 @@ export default function useReports({ computed, computedGlobal, employees, curren
     const collabTasks = perfIndex.byCollab.get(`${empId}|${ym}`) || [];
     const collabDone = sumW(collabTasks.filter(t => isCompletedStatus(t.status)));
     const collabTotal = sumW(collabTasks);
-    return { total: etWeight, done: s.done, onTime: s.onTime, completedLate: s.completedLate, over: s.over, resolved: s.resolved, completionRate, collabTotal, collabDone, perfScore: s.perfScore, eligible: s.eligible, breakdown: s.breakdown };
+    const lb = s.eligible ? loadBonusOf(empId, year, month) : { ratio: null, bonus: 0 };
+    return { loadRatio: lb.ratio, loadBonus: lb.bonus, rankScore: Math.round((s.perfScore + lb.bonus) * 10) / 10, total: etWeight, done: s.done, onTime: s.onTime, completedLate: s.completedLate, over: s.over, resolved: s.resolved, completionRate, collabTotal, collabDone, perfScore: s.perfScore, eligible: s.eligible, breakdown: s.breakdown };
   };
 
   const repEmpData = useMemo(() => (employees || []).filter(e => !MANAGER_EMP_ROLES.includes(e.role) && isRankable(e) && wasActiveIn(e, repYear, repMonth + 1)).map(emp => {
@@ -248,7 +281,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     return { ...emp, ...m, perfScore: m.perfScore };
   }).filter(e => e.total > 0).sort((a, b) => {
     if (a.eligible !== b.eligible) return a.eligible ? -1 : 1; // người đủ điều kiện hiện trước
-    if (b.perfScore !== a.perfScore) return b.perfScore - a.perfScore;
+    if ((b.rankScore ?? b.perfScore) !== (a.rankScore ?? a.perfScore)) return (b.rankScore ?? b.perfScore) - (a.rankScore ?? a.perfScore);
     return b.done - a.done; // cùng điểm -> ai hoàn thành nhiều việc hơn xếp trên
   }), [employees, repYear, repMonth, cg, projPseudoTasks, supportPseudoTasks, collabPseudoTasks, kpiKey]);
 
@@ -358,7 +391,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
       const done = monthly.reduce((s, m) => s + m.done, 0);
       const over = monthly.reduce((s, m) => s + (m.over || 0), 0);
       const completedLate = monthly.reduce((s, m) => s + (m.completedLate || 0), 0);
-      const rawScore = eligibleMonths.length ? eligibleMonths.reduce((s, m) => s + m.perfScore, 0) / eligibleMonths.length : null;
+      const rawScore = eligibleMonths.length ? eligibleMonths.reduce((s, m) => s + (m.rankScore ?? m.perfScore), 0) / eligibleMonths.length : null;
       const collabTotal = monthly.reduce((s, m) => s + (m.collabTotal || 0), 0);
       const collabDone = monthly.reduce((s, m) => s + (m.collabDone || 0), 0);
       return { ...emp, total, resolved, done, completedLate, over, collabTotal, collabDone, eligibleMonths: eligibleMonths.length, rawScore, rate: total ? Math.round(done / total * 100) : 0, monthly };
@@ -373,7 +406,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
     // Càng ít tháng dữ liệu, điểm càng bị kéo gần baseline hơn — công bằng dần khi có thêm dữ liệu thật.
     const PRIOR_MONTHS = 2;
     let sumAll = 0, cntAll = 0;
-    raw.forEach(e => e.monthly.filter(m => m.eligible).forEach(m => { sumAll += m.perfScore; cntAll++; }));
+    raw.forEach(e => e.monthly.filter(m => m.eligible).forEach(m => { sumAll += (m.rankScore ?? m.perfScore); cntAll++; }));
     const baseline = cntAll ? sumAll / cntAll : 0;
 
     return raw.map(e => {
@@ -610,6 +643,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
   }, [execDeptSummary, watchList, staffingAdvice, dataHealth]);
 
   return {
+    monthLoadInfo,
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList, dataHealth,
