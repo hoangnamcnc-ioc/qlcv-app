@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { DEPTS, DEPT_COLOR, deptLabel, RATING } from "../constants";
 import { RatingBadge, Chip, PChip } from "./ui";
 import { pendingApprovalDays, fmtDate } from "../helpers";
+import { ViDate, ViMonth } from "./ViDate";
 
 // Cảnh báo khi 1 yêu cầu duyệt hoàn thành bị "ngâm" quá lâu — để BGĐ/Trưởng phòng biết ai đang duyệt chậm,
 // không đổ lỗi trễ hạn lên nhân viên đã yêu cầu duyệt đúng hạn.
@@ -55,12 +56,12 @@ export default function TaskList({
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 12px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>📅 Lọc theo tháng:</span>
         {/* Chọn nhanh 1 tháng → tự điền Từ ngày = ngày đầu tháng, Đến ngày = ngày cuối tháng (dùng lại bộ lọc khoảng ngày sẵn có) */}
-        <input type="month" value={dateFrom && dateTo ? dateFrom.slice(0, 7) : ""} onChange={e => { const v = e.target.value; if (!v) { setDateFrom(""); setDateTo(""); return; } const [y, m] = v.split("-").map(Number); const last = new Date(y, m, 0).getDate(); setDateFrom(`${v}-01`); setDateTo(`${v}-${String(last).padStart(2, "0")}`); }} style={{ ...inp, width: "auto", borderColor: "#6366f1", color: "#4f46e5" }} title="Xem nhiệm vụ có hạn chót trong tháng này" />
+        <ViMonth value={dateFrom && dateTo ? dateFrom.slice(0, 7) : ""} onChange={e => { const v = e.target.value; if (!v) { setDateFrom(""); setDateTo(""); return; } const [y, m] = v.split("-").map(Number); const last = new Date(y, m, 0).getDate(); setDateFrom(`${v}-01`); setDateTo(`${v}-${String(last).padStart(2, "0")}`); }} style={{ ...inp, width: "auto", borderColor: "#6366f1", color: "#4f46e5" }} title="Xem nhiệm vụ có hạn chót trong tháng này" />
         <span style={{ fontSize: 12, color: "#d1d5db" }}>|</span>
         <span style={{ fontSize: 12, color: "#6b7280" }}>Từ ngày</span>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...inp, width: "auto" }} />
+        <ViDate value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...inp, width: "auto" }} />
         <span style={{ fontSize: 12, color: "#6b7280" }}>Đến ngày</span>
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...inp, width: "auto" }} />
+        <ViDate value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...inp, width: "auto" }} />
         {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>✕ Bỏ lọc</button>}
       </div>
 

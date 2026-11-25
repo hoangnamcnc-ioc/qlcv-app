@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { ViDate } from "./ViDate";
 
 // Nhật ký hoạt động TOÀN DIỆN: gộp sự kiện từ Nhiệm vụ + Hỗ trợ ND + Ngân sách + Nhiệm vụ khác,
 // có tìm kiếm, lọc theo người/loại/khoảng ngày, phân trang và xuất CSV.
@@ -50,8 +51,8 @@ export default function ActivityLog({ log, isMobile }) {
         <input value={search} onChange={e => { setSearch(e.target.value); reset(); }} placeholder="🔍 Tìm người / hành động / đối tượng…" style={{ ...selStyle, flex: isMobile ? "1 1 100%" : "1 1 220px", minWidth: 160 }} />
         <select value={person} onChange={e => { setPerson(e.target.value); reset(); }} style={selStyle}><option value="all">Mọi người</option>{persons.map(p => <option key={p} value={p}>{p}</option>)}</select>
         <select value={mod} onChange={e => { setMod(e.target.value); reset(); }} style={selStyle}><option value="all">Mọi loại</option>{Object.entries(MODULES).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}</select>
-        <input type="date" value={from} onChange={e => { setFrom(e.target.value); reset(); }} title="Từ ngày" style={selStyle} />
-        <input type="date" value={to} onChange={e => { setTo(e.target.value); reset(); }} title="Đến ngày" style={selStyle} />
+        <ViDate value={from} onChange={e => { setFrom(e.target.value); reset(); }} title="Từ ngày" style={selStyle} />
+        <ViDate value={to} onChange={e => { setTo(e.target.value); reset(); }} title="Đến ngày" style={selStyle} />
         {(search || person !== "all" || mod !== "all" || from || to) && <button onClick={() => { setSearch(""); setPerson("all"); setMod("all"); setFrom(""); setTo(""); reset(); }} style={{ ...selStyle, cursor: "pointer", color: "#6b7280" }}>✕ Bỏ lọc</button>}
         <button onClick={exportCSV} style={{ ...selStyle, cursor: "pointer", color: "#15803d", borderColor: "#86efac", background: "#f0fdf4", fontWeight: 600 }}>⬇ CSV</button>
       </div>

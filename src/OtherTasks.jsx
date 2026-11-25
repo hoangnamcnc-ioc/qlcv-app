@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 import { fmtDate, getPreviewUrl, getFileIcon, nowStr } from "./helpers";
 import { isAssignable } from "./constants";
+import { ViDate } from "./components/ViDate";
 
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
 const today=new Date();today.setHours(0,0,0,0);
@@ -161,7 +162,7 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
         <div style={{padding:"14px 18px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:600,fontSize:14}}>Sửa bước {editStep+1}</span><button onClick={()=>setEditStep(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#9ca3af"}}>✕</button></div>
         <div style={{padding:18,display:"flex",flexDirection:"column",gap:10}}>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Nội dung công việc</label><textarea value={stepDraft.content||""} onChange={e=>setStepDraft(d=>({...d,content:e.target.value}))} rows={2} style={{...inp,resize:"vertical"}}/></div>
-          <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Hạn hoàn thành</label><input type="date" value={stepDraft.deadline||""} onChange={e=>setStepDraft(d=>({...d,deadline:e.target.value}))} style={inp}/></div>
+          <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Hạn hoàn thành</label><ViDate value={stepDraft.deadline||""} onChange={e=>setStepDraft(d=>({...d,deadline:e.target.value}))} style={inp}/></div>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>👤 Người chủ trì</label><select value={stepDraft.lead_eid||""} onChange={e=>setStepDraft(d=>({...d,lead_eid:e.target.value}))} style={inp}><option value="">— Không gán —</option>{teamEmps.map(e=><option key={e.id} value={e.id}>{e.name} ({e.dept})</option>)}</select></div>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>🤝 Người phối hợp (chọn nhiều)</label><div style={{display:"flex",flexWrap:"wrap",gap:6,maxHeight:140,overflowY:"auto",padding:"4px 0"}}>{teamEmps.map(e=>{const sel=(stepDraft.collab_eids||[]).includes(e.id);const isLead=stepDraft.lead_eid===e.id;return(<button key={e.id} disabled={isLead} onClick={()=>{const c=stepDraft.collab_eids||[];const nc=sel?c.filter(x=>x!==e.id):[...c,e.id];setStepDraft(d=>({...d,collab_eids:nc}));}} style={{padding:"4px 10px",border:"1.5px solid "+(sel?"#16a34a":"#e5e7eb"),borderRadius:20,background:sel?"#dcfce7":"#fff",color:sel?"#15803d":"#6b7280",cursor:isLead?"default":"pointer",fontSize:11,fontWeight:sel?600:400,opacity:isLead?0.4:1}}>{sel&&"✓ "}{e.name}{isLead&&" (chủ trì)"}</button>);})}</div></div>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Ghi chú</label><input value={stepDraft.note||""} onChange={e=>setStepDraft(d=>({...d,note:e.target.value}))} style={inp}/></div>
@@ -345,9 +346,9 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
     <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 12px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
       <span style={{fontSize:12,color:"#6b7280",fontWeight:500}}>📅 Ngày tạo:</span>
       <span style={{fontSize:12,color:"#6b7280"}}>Từ ngày</span>
-      <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
+      <ViDate value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
       <span style={{fontSize:12,color:"#6b7280"}}>Đến ngày</span>
-      <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
+      <ViDate value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
       {(dateFrom||dateTo)&&<button onClick={()=>{setDateFrom("");setDateTo("");}} style={{padding:"5px 10px",border:"1px solid #d1d5db",borderRadius:7,background:"#f9fafb",cursor:"pointer",fontSize:12,color:"#6b7280"}}>✕ Bỏ lọc ngày</button>}
     </div>
 

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { KPI_DEFAULT, KPI_SCHEMA, KPI_GROUPS, KPI_GLOBAL_DEFAULT, kpiCfgFor, normalizeKpiCfg, validateKpiCfg, normalizeKpiGlobal, validateKpiGlobal } from "../kpiConfig";
 import { staffScore, managerScore } from "../scoring";
+import { ViMonth } from "./ViDate";
 
 const SAMPLE_COMMON = { total: 26, from: "center" }; // ví dụ trong tài liệu
 const mkItems = (n, status, rating = "tot") => Array.from({ length: n }, () => ({ status, rating, weight: 1 }));
@@ -41,7 +42,7 @@ export default function KpiConfig({ versions, canEdit, onSave, kpiGlobal, onSave
           Chỉnh các <b>hệ số</b> của công thức điểm hiệu suất. Mỗi lần lưu có <b>"áp dụng từ tháng"</b>: các tháng trước đó giữ nguyên hệ số cũ nên điểm đã chốt không bị đổi.
         </div>
         <label style={{ fontSize: 12.5, color: "#374151" }}>Áp dụng từ tháng:{" "}
-          <input type="month" value={from} disabled={!canEdit} onChange={e => { if (e.target.value) { setFrom(e.target.value); setDraft(null); } }} style={{ ...inp, width: 160, display: "inline-block" }} />
+          <ViMonth value={from} disabled={!canEdit} onChange={e => { if (e.target.value) { setFrom(e.target.value); setDraft(null); } }} style={{ ...inp, width: 160, display: "inline-block" }} />
         </label>
         {Object.entries(KPI_GROUPS).map(([g, title]) => (
           <div key={g} style={{ marginTop: 14 }}>
@@ -76,7 +77,7 @@ export default function KpiConfig({ versions, canEdit, onSave, kpiGlobal, onSave
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>🏅 Mốc & ngưỡng xếp loại (áp dụng chung cho mọi tháng)</div>
         <div style={{ fontSize: 11.5, color: "#9ca3af", marginBottom: 8 }}>Đổi mốc bắt đầu sẽ thêm/bớt các tháng được đưa vào Xếp loại; đổi ngưỡng sẽ đổi xếp loại cuối kỳ (tính lại theo điểm đã chốt).</div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12.5, alignItems: "center" }}>
-          <label>Bắt đầu tính xếp loại từ: <input type="month" disabled={!canEdit} value={gcur.gradingStart} onChange={e => e.target.value && setGd({ ...gcur, gradingStart: e.target.value })} style={{ ...inp, width: 150, display: "inline-block" }} /></label>
+          <label>Bắt đầu tính xếp loại từ: <ViMonth disabled={!canEdit} value={gcur.gradingStart} onChange={e => e.target.value && setGd({ ...gcur, gradingStart: e.target.value })} style={{ ...inp, width: 150, display: "inline-block" }} /></label>
           {[["excellent", "Xuất sắc ≥"], ["good", "Tốt ≥"], ["pass", "Hoàn thành ≥"]].map(([k, l]) => (
             <label key={k}>{l} <input type="number" min={0} max={100} disabled={!canEdit} value={gcur[k]} onChange={e => setGd({ ...gcur, [k]: e.target.value })} style={nBox} /></label>
           ))}

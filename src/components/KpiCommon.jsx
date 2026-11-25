@@ -2,6 +2,7 @@ import { useState, useMemo, Fragment } from "react";
 import { COMMON_SECTIONS, COMMON_ROUNDS, roundTotal, sectionScore, commonFinal } from "../kpiFramework";
 import { parseJSON } from "../helpers";
 import { wasActiveIn, deptLabel } from "../constants";
+import { ViMonth } from "./ViDate";
 
 const curMonth = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 const FULL = ["admin", "director"], LEADS = ["manager", "deputy_manager", "manager_hcth"];
@@ -41,7 +42,7 @@ export default function KpiCommon({ employees, currentUser, kpiCommon, saveKpiCo
         Chấm từng tiêu chí như trong <b>Phiếu xếp loại chất lượng viên chức</b>. Điểm chính thức lấy theo lượt cao nhất đã có (Trung tâm &gt; Phòng &gt; Cá nhân). Chưa có điểm này thì KPI chỉ là điểm tạm tính từ phần nhiệm vụ.
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-        <label style={{ fontSize: 12.5 }}>Tháng: <input type="month" value={ym} onChange={e => { if (e.target.value) { setYm(e.target.value); setDraft({}); } }} style={{ padding: "5px 8px", border: "1px solid #d1d5db", borderRadius: 6 }} /></label>
+        <label style={{ fontSize: 12.5 }}>Tháng: <ViMonth value={ym} onChange={e => { if (e.target.value) { setYm(e.target.value); setDraft({}); } }} style={{ padding: "5px 8px", border: "1px solid #d1d5db", borderRadius: 6 }} /></label>
         <label style={{ fontSize: 12.5 }}>Nhân viên: <select value={empId} onChange={e => { setSel(e.target.value); setDraft({}); }} style={{ padding: "5px 8px", border: "1px solid #d1d5db", borderRadius: 6 }}>
           {rows.map(e => <option key={e.id} value={e.id}>{e.name} — {deptLabel(e.dept)}</option>)}
         </select></label>

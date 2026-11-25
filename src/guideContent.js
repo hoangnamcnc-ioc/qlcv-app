@@ -302,7 +302,7 @@ export const GUIDE_SECTIONS = [
     ]
   },
   {
-    icon: "🗓️", title: "10. Lịch (Deadline/Trực)",
+    icon: "🗓️", title: "10. Lịch (Hạn chót/Trực)",
     body: [
       { ul: [
         "📅 Nhiệm vụ: xem hạn chót theo ngày dạng lịch tháng, bấm 1 ngày để xem chi tiết các việc đến hạn ngày đó.",

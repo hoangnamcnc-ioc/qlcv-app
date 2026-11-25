@@ -5,6 +5,7 @@ import PhieuXepLoai from "./PhieuXepLoai";
 import KpiCatalog from "./KpiCatalog";
 import { DEPTS, DEPT_COLOR, deptLabel } from "../constants";
 import Employees from "./Employees";
+import { ViDate } from "./ViDate";
 
 // ── QL Nhân sự: gộp 3 mảng vào 1 mục có tab con ─────────────────────────────────
 //  • Khối lượng việc  → giữ nguyên bảng thống kê cũ (component Employees).
@@ -245,7 +246,7 @@ function ProfileTab({ employees, computed, canEditHr, canManageHR, meId, canMana
               {F({ k: "ethnicity", label: "Dân tộc", ph: "Kinh" })}
               {F({ k: "cccd", label: "Số CCCD", ph: "0123…" })}
               {F({ k: "phone", label: "Điện thoại", ph: "09…" })}
-              {F({ k: "email", label: "Email", ph: "@" })}
+              {F({ k: "email", label: "Thư điện tử", ph: "@" })}
               <div style={{ gridColumn: isMobile ? "1 / -1" : "1 / 3" }}><label style={lbl}>Địa chỉ</label><input value={draft.address || ""} onChange={e => set("address", e.target.value)} disabled={!canEditHr} style={inp} /></div>
               {F({ k: "join_date", label: "Ngày vào cơ quan", type: "date" })}
               {F({ k: "rank", label: "Ngạch / bậc", ph: "Chuyên viên" })}
@@ -268,7 +269,7 @@ function ProfileTab({ employees, computed, canEditHr, canManageHR, meId, canMana
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {(draft.rewards || []).map((r, i) => (
                 <div key={i} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "130px 130px 1fr 1fr auto", gap: 8, alignItems: "center", background: r.type === "discipline" ? "#fff1f2" : "#f0fdf4", padding: 8, borderRadius: 8 }}>
-                  <input type="date" value={r.date || ""} onChange={e => setReward(i, "date", e.target.value)} disabled={!canEditHr} style={inp} />
+                  <ViDate value={r.date || ""} onChange={e => setReward(i, "date", e.target.value)} disabled={!canEditHr} style={inp} />
                   <select value={r.type} onChange={e => setReward(i, "type", e.target.value)} disabled={!canEditHr} style={inp}><option value="reward">🏅 Khen thưởng</option><option value="discipline">⚠️ Kỷ luật</option></select>
                   <input value={r.title || ""} onChange={e => setReward(i, "title", e.target.value)} placeholder="Nội dung/danh hiệu" disabled={!canEditHr} style={inp} />
                   <input value={r.note || ""} onChange={e => setReward(i, "note", e.target.value)} placeholder="Ghi chú/quyết định" disabled={!canEditHr} style={inp} />
@@ -288,8 +289,8 @@ function ProfileTab({ employees, computed, canEditHr, canManageHR, meId, canMana
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {(draft.leaves || []).map((l, i) => (
                 <div key={i} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "130px 130px 70px 120px 1fr auto", gap: 8, alignItems: "center", background: "#f8fafc", padding: 8, borderRadius: 8 }}>
-                  <input type="date" value={l.from || ""} onChange={e => setLeave(i, "from", e.target.value)} disabled={!canEditHr} style={inp} />
-                  <input type="date" value={l.to || ""} onChange={e => setLeave(i, "to", e.target.value)} disabled={!canEditHr} style={inp} />
+                  <ViDate value={l.from || ""} onChange={e => setLeave(i, "from", e.target.value)} disabled={!canEditHr} style={inp} />
+                  <ViDate value={l.to || ""} onChange={e => setLeave(i, "to", e.target.value)} disabled={!canEditHr} style={inp} />
                   <input type="number" min="0" value={l.days || ""} onChange={e => setLeave(i, "days", e.target.value)} placeholder="ngày" disabled={!canEditHr} style={inp} />
                   <select value={l.type} onChange={e => setLeave(i, "type", e.target.value)} disabled={!canEditHr} style={inp}><option value="annual">Phép năm</option><option value="sick">Ốm</option><option value="unpaid">Không lương</option><option value="other">Khác</option></select>
                   <input value={l.reason || ""} onChange={e => setLeave(i, "reason", e.target.value)} placeholder="Lý do" disabled={!canEditHr} style={inp} />

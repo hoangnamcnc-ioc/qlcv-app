@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 import { DEPTS, DEPT_COLOR, SUPPORT_CHANNELS, SUPPORT_CHANNELS_BY_CATEGORY, SUPPORT_CONTENT_LABEL, SUPPORT_DIFFICULTY, SUPPORT_CATEGORIES } from "./constants";
 import { todayStr, getFileIcon, parseJSON, getPreviewUrl, fmtDate } from "./helpers";
+import { ViDate } from "./components/ViDate";
 
 // ───── Hỗ trợ người dùng/PAHT và vận hành DC — nền tảng số dùng chung (điện thoại/Zalo) ─────
 // Mỗi trường hợp ghi nhận xong là tính "hoàn thành" ngay (không có bước duyệt) — quy đổi thành điểm hiệu suất
@@ -133,9 +134,9 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
 
     <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 12px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
       <span style={{ fontSize: 12, color: "#6b7280" }}>📅 Từ ngày</span>
-      <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...inp, width: "auto" }} />
+      <ViDate value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...inp, width: "auto" }} />
       <span style={{ fontSize: 12, color: "#6b7280" }}>Đến ngày</span>
-      <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...inp, width: "auto" }} />
+      <ViDate value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...inp, width: "auto" }} />
       <select value={fChannel} onChange={e => setFChannel(e.target.value)} style={{ ...inp, width: "auto" }}>
         <option value="all">Tất cả kênh</option>
         {catChannels.map(k => <option key={k} value={k}>{SUPPORT_CHANNELS[k]?.icon} {SUPPORT_CHANNELS[k]?.label}</option>)}
@@ -250,7 +251,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
               ))}
             </div>
           </div>
-          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Ngày xử lý</label><input type="date" value={form.created} onChange={e => setForm(f => ({ ...f, created: e.target.value }))} style={inp} /></div>
+          <div><label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Ngày xử lý</label><ViDate value={form.created} onChange={e => setForm(f => ({ ...f, created: e.target.value }))} style={inp} /></div>
           <div>
             <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 6 }}>📎 File kết quả xử lý (ảnh chụp, log, tài liệu...)</label>
             <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", border: "1.5px dashed #d1d5db", borderRadius: 8, cursor: "pointer", background: "#f9fafb", fontSize: 13, color: "#6b7280" }}>

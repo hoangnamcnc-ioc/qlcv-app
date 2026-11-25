@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { getPreviewUrl, parseJSON, todayStr, fmtDate, getStatus } from "./helpers";
 import { extractFileText } from "./fileText";
 import { STATUS } from "./constants";
+import { ViDate } from "./components/ViDate";
 
 const nowStr=()=>new Date().toLocaleString("vi-VN");
 // todayStr import từ helpers (đã tính theo giờ địa phương) — không tự tính bằng toISOString() vì bị lệch 1 ngày trước 7h sáng
@@ -283,7 +284,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
         <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:6}}>Loại văn bản</label><div style={{display:"flex",gap:8}}>{Object.entries(TYPES).map(([k,v])=><button key={k} onClick={()=>setForm(f=>({...f,type:k}))} style={{flex:1,padding:"8px",border:"2px solid "+(form.type===k?v.col:"#e5e7eb"),borderRadius:8,background:form.type===k?v.bg:"#fff",cursor:"pointer",fontSize:12,fontWeight:form.type===k?600:400,color:form.type===k?v.col:"#6b7280"}}>{v.icon} {v.label}</button>)}</div></div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Số văn bản *</label><input value={form.doc_number} onChange={e=>setForm(f=>({...f,doc_number:e.target.value}))} placeholder="VD: 2522/SKHCN-KHTC" style={inp}/></div>
-          <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Ngày văn bản</label><input type="date" value={form.doc_date} onChange={e=>setForm(f=>({...f,doc_date:e.target.value}))} style={inp}/></div>
+          <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Ngày văn bản</label><ViDate value={form.doc_date} onChange={e=>setForm(f=>({...f,doc_date:e.target.value}))} style={inp}/></div>
         </div>
         <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Trích yếu *</label><textarea value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} rows={2} style={{...inp,resize:"vertical"}}/></div>
         <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>{form.type==="den"?"Nơi gửi":"Nơi nhận"}</label><input value={form.sender} onChange={e=>setForm(f=>({...f,sender:e.target.value}))} style={inp}/></div>

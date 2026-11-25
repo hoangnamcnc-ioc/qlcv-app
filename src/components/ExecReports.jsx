@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { DEPTS, DEPT_COLOR, deptLabel, STATUS, VI_MONTHS, RATING, GRADING_START, GRADE_MINS, inGradingScope } from "../constants";
 import { isCompletedStatus, parseNowStr, fmtDate } from "../helpers";
+import { ViDate } from "./ViDate";
 const RATING_KEYS = ["xuat_sac", "tot", "tb", "kem"];
 
 // ── Ngưỡng xếp loại quý/năm (điểm trung bình các tháng đủ điều kiện) ──
@@ -482,9 +483,9 @@ export function TaskResultReportTab({ inp, computed, getEmp, currentUser }) {
       {preset !== "custom" ? (
         <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ ...inp, width: 90, padding: "6px 10px" }}>{[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
       ) : (<>
-        <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 10px" }} />
+        <ViDate value={customFrom} onChange={e => setCustomFrom(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 10px" }} />
         <span style={{ color: "#9ca3af" }}>→</span>
-        <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 10px" }} />
+        <ViDate value={customTo} onChange={e => setCustomTo(e.target.value)} style={{ ...inp, width: "auto", padding: "6px 10px" }} />
       </>)}
       <input value={docNumber} onChange={e => setDocNumber(e.target.value)} placeholder="Số báo cáo (VD: 12)" style={{ ...inp, width: 150, padding: "6px 10px" }} />
       <div style={{ display: "flex", gap: 4 }}>

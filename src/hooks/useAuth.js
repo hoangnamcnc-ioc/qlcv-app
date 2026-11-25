@@ -37,12 +37,12 @@ export default function useAuth({ showToast, onLogout }) {
     setEmailPrompt(x => ({ ...x, saving: true, error: "" }));
     const { error } = await supabase.rpc("set_my_email", { p_user: currentUser.username, p_pass: p.password, p_email: email });
     if (error) {
-      const m = /mật khẩu/i.test(error.message || "") ? "Mật khẩu không đúng" : /không hợp lệ/i.test(error.message || "") ? "Email không hợp lệ" : "Chưa lưu được (máy chủ chưa bật tính năng email — cần quản trị chạy SQL 47)";
+      const m = /mật khẩu/i.test(error.message || "") ? "Mật khẩu không đúng" : /không hợp lệ/i.test(error.message || "") ? "Thư điện tử không hợp lệ" : "Chưa lưu được (máy chủ chưa bật tính năng email — cần quản trị chạy SQL 47)";
       setEmailPrompt(x => ({ ...x, saving: false, error: m })); return;
     }
     try { sessionStorage.removeItem(EMAIL_KEY); } catch { }
     setEmailPrompt(null);
-    showToast("Đã lưu email — bạn sẽ nhận nhắc việc mỗi sáng ✉️");
+    showToast("Đã lưu thư điện tử — bạn sẽ nhận nhắc việc mỗi sáng ✉️");
   };
 
   const logLogin = async (username, success, fullName) => { try { await supabase.from("login_history").insert({ id: `lg${Date.now()}${Math.random().toString(36).slice(2, 6)}`, username, full_name: fullName || "", success, at: nowStr() }); } catch { } };

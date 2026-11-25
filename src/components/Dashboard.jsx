@@ -5,6 +5,7 @@ import { isCompletedStatus, fmtDate } from "../helpers";
 import { RoleBadge, OverloadPopup } from "./ui";
 import OverdueActions from "./OverdueActions";
 import { myAttentionList, escalatedList } from "../taskNudge";
+import { ViDate } from "./ViDate";
 
 export default function Dashboard({
   currentUser, isMobile, userDept,
@@ -78,9 +79,9 @@ export default function Dashboard({
       <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 12px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>📅 Lọc theo hạn chót:</span>
         <span style={{ fontSize: 12, color: "#6b7280" }}>Từ ngày</span>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 12 }} />
+        <ViDate value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 12 }} />
         <span style={{ fontSize: 12, color: "#6b7280" }}>Đến ngày</span>
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 12 }} />
+        <ViDate value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 12 }} />
         {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(""); setDateTo(""); }} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, color: "#6b7280" }}>✕ Bỏ lọc</button>}
       </div>
       <OverdueActions mine={attMine} escalated={attEsc} myEid={myEid} todayStr={todayStr} isMobile={isMobile} getEmp={getEmp}

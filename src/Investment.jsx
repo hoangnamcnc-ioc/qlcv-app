@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { getPreviewUrl, fmtDate } from "./helpers";
+import { ViDate } from "./components/ViDate";
 
 const DEPTS = ["HCTH","QL-KTDL","HT-NTS"];
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
@@ -359,7 +360,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
         <div style={{padding:"16px 20px",borderBottom:"1px solid #e5e7eb"}}><div style={{fontWeight:600,fontSize:15}}>📅 Đề xuất gia hạn bước</div><div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{steps[stepExtRequestModal]?.content}</div></div>
         <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
           <div style={{padding:"10px 14px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,color:"#1d4ed8"}}>Ngày kết thúc hiện tại: <b>{steps[stepExtRequestModal]?.end}</b></div>
-          <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Đề xuất gia hạn đến ngày *</label><input type="date" min={steps[stepExtRequestModal]?.end} value={stepExtDate} onChange={e=>setStepExtDate(e.target.value)} style={inp}/></div>
+          <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Đề xuất gia hạn đến ngày *</label><ViDate min={steps[stepExtRequestModal]?.end} value={stepExtDate} onChange={e=>setStepExtDate(e.target.value)} style={inp}/></div>
           <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Lý do xin gia hạn *</label><textarea value={stepExtReason} onChange={e=>setStepExtReason(e.target.value)} placeholder="Nêu rõ lý do... (ít nhất 5 ký tự)" rows={3} style={{...inp,resize:"vertical"}}/></div>
         </div>
         <div style={{padding:"0 20px 18px",display:"flex",gap:10}}>
@@ -378,7 +379,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
             {steps[stepExtDecideModal.idx]?.ext_reason&&<div style={{fontStyle:"italic",color:"#6b7280"}}>"{steps[stepExtDecideModal.idx]?.ext_reason}"</div>}
           </div>
           {stepExtDecideModal.mode==="approve"?(<>
-            <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Duyệt đến ngày *</label><input type="date" max={steps[stepExtDecideModal.idx]?.ext_proposed} value={stepExtDecideDate} onChange={e=>setStepExtDecideDate(e.target.value)} style={inp}/><div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>Chỉ được duyệt đúng ngày đề xuất hoặc ngắn hơn.</div></div>
+            <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Duyệt đến ngày *</label><ViDate max={steps[stepExtDecideModal.idx]?.ext_proposed} value={stepExtDecideDate} onChange={e=>setStepExtDecideDate(e.target.value)} style={inp}/><div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>Chỉ được duyệt đúng ngày đề xuất hoặc ngắn hơn.</div></div>
             <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Lý do {stepExtDecideDate!==steps[stepExtDecideModal.idx]?.ext_proposed?<span style={{color:"#dc2626"}}>* (bắt buộc vì ngắn hơn đề xuất)</span>:"(không bắt buộc)"}</label><input value={stepExtDecideNote} onChange={e=>setStepExtDecideNote(e.target.value)} placeholder="Vì sao rút ngắn so với đề xuất..." style={inp}/></div>
           </>):(
             <div><label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Lý do từ chối *</label><textarea value={stepExtDecideNote} onChange={e=>setStepExtDecideNote(e.target.value)} placeholder="Nêu rõ lý do từ chối... (ít nhất 5 ký tự)" rows={3} style={{...inp,resize:"vertical"}}/></div>
@@ -405,8 +406,8 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>👤 Người chủ trì (chọn nhân viên)</label><select value={stepDraft.lead_eid||""} onChange={e=>setStepDraft(d=>({...d,lead_eid:e.target.value}))} style={inp}><option value="">— Không gán —</option>{(employees||[]).map(e=><option key={e.id} value={e.id}>{e.name} ({e.dept})</option>)}</select></div>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>🤝 Thành viên phối hợp (chọn nhiều)</label><div style={{display:"flex",flexWrap:"wrap",gap:6,maxHeight:110,overflowY:"auto",padding:"4px 0"}}>{(employees||[]).map(e=>{const sel=(stepDraft.collab_eids||[]).includes(e.id);const isLead=stepDraft.lead_eid===e.id;return(<button key={e.id} disabled={isLead} onClick={()=>{const c=stepDraft.collab_eids||[];const nc=sel?c.filter(x=>x!==e.id):[...c,e.id];setStepDraft(d=>({...d,collab_eids:nc}));}} style={{padding:"4px 10px",border:"1.5px solid "+(sel?"#16a34a":"#e5e7eb"),borderRadius:20,background:sel?"#dcfce7":"#fff",color:sel?"#15803d":"#6b7280",cursor:isLead?"default":"pointer",fontSize:11,fontWeight:sel?600:400,opacity:isLead?0.4:1}}>{sel&&"✓ "}{e.name}{isLead&&" (chủ trì)"}</button>);})}</div></div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Bắt đầu</label><input type="date" value={stepDraft.start||""} onChange={e=>setStepDraft(d=>({...d,start:e.target.value}))} style={inp}/></div>
-            <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Kết thúc</label><input type="date" value={stepDraft.end||""} onChange={e=>setStepDraft(d=>({...d,end:e.target.value}))} style={inp}/></div>
+            <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Bắt đầu</label><ViDate value={stepDraft.start||""} onChange={e=>setStepDraft(d=>({...d,start:e.target.value}))} style={inp}/></div>
+            <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Kết thúc</label><ViDate value={stepDraft.end||""} onChange={e=>setStepDraft(d=>({...d,end:e.target.value}))} style={inp}/></div>
           </div>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Ghi chú</label><input value={stepDraft.note||""} onChange={e=>setStepDraft(d=>({...d,note:e.target.value}))} style={inp}/></div>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>📎 Văn bản đính kèm</label>
@@ -541,9 +542,9 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
     <div style={{background:"#fff",borderRadius:10,border:"1px solid #e5e7eb",padding:"10px 12px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
       <span style={{fontSize:12,color:"#6b7280",fontWeight:500}}>📅 Hạn hoàn thành:</span>
       <span style={{fontSize:12,color:"#6b7280"}}>Từ ngày</span>
-      <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
+      <ViDate value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
       <span style={{fontSize:12,color:"#6b7280"}}>Đến ngày</span>
-      <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
+      <ViDate value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{padding:"6px 8px",border:"1px solid #d1d5db",borderRadius:7,fontSize:12}}/>
       {(dateFrom||dateTo)&&<button onClick={()=>{setDateFrom("");setDateTo("");}} style={{padding:"5px 10px",border:"1px solid #d1d5db",borderRadius:7,background:"#f9fafb",cursor:"pointer",fontSize:12,color:"#6b7280"}}>✕ Bỏ lọc ngày</button>}
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:10}}>
@@ -590,7 +591,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
           <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Tổng mức đầu tư (đ)</label><input type="number" value={projForm.total_budget} onChange={e=>setProjForm(f=>({...f,total_budget:e.target.value}))} style={inp}/></div>
           <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Đã chi (đ)</label><input type="number" value={projForm.spent} onChange={e=>setProjForm(f=>({...f,spent:e.target.value}))} style={inp}/></div>
           <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Phụ trách chính</label><select value={projForm.lead_eid} onChange={e=>setProjForm(f=>({...f,lead_eid:e.target.value}))} style={inp}><option value="">— Chọn —</option>{(employees||[]).map(e=><option key={e.id} value={e.id}>{e.name} ({e.dept} - {e.role})</option>)}</select></div>
-          <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Hạn hoàn thành</label>{(!projForm.id||isBGD)?<input type="date" value={projForm.deadline} onChange={e=>setProjForm(f=>({...f,deadline:e.target.value}))} style={inp}/>:<div style={{...inp,background:"#f9fafb",color:"#6b7280"}} title="Chỉ Ban Giám đốc mới đổi được hạn hoàn thành sau khi tạo">{projForm.deadline||"—"} 🔒</div>}</div>
+          <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Hạn hoàn thành</label>{(!projForm.id||isBGD)?<ViDate value={projForm.deadline} onChange={e=>setProjForm(f=>({...f,deadline:e.target.value}))} style={inp}/>:<div style={{...inp,background:"#f9fafb",color:"#6b7280"}} title="Chỉ Ban Giám đốc mới đổi được hạn hoàn thành sau khi tạo">{projForm.deadline||"—"} 🔒</div>}</div>
         </div>
         <div style={{border:"1px solid #e5e7eb",borderRadius:10,overflow:"hidden"}}><div style={{padding:"8px 12px",background:"#f8fafc",borderBottom:"1px solid #e5e7eb",display:"flex",alignItems:"center",gap:6}}><span>👥</span><span style={{fontWeight:500,fontSize:13}}>Thành viên dự án</span>{parseJSON(projForm.member_eids,[]).length>0&&<span style={{background:"#dcfce7",color:"#15803d",fontSize:11,padding:"1px 8px",borderRadius:10}}>{parseJSON(projForm.member_eids,[]).length}</span>}</div><div style={{padding:10,display:"flex",flexWrap:"wrap",gap:6,maxHeight:160,overflowY:"auto"}}>{(employees||[]).map(e=>{const sel=parseJSON(projForm.member_eids,[]).includes(e.id);const isLead=projForm.lead_eid===e.id;return(<button key={e.id} disabled={isLead} onClick={()=>{const m=parseJSON(projForm.member_eids,[]);const nm=sel?m.filter(x=>x!==e.id):[...m,e.id];setProjForm(f=>({...f,member_eids:JSON.stringify(nm)}));}} style={{padding:"4px 10px",border:"1.5px solid "+(sel?"#16a34a":"#e5e7eb"),borderRadius:20,background:sel?"#dcfce7":"#fff",color:sel?"#15803d":"#6b7280",cursor:isLead?"default":"pointer",fontSize:12,fontWeight:sel?600:400,opacity:isLead?0.4:1}}>{sel&&"✓ "}{e.name} <span style={{fontSize:10,opacity:0.7}}>({e.dept})</span>{isLead&&" (PT chính)"}</button>);})}</div></div>
         <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Ghi chú</label><textarea value={projForm.note} onChange={e=>setProjForm(f=>({...f,note:e.target.value}))} rows={2} style={{...inp,resize:"vertical"}}/></div>
@@ -611,7 +612,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
             <div style={{padding:"10px 14px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,color:"#1d4ed8"}}>Hạn hoàn thành hiện tại: <b>{fmtDate(extRequestModal.deadline)||"— (chưa đặt)"}</b>. Đề xuất sẽ được gửi tới Ban Giám đốc để duyệt.</div>
             <div>
               <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Đề xuất gia hạn đến ngày <span style={{color:"#dc2626"}}>*</span></label>
-              <input type="date" min={extRequestModal.deadline||undefined} value={extProposedDate} onChange={e=>setExtProposedDate(e.target.value)} style={inp}/>
+              <ViDate min={extRequestModal.deadline||undefined} value={extProposedDate} onChange={e=>setExtProposedDate(e.target.value)} style={inp}/>
             </div>
             <div>
               <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Lý do xin gia hạn <span style={{color:"#dc2626"}}>*</span></label>
@@ -641,7 +642,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
             {extDecideModal.mode==="approve"?(<>
               <div>
                 <label style={{fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6}}>Duyệt đến ngày <span style={{color:"#dc2626"}}>*</span></label>
-                <input type="date" max={extDecideModal.proj.ext_proposed} value={extDecideDate} onChange={e=>setExtDecideDate(e.target.value)} style={inp}/>
+                <ViDate max={extDecideModal.proj.ext_proposed} value={extDecideDate} onChange={e=>setExtDecideDate(e.target.value)} style={inp}/>
                 <div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>Chỉ được duyệt đúng ngày đề xuất hoặc ngắn hơn.</div>
               </div>
               <div>
