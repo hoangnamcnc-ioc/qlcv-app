@@ -1,13 +1,43 @@
 import { useState, useMemo } from "react";
 import { GRADE_MINS, inGradingScope, deptLabel, wasActiveIn } from "../constants";
-import { aggregateCommon, officialCommon, buildTaskSections, autoNotes, buildPhieuBody, wrapHtml } from "../phieuXepLoai";
+import { aggregateCommon, officialCommon, buildTaskSections, buildLeaderTask, isLeaderRole, LEADER_SECTIONS, TASK_SECTIONS, autoNotes, buildPhieuBody, wrapHtml } from "../phieuXepLoai";
+import { parseJSON } from "../helpers";
 
 const FULL = ["admin", "director"], LEADS = ["manager", "deputy_manager", "manager_hcth"];
 const MGR_EMP = ["Trưởng phòng", "Phó trưởng phòng"];
 const slug = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "");
 
+// Nhập tay mục IV–VI (và I–III nếu chưa có số liệu) của phiếu cấp lãnh đạo — lưu theo năm
+function LeaderForm({ emp, year, value, onSave, canEdit }) {
+  const [d, setD] = useState(value || {});
+  const [saving, setSaving] = useState(false);
+  const set = (no, i, v) => setD(x => (i == null ? { ...x, [no]: v } : { ...x, [no]: { ...(x[no] || {}), [i]: v } }));
+  const box = { width: 56, padding: "4px 5px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12.5, textAlign: "right" };
+  return (
+    <div style={{ border: "1px solid #c7d2fe", background: "#f8f9ff", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>✍️ Phiếu cấp lãnh đạo — nhập tay mục IV–VI năm {year} ({emp.name})</div>
+      <div style={{ fontSize: 11.5, color: "#6b7280", marginBottom: 8 }}>Mục I–III (số lượng, chất lượng, tiến độ — mỗi mục tối đa 10 điểm) tự tính từ dữ liệu nếu có; chưa có dữ liệu thì nhập tổng từng mục ở đây. Mục IV–VI chấm theo từng tiêu chí.</div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        {TASK_SECTIONS.map(s => <label key={s.no} style={{ fontSize: 12 }}>Mục {s.no} (≤10): <input type="number" min={0} max={10} step={0.1} disabled={!canEdit} value={d[s.no] ?? ""} onChange={e => set(s.no, null, e.target.value)} style={box} /></label>)}
+      </div>
+      {LEADER_SECTIONS.map(sec => (
+        <div key={sec.no} style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{sec.no}. {sec.title} (tối đa {sec.max})</div>
+          {sec.items.map((it, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", padding: "2px 0" }}>
+              <span style={{ flex: 1, fontSize: 12, color: "#374151" }}>{i + 1}. {it.label}</span>
+              <input type="number" min={0} max={it.max} step={0.1} disabled={!canEdit} placeholder={`≤${it.max}`} value={d[sec.no]?.[i] ?? ""} onChange={e => set(sec.no, i, e.target.value)} style={box} />
+            </div>
+          ))}
+        </div>
+      ))}
+      {canEdit && <button disabled={saving} onClick={async () => { setSaving(true); await onSave(emp.id, year, 0, "self", { lead: d }); setSaving(false); }} style={{ padding: "7px 14px", border: "none", borderRadius: 8, background: "#4f46e5", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>💾 Lưu</button>}
+    </div>
+  );
+}
+
 // Tab "Phiếu xếp loại": dựng Phiếu xếp loại chất lượng viên chức (mẫu của đơn vị) từ dữ liệu QLCV; tải .doc để chỉnh/ký, hoặc in/PDF.
-export default function PhieuXepLoai({ employees, currentUser, kpiCommon, calcMonthPerf, managerPerf, card, inp }) {
+export default function PhieuXepLoai({ employees, currentUser, kpiCommon, saveKpiCommon, calcMonthPerf, managerPerf, card, inp }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [scope, setScope] = useState("one"); // one | dept | all
@@ -19,6 +49,8 @@ export default function PhieuXepLoai({ employees, currentUser, kpiCommon, calcMo
   const empId = people.some(e => e.id === sel) ? sel : (people.find(e => e.id === myEid)?.id || people[0]?.id || "");
   const targets = scope === "one" ? people.filter(e => e.id === empId) : scope === "dept" ? people.filter(e => me && e.dept === (people.find(p => p.id === empId)?.dept || me.dept)) : people;
 
+  // Dữ liệu NHẬP TAY của phiếu lãnh đạo (mục IV–VI, và I–III khi không có số liệu tự tính): lưu ở kpi_common, tháng 0 = cả năm
+  const leadRec = emp => parseJSON((kpiCommon || []).find(r => r.eid === emp.id && r.year === year && r.month === 0)?.self, null)?.lead || {};
   const dataFor = emp => {
     const perMonth = [];
     for (let m0 = 0; m0 < 12; m0++) {
@@ -32,7 +64,7 @@ export default function PhieuXepLoai({ employees, currentUser, kpiCommon, calcMo
     return {
       year, name: emp.name, role: emp.role, dept: deptLabel(emp.dept), mins: GRADE_MINS,
       common: { self: aggregateCommon(kpiCommon, emp.id, year, "self"), official: officialCommon(kpiCommon, emp.id, year) },
-      task: perMonth.length ? buildTaskSections(perMonth, 70) : null, notes: autoNotes(perMonth),
+      task: isLeaderRole(emp.role) ? buildLeaderTask(perMonth, leadRec(emp)) : (perMonth.length ? buildTaskSections(perMonth, 70) : null), notes: autoNotes(perMonth),
     };
   };
   const html = useMemo(() => wrapHtml(targets.map(e => buildPhieuBody(dataFor(e))), `Phieu xep loai ${year}`), [targets, year, kpiCommon]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -55,6 +87,7 @@ export default function PhieuXepLoai({ employees, currentUser, kpiCommon, calcMo
         <button onClick={download} disabled={!targets.length} style={{ padding: "8px 14px", border: "none", borderRadius: 8, background: "#4f46e5", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>⬇ Tải Word ({targets.length} phiếu)</button>
         <button onClick={print} disabled={!targets.length} style={{ padding: "8px 14px", border: "1px solid #d1d5db", borderRadius: 8, background: "#f9fafb", fontSize: 13, cursor: "pointer" }}>🖨 In / PDF</button>
       </div>
+      {scope === "one" && targets[0] && isLeaderRole(targets[0].role) && <LeaderForm key={targets[0].id + year} emp={targets[0]} year={year} value={leadRec(targets[0])} onSave={saveKpiCommon} canEdit={isFull || isLead || targets[0].id === myEid} />}
       {targets.length ? <iframe title="Xem trước phiếu xếp loại" srcDoc={html} style={{ width: "100%", height: 560, border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff" }} /> : <div style={{ fontSize: 12.5, color: "#9ca3af" }}>Không có nhân viên thuộc quyền xem.</div>}
       <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>Lưu ý: Ban Giám đốc không có điểm nhiệm vụ tự động (không chấm KPI như nhân viên) — phiếu sẽ có phần nhiệm vụ trống để tự điền.</div>
     </div>

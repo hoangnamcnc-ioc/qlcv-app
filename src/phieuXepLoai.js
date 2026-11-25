@@ -108,7 +108,7 @@ export function buildPhieuBody(data) {
   if (task && task.secs.length) {
     for (const s of task.secs) {
       tt += `<tr class="b"><td class="c">${s.no}</td><td>${esc(s.title)}</td><td class="c">${f2(s.max)}</td><td class="c">${f2(s.pts)}</td></tr>`;
-      s.subs.forEach((x, i) => { tt += `<tr class="sub"><td class="c">${i + 1}</td><td>${esc(x.label)}</td><td class="c">${f2(x.max)}</td><td class="c">${f2(x.pts)}</td></tr>`; });
+      s.subs.forEach((x, i) => { tt += `<tr class="sub"><td class="c">${i + 1}</td><td>${esc(x.label)}</td><td class="c">${f2(x.max)}</td><td class="c">${x.entered === false ? "" : f2(x.pts)}</td></tr>`; });
     }
     tt += `<tr class="b"><td colspan="2" class="c">Tổng cộng Mục 2</td><td class="c">${f1(task.max)}</td><td class="c">${f2(task.total)}</td></tr></table>`;
   } else tt += `<tr><td colspan="4" class="c">Chưa có dữ liệu công việc đến hạn trong năm ${year}.</td></tr></table>`;
@@ -143,3 +143,44 @@ export function buildPhieuBody(data) {
 
 export const wrapHtml = (bodies, title = "Phiếu xếp loại") =>
   `<!doctype html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${CSS}</style></head><body>${bodies.join("")}</body></html>`;
+
+// ── Phiếu cấp LÃNH ĐẠO (Giám đốc, Phó Giám đốc, Trưởng/Phó phòng): Mục 2 có đủ 6 phần I–VI (70 điểm) như mẫu của Giám đốc.
+//   I–III: số lượng/chất lượng/tiến độ (tự tính từ dữ liệu, mỗi phần tối đa 10; không có dữ liệu thì nhập tay tổng phần).
+//   IV–VI: kết quả đơn vị, năng lực tổ chức, năng lực đoàn kết — NHẬP TAY từng tiêu chí.
+export const LEADER_ROLES = ["Giám đốc", "Phó Giám đốc", "Trưởng phòng", "Phó trưởng phòng", "TP. HCTH", "PP. HCTH"];
+export const isLeaderRole = role => LEADER_ROLES.includes(role);
+export const LEADER_SECTIONS = [
+  { no: "IV", title: "Về kết quả hoạt động của đơn vị thuộc phạm vi quản lý hoặc lĩnh vực được giao quản lý, phụ trách", max: 10, items: [
+    { max: 2.5, label: "Đơn vị/phòng hoàn thành tốt các chỉ tiêu, nhiệm vụ trọng tâm trong năm trên các mảng quản lý, điều hành và chuyên môn được giao" },
+    { max: 2.5, label: "Các hệ thống, lĩnh vực được giao quản lý, phụ trách được duy trì vận hành ổn định, thông suốt" },
+    { max: 2, label: "Công tác chỉ đạo, điều hành toàn diện đóng góp tích cực vào kết quả chung của đơn vị và ngành" },
+    { max: 3, label: "Quản lý tài chính, tài sản, nhân sự thuộc phạm vi phụ trách minh bạch, tiết kiệm, đúng quy định; không để xảy ra sai phạm nghiêm trọng trong quản lý, điều hành" },
+  ] },
+  { no: "V", title: "Về khả năng tổ chức triển khai thực hiện nhiệm vụ", max: 15, items: [
+    { max: 3.5, label: "Xây dựng chương trình, kế hoạch công tác khoa học, sát thực tế; triển khai đồng bộ các nhóm công việc" },
+    { max: 4, label: "Phân công nhiệm vụ rõ ràng, ủy quyền hợp lý; phối hợp nhịp nhàng và theo dõi, đôn đốc sát sao việc thực hiện của các bộ phận" },
+    { max: 3.5, label: "Chỉ đạo xử lý kịp thời các nhiệm vụ trọng tâm, tồn đọng và các nội dung phát sinh" },
+    { max: 4, label: "Tổ chức giao ban, kiểm tra trách nhiệm định kỳ có kết luận cụ thể; chỉ đạo hiệu quả công tác tổ chức, nhân sự, hành chính đáp ứng yêu cầu nhiệm vụ" },
+  ] },
+  { no: "VI", title: "Về năng lực tập hợp, đoàn kết viên chức, người lao động thuộc thẩm quyền quản lý", max: 15, items: [
+    { max: 4, label: "Duy trì sự đoàn kết, thống nhất trong tập thể lãnh đạo và viên chức, người lao động" },
+    { max: 4, label: "Quan tâm, tạo điều kiện về cơ chế, nguồn lực, chế độ và đào tạo, bồi dưỡng để viên chức hoàn thành nhiệm vụ được giao" },
+    { max: 4, label: "Chủ trì công tác thi đua, khen thưởng, kỷ luật công tâm, khách quan; đánh giá, phân công gắn với sản phẩm và kết quả thực hiện nhiệm vụ" },
+    { max: 3, label: "Giải quyết kịp thời các vấn đề, kiến nghị phát sinh trong đơn vị, bảo đảm chế độ chính sách và giữ vững ổn định nội bộ" },
+  ] },
+];
+const clamp = (v, max) => { const n = Number(v); return v === "" || v == null || !Number.isFinite(n) ? null : Math.max(0, Math.min(n, max)); };
+// manual = { I, II, III: tổng phần (khi không có dữ liệu tự tính), IV: {0:..,1:..}, V: {...}, VI: {...} }
+export function buildLeaderTask(perMonth, manual = {}) {
+  const auto = perMonth.length ? buildTaskSections(perMonth, 30) : null; // 3 phần × 10 = 30
+  const secs = TASK_SECTIONS.map((sec, i) => {
+    if (auto) return { ...auto.secs[i] };
+    const v = clamp(manual?.[sec.no], 10);
+    return { ...sec, max: 10, pts: v ?? 0, subs: [], manual: true, entered: v != null };
+  });
+  for (const ls of LEADER_SECTIONS) {
+    const subs = ls.items.map((it, i) => { const v = clamp(manual?.[ls.no]?.[i], it.max); return { label: it.label, max: it.max, pts: v ?? 0, entered: v != null }; });
+    secs.push({ no: ls.no, title: ls.title, max: ls.max, pts: subs.reduce((s, x) => s + x.pts, 0), subs, manual: true });
+  }
+  return { secs, total: secs.reduce((s, x) => s + x.pts, 0), max: 70 };
+}
