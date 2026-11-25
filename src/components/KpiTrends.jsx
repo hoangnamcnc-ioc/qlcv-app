@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { DEPTS, DEPT_COLOR, deptLabel, isRankable, isActive, inGradingScope } from "../constants";
 import { MANAGER_EMP_ROLES } from "../hooks/useReports";
 

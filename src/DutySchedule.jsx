@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 import { dutyCoverage } from "./dutyCoverage";
 

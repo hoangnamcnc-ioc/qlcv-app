@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 
 // ───── Nội dung hướng dẫn sử dụng ─────
 import { GUIDE_SECTIONS as SECTIONS } from "./guideContent";

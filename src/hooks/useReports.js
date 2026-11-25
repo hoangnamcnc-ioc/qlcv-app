@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { DEPTS, deptLabel, isRankable, EXEC_ROLES, RATING, LATE_REASONS, STATUS_ORDER, inGradingScope, isActive, wasActiveIn } from "../constants";
+import { DEPTS, deptLabel, isRankable, RATING, LATE_REASONS, STATUS_ORDER, inGradingScope, isActive, wasActiveIn } from "../constants";
 // Tháng nằm TRƯỚC mốc bắt đầu xếp loại (T6/2026 là tháng thử nghiệm): coi như tháng trống để không vào xếp hạng/điểm TB.
 const EMPTY_MONTH = { total: 0, resolved: 0, done: 0, over: 0, completedLate: 0, collabTotal: 0, collabDone: 0, eligible: false, perfScore: 0, resolvedW: 0, doneW: 0, onTimeW: 0, lateW: 0, overW: 0 };
 import { isCompletedStatus, parseJSON, pendingApprovalDays, parseNowStr, workingDaysBetween } from "../helpers";

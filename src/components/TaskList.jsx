@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { DEPTS, DEPT_COLOR, deptLabel, RATING } from "../constants";
 import { RatingBadge, Chip, PChip } from "./ui";
 import { pendingApprovalDays, fmtDate } from "../helpers";

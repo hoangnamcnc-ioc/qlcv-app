@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { supabase } from "../supabase";
 import { isDailyRecurring } from "../taskNudge";
 import { DEPTS, FULL_ACCESS, RATING, LATE_REASONS, STATUS_ORDER } from "../constants";
-import { today, todayStr, nowStr, parseNowStr, getStatus, isCompletedStatus, isLateStatus, parseJSON } from "../helpers";
+import { todayStr, nowStr, parseNowStr, getStatus, isCompletedStatus, isLateStatus, parseJSON } from "../helpers";
 import { askConfirm } from "../dialog";
 
 const PAGE_SIZE = 20;

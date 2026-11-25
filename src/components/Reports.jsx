@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import KpiBreakdown from "./KpiBreakdown";
 import RaterStats from "./RaterStats";
 import { GRADING_START, GRADE_MINS } from "../constants";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { DEPTS, DEPT_COLOR, deptLabel, VI_MONTHS, RATING, STATUS } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel, VI_MONTHS, STATUS } from "../constants";
 import { fmtDate } from "../helpers";
 import { GradingTab, ExecTab, TaskResultReportTab, CatalogTab } from "./ExecReports";
 

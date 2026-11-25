@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { DEPTS, DEPT_COLOR, deptLabel, STATUS, VI_MONTHS, RATING, GRADING_START, GRADE_MINS, inGradingScope } from "../constants";
+import { DEPTS, DEPT_COLOR, deptLabel, VI_MONTHS, RATING, GRADING_START, GRADE_MINS, inGradingScope } from "../constants";
 import { isCompletedStatus, parseNowStr, fmtDate } from "../helpers";
 import { ViDate } from "./ViDate";
 import { askConfirm } from "../dialog";

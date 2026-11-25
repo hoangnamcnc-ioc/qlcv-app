@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { DEPTS, DEPT_COLOR, deptLabel, isRankable, isActive, ROLE_COLORS, FULL_ACCESS, STATUS, STATUS_ORDER, FREQUENCIES, RATING, PRIO, VI_MONTHS } from "../constants";
-import { isCompletedStatus, fmtDate } from "../helpers";
+import { DEPT_COLOR, deptLabel, isRankable, isActive, ROLE_COLORS, FULL_ACCESS, STATUS, FREQUENCIES, PRIO, VI_MONTHS } from "../constants";
+import { fmtDate } from "../helpers";
 import { RoleBadge, OverloadPopup } from "./ui";
 import OverdueActions from "./OverdueActions";
 import { myAttentionList, escalatedList } from "../taskNudge";

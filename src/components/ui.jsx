@@ -1,4 +1,3 @@
-import React from "react";
 import { ROLE_COLORS, ROLE_LABELS, RATING, STATUS, STATUS_ORDER, PRIO } from "../constants";
 import { isCompletedStatus, fmtDate } from "../helpers";
 

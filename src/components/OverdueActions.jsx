@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { LATE_REASONS, deptLabel } from "../constants";
 import { fmtDate } from "../helpers";
 import { daysLate, NUDGE_AFTER_DAYS, ESCALATE_AFTER_DAYS } from "../taskNudge";

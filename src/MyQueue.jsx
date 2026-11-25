@@ -1,4 +1,3 @@
-import React from "react";
 import { DEPT_COLOR } from "./constants";
 import { fmtDate, pendingApprovalDays } from "./helpers";
 

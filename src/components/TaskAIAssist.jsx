@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { aiEnabled, aiTaskDraft } from "../aiIntent";
 import { suggestDuration, suggestDeadline } from "../deadlineSuggest";
 import { fmtDate } from "../helpers";

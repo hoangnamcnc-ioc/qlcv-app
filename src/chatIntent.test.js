@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { classify, extractSlots } from "./chatIntent.js";
+import { classify } from "./chatIntent.js";
 
 // [câu hỏi, ctx, kind mong đợi, (tùy chọn) kiểm tra slot]
 const CASES = [

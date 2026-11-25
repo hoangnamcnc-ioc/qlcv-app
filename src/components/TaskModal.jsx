@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { DEPT_COLOR, RATING, LATE_REASONS } from "../constants";
 import { parseJSON, getFileIcon, getPreviewUrl, forceDownload, fmtDate } from "../helpers";
 import { ProgressBar, RatingBadge, Chip, PChip } from "./ui";

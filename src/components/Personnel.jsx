@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import KpiConfig from "./KpiConfig";
 import KpiCommon from "./KpiCommon";
 import PhieuXepLoai from "./PhieuXepLoai";
