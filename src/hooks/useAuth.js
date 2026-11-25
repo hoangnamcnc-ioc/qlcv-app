@@ -45,6 +45,22 @@ export default function useAuth({ showToast, onLogout }) {
     showToast("Đã lưu thư điện tử — bạn sẽ nhận nhắc việc mỗi sáng ✉️");
   };
 
+  // Nhắc BẮT BUỘC nhập thư điện tử mỗi lần mở app (kể cả phiên khôi phục sau F5) và định kỳ 30 phút khi đang mở.
+  // user_has_email chỉ trả đúng/sai (SQL 51); chưa chạy SQL 51 thì im lặng bỏ qua.
+  useEffect(() => {
+    if (!currentUser || mustChangePwd) return;
+    let off = false;
+    const check = async () => {
+      try {
+        const { data, error } = await supabase.rpc("user_has_email", { p_user: currentUser.username });
+        if (!off && !error && data === false) setEmailPrompt(p => p || { email: "", password: "", pwKnown: false, error: "", saving: false, forced: true });
+      } catch { }
+    };
+    check();
+    const t = setInterval(check, 30 * 60 * 1000);
+    return () => { off = true; clearInterval(t); };
+  }, [currentUser?.username, mustChangePwd]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const logLogin = async (username, success, fullName) => { try { await supabase.from("login_history").insert({ id: `lg${Date.now()}${Math.random().toString(36).slice(2, 6)}`, username, full_name: fullName || "", success, at: nowStr() }); } catch { } };
 
   const handleLogin = async () => {
