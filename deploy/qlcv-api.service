@@ -1,0 +1,19 @@
+[Unit]
+Description=QLCV API (email nhắc việc, nhắc lịch trực, trợ lý AI)
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=qlcv
+WorkingDirectory=/opt/qlcv/app
+EnvironmentFile=/etc/qlcv/api.env
+ExecStart=/usr/bin/node /opt/qlcv/app/deploy/api-server/server.js
+Restart=always
+RestartSec=3
+# Hạn chế quyền của dịch vụ
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

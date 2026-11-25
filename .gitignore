@@ -61,3 +61,8 @@ bao_cao_theo_nguoi_pdf/
 missing_attachments_by_person.txt
 *.docx
 *.xlsx
+
+# Khoa/mat khau sinh ra khi dung may chu rieng
+keys.env
+*.env.prod
+qlcv-cloud*.sql

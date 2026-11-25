@@ -4,7 +4,7 @@ const base = () => (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL ||
 const key = () => process.env.SUPABASE_SERVICE_KEY || "";
 
 export async function getAll(table, select, order = "id") {
-  if (!base() || !key()) throw new Error("Thiếu SUPABASE_URL / SUPABASE_SERVICE_KEY trên Vercel");
+  if (!base() || !key()) throw new Error("Thiếu SUPABASE_URL / SUPABASE_SERVICE_KEY trên máy chủ (api.env)");
   const out = []; let off = 0;
   for (;;) {
     const r = await fetch(`${base()}/rest/v1/${table}?select=${select}&limit=1000&offset=${off}&order=${order}`, { headers: { apikey: key(), Authorization: "Bearer " + key() } });

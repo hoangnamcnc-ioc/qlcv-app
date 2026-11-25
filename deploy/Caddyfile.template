@@ -1,0 +1,32 @@
+# Caddy: HTTPS tự động (Let's Encrypt) + giao diện web + chuyển tiếp Supabase và API về cùng 1 tên miền (không lo CORS).
+# Thay __DOMAIN__ bằng tên miền thật (VD: qlcv.ioc-daklak.vn) — setup-server.sh làm việc này tự động.
+__DOMAIN__ {
+	encode zstd gzip
+
+	# Dữ liệu (PostgREST), kho file (Storage) qua cổng Kong của Supabase (chỉ nghe 127.0.0.1:8000)
+	@supabase path /rest/v1/* /storage/v1/* /auth/v1/* /realtime/v1/*
+	handle @supabase {
+		reverse_proxy 127.0.0.1:8000 {
+			flush_interval -1
+		}
+	}
+
+	# Email nhắc việc, nhắc lịch trực, trợ lý AI
+	handle /api/* {
+		reverse_proxy 127.0.0.1:3001
+	}
+
+	# Giao diện web (bản build của dự án)
+	handle {
+		root * /srv/qlcv/dist
+		try_files {path} /index.html
+		file_server
+		header /assets/* Cache-Control "public, max-age=31536000, immutable"
+		header /index.html Cache-Control "no-cache"
+	}
+
+	# Giới hạn kích thước tải lên (file đính kèm)
+	request_body {
+		max_size 100MB
+	}
+}
