@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import KpiConfig from "./KpiConfig";
 import KpiCommon from "./KpiCommon";
 import PhieuXepLoai from "./PhieuXepLoai";
+import WorkloadBalance from "./WorkloadBalance";
 import KpiCatalog from "./KpiCatalog";
 import { DEPTS, DEPT_COLOR, deptLabel } from "../constants";
 import Employees from "./Employees";
@@ -46,7 +47,7 @@ export default function Personnel(props) {
   const inp = { padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 7, fontSize: 13, background: "#fff", color: "#111", width: "100%", boxSizing: "border-box" };
   const card = { background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 16 };
   // Mọi người XEM được các tab; chỉ Admin/Giám đốc mới thêm–sửa–xóa. Tab Hồ sơ: người thường chỉ xem của chính mình.
-  const TABS = [["workload", "📋 Khối lượng việc"], ["profile", canManageHR ? "👤 Hồ sơ nhân sự" : "👤 Hồ sơ của tôi"], ["stats", "📊 Cơ cấu nhân sự"], ["common", "📝 Tiêu chí chung"], ["phieu", "📄 Phiếu xếp loại"], ["catalog", "📚 Danh mục sản phẩm"], ["depts", "🏢 Phòng/Ban"], ...(canManageHR ? [["kpi", "⚙️ Cấu hình KPI"]] : [])];
+  const TABS = [["workload", "📋 Khối lượng việc"], ["profile", canManageHR ? "👤 Hồ sơ nhân sự" : "👤 Hồ sơ của tôi"], ["stats", "📊 Cơ cấu nhân sự"], ["common", "📝 Tiêu chí chung"], ["phieu", "📄 Phiếu xếp loại"], ...(props.canCreate ? [["balance", "⚖️ Cân bằng khối lượng"]] : []), ["catalog", "📚 Danh mục sản phẩm"], ["depts", "🏢 Phòng/Ban"], ...(canManageHR ? [["kpi", "⚙️ Cấu hình KPI"]] : [])];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -60,6 +61,7 @@ export default function Personnel(props) {
       {tab === "profile" && <ProfileTab {...{ employees, computed, canEditHr, canManageHR, meId, canManageDept: canManageHR, isAdmin, canSeeAll, userDept, updateEmployee, transferDept, isMobile, empDeptTab, setEmpDeptTab, deptEmps, inp, card, meName: props.meName, hrById, saveHr }} />}
       {tab === "common" && <KpiCommon employees={employees} currentUser={props.currentUser} kpiCommon={props.kpiCommon || []} saveKpiCommon={props.saveKpiCommon} card={card} />}
       {tab === "phieu" && <PhieuXepLoai employees={employees} currentUser={props.currentUser} kpiCommon={props.kpiCommon || []} calcMonthPerf={props.calcMonthPerf} managerPerf={props.managerPerf} card={card} inp={props.inp} />}
+      {tab === "balance" && props.canCreate && <WorkloadBalance employees={employees} currentUser={props.currentUser} loadInfo={props.loadInfo} card={card} />}
       {tab === "catalog" && <KpiCatalog items={props.kpiCatalog || []} canEdit={canManageHR} onSave={props.saveCatalogItem} card={card} inp={props.inp} proposals={props.catalogProposals || []} onApproveProposal={props.approveCatalogProposal} onDismissProposal={props.dismissCatalogProposal} />}
       {tab === "kpi" && canManageHR && <KpiConfig versions={props.kpiVersions} canEdit={canManageHR} onSave={props.saveKpiVersion} kpiGlobal={props.kpiGlobal} onSaveGlobal={props.saveKpiGlobal} card={card} inp={props.inp} />}
       {tab === "stats" && <StatsTab employees={employees} canSeeAll={canSeeAll} userDept={userDept} card={card} hrById={hrById} />}

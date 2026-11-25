@@ -2,7 +2,7 @@ import { useState } from "react";
 
 // Thông báo MỘT LẦN cho mỗi người (nhớ theo trình duyệt) khi đơn vị chuyển sang cách tính KPI theo khung mới.
 // Đổi NOTICE_ID khi có thông báo mới để hiện lại cho mọi người.
-export const NOTICE_ID = "kpi-khung-2026-11";
+export const NOTICE_ID = "kpi-khung-2026-11b"; // b: bổ sung việc ngoài danh mục/đột xuất/khối lượng/phiếu xếp loại
 const KEY = "qlcv_notice_seen";
 const seen = () => { try { return (localStorage.getItem(KEY) || "").split(",").includes(NOTICE_ID); } catch { return false; } };
 const markSeen = () => { try { const a = (localStorage.getItem(KEY) || "").split(",").filter(Boolean); if (!a.includes(NOTICE_ID)) localStorage.setItem(KEY, [...a, NOTICE_ID].join(",")); } catch { /* bỏ qua */ } };
@@ -24,11 +24,16 @@ export default function KpiNotice({ role, canCreate, onGo }) {
           <ul style={{ margin: 0, paddingLeft: 20 }}>
             <Item><b>Chấm tiêu chí chung hằng tháng:</b> vào <i>Quản lý nhân sự → 📝 Tiêu chí chung</i>, tự chấm 3 phần (mỗi phần tối đa 10 điểm). Chưa có điểm này thì KPI chỉ là điểm tạm tính.</Item>
             <Item>Hoàn thành <b>đúng hạn</b>: mỗi ngày chậm trừ 25% giá trị sản phẩm đó.</Item>
+            <Item><b>Mọi loại việc đều được tính điểm theo hệ số quy đổi:</b> việc thường, việc định kỳ, việc đột xuất, bước của việc khác/dự án đầu tư và các lượt hỗ trợ người dùng.</Item>
+            <Item><b>Phiếu xếp loại chất lượng viên chức</b> (đúng mẫu của đơn vị) tự dựng sẵn ở <i>Quản lý nhân sự → 📄 Phiếu xếp loại</i>: tải Word để chỉnh sửa và ký.</Item>
           </ul>
           {leader && <>
             <div style={{ fontWeight: 600, margin: "12px 0 4px" }}>🧑‍💼 Với Trưởng/Phó phòng và Ban Giám đốc</div>
             <ul style={{ margin: 0, paddingLeft: 20 }}>
               {canCreate && <Item><b>Chọn "Sản phẩm chuẩn" khi tạo việc</b> (ô 📚 ngay dưới Tiêu đề) để việc có hệ số quy đổi đúng. Việc không chọn được tính hệ số 1.</Item>}
+              {canCreate && <Item><b>Việc chưa có trong danh mục:</b> chọn <b>nhóm N1–N5</b> để có hệ số tạm; Giám đốc sẽ xem xét đưa vào danh mục sản phẩm chuẩn. <b>Việc đột xuất:</b> tick ô "⚡ Việc đột xuất" và ưu tiên chọn nhóm CH.DX.</Item>}
+              {canCreate && <Item><b>Mẫu việc định kỳ:</b> gắn "Sản phẩm chuẩn" cho từng mẫu (mỗi lượt tính theo hệ số của sản phẩm) — chiếm phần lớn khối lượng của phòng.</Item>}
+              {canCreate && <Item><b>Khối lượng việc:</b> khi giao việc, xem dòng ⚖️ để biết người nhận đang gánh bao nhiêu so với trung vị phòng; báo cáo ở <i>Quản lý nhân sự → ⚖️ Cân bằng khối lượng</i>. Bảng xếp hạng cộng tối đa +5 điểm cho người gánh nhiều hơn trung vị (điểm KPI chính thức không đổi).</Item>}
               <Item><b>Dùng đủ các mức nghiệm thu</b> Xuất sắc / Tốt / Trung bình / Kém theo đúng chất lượng — không chấm "Tốt" cho mọi việc. Mức nghiệm thu chiếm 30% điểm chất lượng.</Item>
               <Item>Sản phẩm chưa đạt: bấm <b>"Từ chối, làm lại"</b> thay vì duyệt. Mỗi lần làm lại trừ 25% giá trị sản phẩm.</Item>
               <Item><b>Chấm tiêu chí chung</b> cho nhân viên trong phòng ở <i>Quản lý nhân sự → 📝 Tiêu chí chung</i> (lượt "Lãnh đạo phòng"; Ban Giám đốc chấm lượt "Lãnh đạo Trung tâm").</Item>

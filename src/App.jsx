@@ -504,7 +504,7 @@ export default function App() {
     execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList, dataHealth,
     empReliability, execNarrative, lateInsights,
-    calcMonthPerf, managerPerf, monthLoadInfo,
+    calcMonthPerf, managerPerf, monthLoadInfo, loadInfo,
   } = useReports({ computed, computedGlobal, employees, currentUser, overloadThreshold, projects: projectsForScoring, supportCases: supportCasesForScoring, otherTasks, holidays, kpiVersions, kpiKey, kpiCommon });
 
   // ── Chốt sổ điểm tháng: lưu snapshot cố định điểm hiệu suất vào monthly_scores để điểm quá khứ
@@ -1031,7 +1031,7 @@ export default function App() {
               overloadedEmps={overloadedEmps}
               deptEmps={deptEmps}
               openCreateEmp={openCreateEmp} openEditEmp={openEditEmp}
-              deleteEmployee={deleteEmployee} updateEmployee={updateEmployee} calcMonthPerf={calcMonthPerf} managerPerf={managerPerf} initialTab={personnelTab} kpiCommon={kpiCommon} saveKpiCommon={saveKpiCommon} kpiCatalog={kpiCatalog} saveCatalogItem={saveCatalogItem} catalogProposals={catalogProposals} approveCatalogProposal={approveCatalogProposal} dismissCatalogProposal={dismissCatalogProposal} currentUser={currentUser} kpiVersions={kpiVersions} saveKpiVersion={saveKpiVersion} kpiGlobal={kpiGlobal} saveKpiGlobal={saveKpiGlobal} onLeave={leaveEmployee} onRestore={restoreEmployee}
+              deleteEmployee={deleteEmployee} updateEmployee={updateEmployee} loadInfo={loadInfo} calcMonthPerf={calcMonthPerf} managerPerf={managerPerf} initialTab={personnelTab} kpiCommon={kpiCommon} saveKpiCommon={saveKpiCommon} kpiCatalog={kpiCatalog} saveCatalogItem={saveCatalogItem} catalogProposals={catalogProposals} approveCatalogProposal={approveCatalogProposal} dismissCatalogProposal={dismissCatalogProposal} currentUser={currentUser} kpiVersions={kpiVersions} saveKpiVersion={saveKpiVersion} kpiGlobal={kpiGlobal} saveKpiGlobal={saveKpiGlobal} onLeave={leaveEmployee} onRestore={restoreEmployee}
               deptRows={deptRows} addDept={addDept} updateDept={updateDept} deleteDept={deleteDept} deptAudit={deptAudit}
               deptOversight={deptOversight} setDeptOverseer={setDeptOverseer}
               transferDept={transferEmployeeDept}

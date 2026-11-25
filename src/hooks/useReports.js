@@ -643,7 +643,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
   }, [execDeptSummary, watchList, staffingAdvice, dataHealth]);
 
   return {
-    monthLoadInfo,
+    monthLoadInfo, loadInfo,
     repMonth, setRepMonth, repYear, setRepYear, repTab, setRepTab, rankYear, setRankYear,
     execDeptSummary, execMonth, setExecMonth, execYear, setExecYear, staffingAdvice, empProfile, managerBoard, managerLeaderboard, repTasks, repStats, repStatsPrev, repDeptData, repEmpData, repMonthTrend, leaderboard,
     lateReasonStats, overloadedEmps, myTrend, myTasks, myWorkList, myWorkloadCompare, myDoneList, atRiskTasks, weeklyDigest, watchList, dataHealth,
