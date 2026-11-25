@@ -50,3 +50,14 @@ storage_report*.log
 
 # File tam de nhap bien len Vercel (xoa sau khi dung)
 vercel-import.env
+
+# Du lieu noi bo / file tam (khong dua len repo cong khai)
+Pin.txt
+check_result.txt
+t.id
+completed-*.csv
+bao_cao_theo_nguoi/
+bao_cao_theo_nguoi_pdf/
+missing_attachments_by_person.txt
+*.docx
+*.xlsx
