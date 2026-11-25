@@ -8,17 +8,17 @@ import { createStorage } from "./storage.js";
 
 const PORT = Number(process.env.API_PORT || 3001);
 const API_DIR = path.resolve(process.env.API_DIR || new URL("../../api", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
-const ROUTES = { "/api/daily-digest": "daily-digest.js", "/api/duty-reminder": "duty-reminder.js", "/api/ai-intent": "ai-intent.js" };
+const ROUTES = { "/api/daily-digest": "daily-digest.js", "/api/duty-reminder": "duty-reminder.js", "/api/ai-intent": "ai-intent.js", "/api/backup": "backup.js", "/api/restore": "restore.js" };
 const cache = new Map();
 // Kho file đính kèm (thay Supabase Storage) — cùng giao thức /storage/v1/...
 const storage = process.env.JWT_SECRET
   ? createStorage({ dir: process.env.STORAGE_DIR || "/var/lib/qlcv/storage", jwtSecret: process.env.JWT_SECRET, maxBytes: Number(process.env.MAX_UPLOAD_MB || 100) * 1024 * 1024 })
   : null;
 
-async function readBody(req) {
+async function readBody(req, limit = 1_000_000) {
   if (req.method === "GET" || req.method === "HEAD") return undefined;
   const chunks = []; let size = 0;
-  for await (const c of req) { size += c.length; if (size > 1_000_000) throw new Error("body quá lớn"); chunks.push(c); }
+  for await (const c of req) { size += c.length; if (size > limit) throw new Error("body quá lớn"); chunks.push(c); }
   const raw = Buffer.concat(chunks).toString("utf8");
   try { return JSON.parse(raw || "{}"); } catch { return raw; }
 }
@@ -34,7 +34,7 @@ const server = http.createServer(async (req, res) => {
   if (!file) return res.status(404).json({ ok: false, error: "not found" });
   try {
     req.query = Object.fromEntries(url.searchParams);
-    req.body = await readBody(req);
+    req.body = await readBody(req, url.pathname === "/api/restore" ? 300 * 1024 * 1024 : 1_000_000);
     if (!cache.has(file)) cache.set(file, (await import(pathToFileURL(path.join(API_DIR, file)).href)).default);
     await cache.get(file)(req, res);
     if (!res.writableEnded) res.end();

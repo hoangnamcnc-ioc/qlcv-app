@@ -59,6 +59,7 @@ ss -tlnp | grep -E '5432|3000|3001|8000'                                        
 | Cập nhật phần mềm | `sudo bash /opt/qlcv/app/deploy/update.sh` (kéo mã mới, build, thay bản chạy) |
 | Chạy SQL bổ sung sau này (vd. `supabase/52-….sql`) | `docker exec -i qlcv-db psql -U postgres -d postgres < supabase/52-….sql`, rồi `notify pgrst, 'reload schema';` (thư mục `supabase/` chỉ là tên cũ, các file là SQL thuần). Sau khi thêm file SQL mới vào repo, chạy `python3 deploy/db/build-schema.py` để `schema.sql` luôn cập nhật. |
 | Sao lưu | Tự chạy 01:30 hằng đêm (`deploy/backup.sh`) vào `/var/backups/qlcv` (CSDL nén + file đính kèm, giữ 14 bản). **Hãy chép định kỳ sang nơi khác (ổ ngoài/máy khác).** |
+| Sao lưu/khôi phục trong ứng dụng | **Quản lý nhân sự → 💾 Sao lưu & Khôi phục** (Admin/Giám đốc): tải toàn bộ dữ liệu (JSON, có thể mã hóa), xuất CSV từng bảng, nạp lại bằng chế độ Trộn hoặc Thay thế. Chưa gồm file đính kèm (đã có `backup.sh`). |
 | Khôi phục từ sao lưu | `gunzip -c qlcv-….sql.gz \| docker exec -i qlcv-db psql -U postgres -d postgres` (trên CSDL trống/đã làm sạch schema public) |
 | Script `cleanup_storage.py`, `sync_vanban.py` | Đặt `SUPABASE_URL` = `https://<tên-miền>`, `SUPABASE_SERVICE_KEY` = `SERVICE_ROLE_KEY` trong `/root/keys.env` |
 
