@@ -303,3 +303,29 @@ insert into public.kpi_catalog (code, name, output, grp, points, coef, dept, not
 ('QL-KTDL-059', 'Trình hồ sơ đề xuất cấp độ an toàn thông tin hệ thống Thư điện tử công vụ', 'Hồ sơ đề xuất cấp độ an toàn thông tin', 'N2', 3.6, 0.7, 'QL-KTDL', 'Cần đảm bảo hồ sơ đầy đủ, chính xác.'),
 ('QL-KTDL-060', 'Chuyển sang sử dụng hệ thống QLVB iOffice của VNPT', 'Báo cáo chuyển đổi sử dụng QLVB iOffice', 'N3', 6.0, 1.2, 'QL-KTDL', 'Cần đảm bảo dữ liệu chuyển đổi an toàn.')
 on conflict (code) do nothing;
+
+-- Áp dụng hệ số của DM 2 cho các sản phẩm trùng tên (đồng ý của Giám đốc)
+update public.kpi_catalog set coef = 0.4, points = 2.0, grp = 'N3' where code = 'HT-NTS-001';
+update public.kpi_catalog set coef = 0.4, points = 1.8, grp = 'N2' where code = 'HT-NTS-002';
+update public.kpi_catalog set coef = 0.1, points = 0.5, grp = 'N3' where code = 'HT-NTS-003';
+update public.kpi_catalog set coef = 0.1, points = 0.5, grp = 'N3' where code = 'HT-NTS-004';
+update public.kpi_catalog set coef = 0.1, points = 0.7, grp = 'N3' where code = 'HT-NTS-005';
+update public.kpi_catalog set coef = 0.2, points = 1.1, grp = 'N3' where code = 'HT-NTS-006';
+update public.kpi_catalog set coef = 0.1, points = 0.7, grp = 'N3' where code = 'HT-NTS-007';
+update public.kpi_catalog set coef = 0.1, points = 0.5, grp = 'N2' where code = 'HT-NTS-008';
+update public.kpi_catalog set coef = 0.1, points = 0.5, grp = 'N3' where code = 'HT-NTS-009';
+update public.kpi_catalog set coef = 0.1, points = 0.5, grp = 'N2' where code = 'HT-NTS-010';
+update public.kpi_catalog set coef = 0.1, points = 0.5, grp = 'N2' where code = 'HT-NTS-011';
+update public.kpi_catalog set coef = 0.1, points = 0.7, grp = 'N3' where code = 'HT-NTS-012';
+update public.kpi_catalog set coef = 0.2, points = 1.1, grp = 'N3' where code = 'HT-NTS-013';
+update public.kpi_catalog set coef = 0.1, points = 0.5, grp = 'N2' where code = 'HT-NTS-014';
+update public.kpi_catalog set coef = 0.1, points = 0.7, grp = 'N3' where code = 'HT-NTS-015';
+update public.kpi_catalog set coef = 1.9, points = 9.5, grp = 'N3' where code = 'HT-NTS-017';
+update public.kpi_catalog set coef = 1.0, points = 5.0, grp = 'N2' where code = 'HT-NTS-018';
+update public.kpi_catalog set coef = 0.9, points = 4.4, grp = 'N3' where code = 'HT-NTS-024';
+update public.kpi_catalog set coef = 0.9, points = 4.4, grp = 'N3' where code = 'QL-KTDL-008';
+update public.kpi_catalog set coef = 0.9, points = 4.4, grp = 'N3' where code = 'QL-KTDL-009';
+update public.kpi_catalog set coef = 0.7, points = 3.6, grp = 'N2' where code = 'QL-KTDL-024';
+update public.kpi_catalog set coef = 0.4, points = 1.8, grp = 'N2' where code = 'QL-KTDL-011';
+update public.kpi_catalog set coef = 0.4, points = 1.8, grp = 'N2' where code = 'QL-KTDL-016';
+update public.kpi_catalog set coef = 0.3, points = 1.6, grp = 'N1' where code = 'QL-KTDL-023';
