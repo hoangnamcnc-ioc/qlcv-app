@@ -13,11 +13,12 @@ const SupportCases = lazy(()=>import("./SupportCases"));
 const MyQueue = lazy(()=>import("./MyQueue"));
 const Chat = lazy(()=>import("./Chat"));
 import KpiNotice from "./components/KpiNotice";
+import { leaderTodos, isLeaderUser } from "./leaderTodos";
 import { DialogHost } from "./dialog";
 import { CatalogPicker, TaskKpiFields } from "./components/KpiCatalog";
 import { addKpiVersion, kpiCfgFor, freqWeightCfg, normalizeKpiGlobal, KPI_GLOBAL_DEFAULT } from "./kpiConfig";
 import { setGradingGlobal } from "./constants";
-import { DEPTS, DEPT_COLOR, deptLabel, isRankable, isAssignable, wasActiveIn, DEFAULT_DEPARTMENTS, setDepartments, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
+import { inGradingScope, DEPTS, DEPT_COLOR, deptLabel, isRankable, isAssignable, wasActiveIn, DEFAULT_DEPARTMENTS, setDepartments, ROLES_EMP, VI_MONTHS, VI_DAYS, ROLE_LABELS, ROLE_COLORS, FULL_ACCESS, CAN_CREATE, RATING, LATE_REASONS, OVERLOAD_DEFAULT, FREQUENCIES, STATUS, PRIO, STATUS_ORDER, LATE_COMPLETION_PENALTY } from "./constants";
 import { addDays, today, todayStr, nowStr, parseNowStr, getNextDate, freqWeight, isCompletedLateByDate, getStatus, isCompletedStatus, isLateStatus, parseJSON, hashPwd, getFileIcon, sanitizeFileName, fmtDate, pendingApprovalDays } from "./helpers";
 import { ProgressBar, RoleBadge, RatingBadge, Chip, PChip } from "./components/ui";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -679,12 +680,26 @@ export default function App() {
     if(isTopDocUser)return docsForNotif.filter(d=>(d.type==="den"||d.type==="incoming")&&parseJSON(d.forwards,[]).length===0&&!d.task_id).length;
     return myPendingDocForwards.length;
   },[docsForNotif,currentUser,isTopDocUser,myPendingDocForwards]);
+  // ── Việc LÃNH ĐẠO cần thực hiện (Trưởng/Phó phòng, Ban Giám đốc, Admin): nhắc khi đăng nhập ──
+  const leaderTodoItems=useMemo(()=>{
+    if(!currentUser||!employees||!isLeaderUser(currentUser.role))return [];
+    const me=employees.find(e=>e.id===currentUser.employee_id)||null;
+    const full=["admin","director"].includes(currentUser.role);
+    const scope=e=>full||(me&&e.dept===me.dept);
+    const now=new Date();
+    const overloaded=employees.filter(e=>scope(e)&&isAssignable(e)).filter(e=>{const r=loadInfo(e.id,now.getFullYear(),now.getMonth(),true).ratio;return r&&r>=1.5;}).length;
+    const templatesMissing=(recurringTemplates||[]).filter(t=>t.active&&"catalog_code" in t&&!t.catalog_code&&(full||(me&&t.dept===me.dept))).length;
+    return leaderTodos({role:currentUser.role,me,employees,kpiCommon,monthlyScores,now,inGradingScope,
+      counts:{approve:myPendingTaskApprovals.length,createApprove:myPendingCreateApprovals?.length||0,ext:myPendingExtRequests.length,unrated:unratedTasks.length,overdue:(computed||[]).filter(t=>!t.deleted&&t.status==="overdue").length},
+      proposals:catalogProposals.length,templatesMissing,overloaded});
+  },[currentUser,employees,kpiCommon,monthlyScores,myPendingTaskApprovals,myPendingCreateApprovals,myPendingExtRequests,unratedTasks,computed,catalogProposals,recurringTemplates]); // eslint-disable-line react-hooks/exhaustive-deps
+  const goLeaderTodo=it=>{setShowLoginPopup(false);if(it.go.personnelTab)setPersonnelTab(it.go.personnelTab);if(it.go.repTab)setRepTab(it.go.repTab);setView(it.go.view);};
   const [showLoginPopup,setShowLoginPopup]=useState(false);
   useEffect(()=>{
     if(!currentUser||loading||loginNotifShown)return;
-    if(myNewTasks.length>0||myOverdueTasks.length>0||myPendingApprovals.length>0||myPendingTaskApprovals.length>0||myPendingExtRequests.length>0||myPendingDocForwards.length>0)setShowLoginPopup(true);
+    if(myNewTasks.length>0||myOverdueTasks.length>0||myPendingApprovals.length>0||myPendingTaskApprovals.length>0||myPendingExtRequests.length>0||myPendingDocForwards.length>0||leaderTodoItems.length>0)setShowLoginPopup(true);
     setLoginNotifShown(true);
-  },[currentUser,loading,loginNotifShown,myNewTasks.length,myOverdueTasks.length,myPendingApprovals.length,myPendingTaskApprovals.length,myPendingExtRequests.length,myPendingDocForwards.length]);
+  },[currentUser,loading,loginNotifShown,myNewTasks.length,myOverdueTasks.length,myPendingApprovals.length,myPendingTaskApprovals.length,myPendingExtRequests.length,myPendingDocForwards.length,leaderTodoItems.length]);
   const totalNotif=notifications.length+unratedTasks.length+myNewTasks.length+suspiciousTasks.length+myPendingApprovals.length+myPendingTaskApprovals.length+myPendingExtRequests.length+unreadCommentTasks.length+myPendingDocForwards.length+(myPendingCreateApprovals?.length||0);
   // Nhật ký TOÀN DIỆN = gộp sự kiện từ Nhiệm vụ (history) + Hỗ trợ ND (ghi nhận) + Ngân sách & Nhiệm vụ khác
   // (duyệt bước/nghiệm thu). Sắp theo mốc thời gian THẬT (parseAnyTime xử lý nhiều định dạng), KHÔNG cắt bớt —
@@ -870,6 +885,7 @@ export default function App() {
             <button onClick={()=>loadAllData(true)} disabled={refreshing} title="Làm mới dữ liệu (tự làm mới khi quay lại tab)" style={{background:"none",border:"1px solid #e5e7eb",borderRadius:8,padding:"5px 8px",cursor:refreshing?"default":"pointer",fontSize:16,opacity:refreshing?0.5:1}}>{refreshing?"⏳":"↻"}</button>
             {/* Bell notification */}
             <div style={{position:"relative"}}>
+              {leaderTodoItems.length>0&&<button onClick={()=>setShowLoginPopup(true)} title="Việc lãnh đạo cần thực hiện" style={{background:"#eef2ff",border:"1px solid #c7d2fe",borderRadius:8,padding:"5px 9px",cursor:"pointer",fontSize:12.5,fontWeight:600,color:"#4338ca",marginRight:6}}>📋 {leaderTodoItems.length} việc cần làm</button>}
               <button onClick={()=>setShowNotif(v=>!v)} style={{position:"relative",background:"none",border:"1px solid #e5e7eb",borderRadius:8,padding:"5px 8px",cursor:"pointer",fontSize:16}}>
                 🔔{totalNotif>0&&<span style={{position:"absolute",top:-4,right:-4,background:unratedTasks.length>0?"#f59e0b":"#dc2626",color:"#fff",fontSize:10,fontWeight:700,minWidth:16,height:16,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{totalNotif}</span>}
               </button>
@@ -1109,6 +1125,10 @@ export default function App() {
       {showLoginPopup&&(<div onClick={()=>setShowLoginPopup(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:isMobile?"12px 8px":16}}><div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:460,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,0.25)"}}>
         <div style={{padding:"20px 20px 12px",textAlign:"center"}}><div style={{fontSize:40,marginBottom:6}}>👋</div><div style={{fontWeight:700,fontSize:16}}>Chào {currentUser?.full_name}!</div><div style={{fontSize:13,color:"#6b7280",marginTop:4}}>Đây là các việc bạn cần lưu ý</div></div>
         <div style={{padding:"0 16px 8px"}}>
+          {leaderTodoItems.length>0&&<div style={{marginBottom:14}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#4338ca",marginBottom:6}}>📋 Việc lãnh đạo cần thực hiện ({leaderTodoItems.length})</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>{leaderTodoItems.map(it=>{const c=it.tone==="red"?["#fef2f2","#fecaca","#b91c1c"]:it.tone==="amber"?["#fffbeb","#fde68a","#92400e"]:["#eef2ff","#c7d2fe","#4338ca"];return <div key={it.key} onClick={()=>goLeaderTodo(it)} style={{padding:"9px 12px",borderRadius:8,background:c[0],border:"1px solid "+c[1],cursor:"pointer",display:"flex",gap:8,alignItems:"flex-start"}}><span style={{fontSize:16}}>{it.icon}</span><div style={{flex:1,fontSize:12.5,color:"#1f2937",lineHeight:1.45}}><b style={{color:c[2]}}>{it.count}</b> {it.text}</div><span style={{fontSize:12,color:c[2],whiteSpace:"nowrap"}}>Xử lý ›</span></div>;})}</div>
+          </div>}
           {myOverdueTasks.length>0&&<div style={{marginBottom:14}}>
             <div style={{fontSize:12,fontWeight:700,color:"#b91c1c",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>🔴 Việc đang trễ hạn ({myOverdueTasks.length})</div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>{myOverdueTasks.map(t=><div key={t.id} onClick={()=>{setShowLoginPopup(false);setModal(t);loadComments(t.id);}} style={{padding:"9px 12px",borderRadius:8,background:"#fef2f2",border:"1px solid #fecaca",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#fee2e2"} onMouseLeave={e=>e.currentTarget.style.background="#fef2f2"}><div style={{fontSize:13,fontWeight:500}}>{t.title}</div><div style={{fontSize:11,color:"#b91c1c",marginTop:1}}>Hạn: {fmtDate(t.deadline)} · {t.dept}</div></div>)}</div>
