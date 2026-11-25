@@ -44,3 +44,18 @@ test("số tháng tối thiểu để xếp hạng năm", () => {
   assert.equal(rankMinMonths(2026, new Date(2026, 6, 9), scope), 1);
   assert.equal(rankMinMonths(2026, new Date(2027, 0, 5), scope), 3);
 });
+
+import { groupCoefCfg, supportCoefCfg } from "./kpiConfig.js";
+test("hệ số mặc định theo nhóm N1–N5 và hỗ trợ", () => {
+  assert.deepEqual(["N1", "N2", "N3", "N4", "N5"].map(g => groupCoefCfg(KPI_DEFAULT, g)), [0.2, 2.4, 9.6, 19.2, 48]);
+  assert.equal(groupCoefCfg(KPI_DEFAULT, "Nx"), 2.4);
+  assert.deepEqual(["hard", "medium", "easy"].map(d => supportCoefCfg(KPI_DEFAULT, d)), [2.4, 1.2, 0.2]);
+  assert.deepEqual(validateKpiCfg(KPI_DEFAULT), []);
+});
+test("xếp hạng theo SỐ VIỆC và khối lượng quy đổi tối thiểu", () => {
+  const few = [{ status: "completed", weight: 30 }, { status: "completed", weight: 30 }];
+  assert.equal(staffScore(few, KPI_DEFAULT).eligible, false); // chỉ 2 việc dù hệ số lớn
+  const tiny = Array.from({ length: 5 }, () => ({ status: "completed", weight: 0.1 }));
+  assert.equal(staffScore(tiny, KPI_DEFAULT).eligible, false); // 5 việc nhưng quy đổi 0,5 < 1
+  assert.equal(staffScore(Array.from({ length: 5 }, () => ({ status: "completed", weight: 0.4 })), KPI_DEFAULT).eligible, true);
+});

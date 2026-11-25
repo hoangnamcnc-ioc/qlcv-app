@@ -4,7 +4,7 @@ import { DEPTS, deptLabel, isRankable, EXEC_ROLES, RATING, LATE_REASONS, STATUS_
 const EMPTY_MONTH = { total: 0, resolved: 0, done: 0, over: 0, completedLate: 0, collabTotal: 0, collabDone: 0, eligible: false, perfScore: 0, resolvedW: 0, doneW: 0, onTimeW: 0, lateW: 0, overW: 0 };
 import { isCompletedStatus, parseJSON, pendingApprovalDays, parseNowStr, workingDaysBetween } from "../helpers";
 import { w, sumW, staffScore, managerScore } from "../scoring";
-import { kpiCfgFor, rankMinMonths } from "../kpiConfig";
+import { kpiCfgFor, rankMinMonths, groupCoefCfg, supportCoefCfg } from "../kpiConfig";
 import { commonFinal } from "../kpiFramework";
 
 // Toàn bộ logic tính hiệu suất/báo cáo: tổng hợp theo phòng ban, công thức điểm hiệu suất tháng,
@@ -24,6 +24,20 @@ const isStepLate = (s) => {
 
 // Trọng số quy đổi 1 trường hợp hỗ trợ người dùng (điện thoại/Zalo/email) thành "việc":
 // Khó = 1 việc, Trung bình = 1/2 việc, Nhanh = 1/4 việc
+// Hệ số của 1 bước (dự án/việc khác): sản phẩm chuẩn (coef) → nếu không có thì hệ số mặc định của nhóm N (mặc định N2) theo cấu hình tháng đến hạn
+const stepWeight = (s, deadline, versions) => {
+  if (Number.isFinite(Number(s.coef)) && Number(s.coef) > 0) return Number(s.coef);
+  const d = new Date(deadline);
+  return groupCoefCfg(kpiCfgFor(versions || [], d.getFullYear(), d.getMonth() + 1), s.grp || "N2");
+};
+// Bước "việc khác" duyệt xong sau hạn? (approved_at dạng dd/mm/yyyy)
+const isOtherStepLate = (s) => {
+  if (!s.deadline || !s.approved_at) return false;
+  const [d, m, y] = String(s.approved_at).split("/");
+  if (!d || !m || !y) return false;
+  const dl = new Date(s.deadline); dl.setHours(0, 0, 0, 0);
+  return new Date(y, m - 1, d) > dl;
+};
 export const SUPPORT_WEIGHT = { hard: 1, medium: 0.5, easy: 0.25 };
 
 // Chức danh (nhãn nhân viên) được coi là CẤP QUẢN LÝ — chấm "điểm điều hành" theo kết quả phòng, xếp hạng riêng.
@@ -39,8 +53,8 @@ export default function useReports({ computed, computedGlobal, employees, curren
   // tính vào tháng theo ngày ghi nhận (created). Luôn coi là hoàn thành đúng hạn vì bản chất đã xử lý xong khi ghi nhận ──
   const supportPseudoTasks = useMemo(() => (supportCases || []).filter(c => c.eid && c.created).map(c => ({
     id: `support_${c.id}`, eid: c.eid, deadline: c.created, status: "completed", rating: "tot", collab_eids: c.collab_eids || "[]",
-    suspicious_completion: false, weight: SUPPORT_WEIGHT[c.difficulty] ?? 0.5,
-  })), [supportCases]);
+    suspicious_completion: false, weight: supportCoefCfg(kpiCfgFor(kpiVersions, +String(c.created).slice(0, 4), +String(c.created).slice(5, 7)), c.difficulty),
+  })), [supportCases, kpiVersions]);
 
   // ── Nhiệm vụ ngân sách quy thành "việc hoàn thành" để không thiệt thòi so với người chỉ làm nhiệm vụ thường:
   // (1) Mỗi BƯỚC đã duyệt+đánh giá tính 1 việc cho người chủ trì bước đó — không phải gộp cả dự án thành 1 việc,
@@ -53,7 +67,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
         if (s.status !== "done" || !s.lead_eid || !s.quality) continue;
         const deadline = s.end || p.quality_rated_at;
         if (!deadline) continue;
-        out.push({ id: `projstep_${p.id}_${s.id}`, eid: s.lead_eid, deadline, status: isStepLate(s) ? "completed_late" : "completed", rating: stepRatingKey(s.quality), collab_eids: "[]", suspicious_completion: false });
+        out.push({ id: `projstep_${p.id}_${s.id}`, eid: s.lead_eid, deadline, status: isStepLate(s) ? "completed_late" : "completed", rating: stepRatingKey(s.quality), collab_eids: "[]", suspicious_completion: false, weight: stepWeight(s, deadline, kpiVersions) });
       }
       if (p.quality_rating && p.quality_rated_at && p.lead_eid) {
         const status = p.quality_on_time === false ? "completed_late" : "completed";
@@ -61,7 +75,20 @@ export default function useReports({ computed, computedGlobal, employees, curren
       }
     }
     return out;
-  }, [projects]);
+  }, [projects, kpiVersions]);
+
+  // ── "Việc khác" (tổ nhiệm vụ nhiều bước): mỗi bước đã duyệt = 1 sản phẩm của người chủ trì (phối hợp được ½ qua collabPseudoTasks),
+  // hệ số theo sản phẩm chuẩn của bước hoặc nhóm N (mặc định N2) ──
+  const otherPseudoTasks = useMemo(() => {
+    const out = [];
+    for (const t of (otherTasks || [])) {
+      for (const s of parseJSON(t.steps, [])) {
+        if (s.status !== "done" || !s.lead_eid || !s.deadline) continue;
+        out.push({ id: `otherstep_${t.id}_${s.id}`, eid: s.lead_eid, deadline: s.deadline, status: isOtherStepLate(s) ? "completed_late" : "completed", rating: stepRatingKey(s.quality || 2), collab_eids: JSON.stringify(s.collab_eids || []), suspicious_completion: false, weight: stepWeight(s, s.deadline, kpiVersions), rework_count: 0 });
+      }
+    }
+    return out;
+  }, [otherTasks, kpiVersions]);
 
   const [repMonth, setRepMonth] = useState(today.getMonth());
   const [repYear, setRepYear] = useState(today.getFullYear());
@@ -141,7 +168,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
   const collabPseudoTasks = useMemo(() => {
     const out = [];
     // Gồm cả trường hợp hỗ trợ (supportPseudoTasks) để người phối hợp được cộng 1/2 trọng số như việc thường
-    for (const t of [...cg, ...supportPseudoTasks]) {
+    for (const t of [...cg, ...otherPseudoTasks, ...supportPseudoTasks]) {
       if (!isCompletedStatus(t.status)) continue;
       for (const cid of parseJSON(t.collab_eids, [])) {
         if (cid === t.eid) continue; // tránh trùng nếu dữ liệu lỗi gán chính mình vào phối hợp
@@ -149,14 +176,14 @@ export default function useReports({ computed, computedGlobal, employees, curren
       }
     }
     return out;
-  }, [cg, supportPseudoTasks]);
+  }, [cg, otherPseudoTasks, supportPseudoTasks]);
 
   // ── Index theo (nhân viên | năm | tháng) — dựng MỘT lần, tra cứu O(1) thay vì quét toàn bộ mỗi lần ──
   // byEid: việc mình chủ trì (đã gồm phối hợp weight 0.5) ; byCollab: đếm thô số việc phối hợp (chỉ để hiển thị badge)
   const perfIndex = useMemo(() => {
     const byEid = new Map(), byCollab = new Map();
     const push = (map, key, t) => { let a = map.get(key); if (!a) { a = []; map.set(key, a); } a.push(t); };
-    for (const t of [...cg, ...projPseudoTasks, ...supportPseudoTasks, ...collabPseudoTasks]) {
+    for (const t of [...cg, ...projPseudoTasks, ...otherPseudoTasks, ...supportPseudoTasks, ...collabPseudoTasks]) {
       if (!t.deadline) continue;
       const d = new Date(t.deadline); if (isNaN(d)) continue;
       const ym = `${d.getFullYear()}|${d.getMonth()}`;
@@ -172,7 +199,7 @@ export default function useReports({ computed, computedGlobal, employees, curren
       push(byCollab, `${t.eid}|${ym}`, t);
     }
     return { byEid, byCollab };
-  }, [cg, projPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
+  }, [cg, projPseudoTasks, otherPseudoTasks, supportPseudoTasks, collabPseudoTasks]);
 
   // ── Công thức tính điểm hiệu suất 1 THÁNG (dùng chung cho bảng "Hiệu suất tháng" và "Xếp hạng năm") ──
   // (w / sumW đã khai báo ở trên, dùng chung cho cả tổng hợp điều hành lẫn chấm điểm)

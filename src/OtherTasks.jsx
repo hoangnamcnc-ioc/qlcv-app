@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { fmtDate, getPreviewUrl, getFileIcon, nowStr } from "./helpers";
 import { isAssignable } from "./constants";
 import { ViDate } from "./components/ViDate";
+import { StepKpiFields } from "./components/KpiCatalog";
 
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
 const today=new Date();today.setHours(0,0,0,0);
@@ -22,7 +23,7 @@ const isStepOverdue=s=>{if(!s.deadline||s.status==="done"||s.status==="skipped")
 const countOverdueSteps=stepsArr=>(stepsArr||[]).filter(isStepOverdue).length;
 
 // ───── Chi tiết nhiệm vụ ─────
-function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUpdateSteps,onUpdateTask,uploadFiles,uploadingFiles,inp,currentUser,canManage,onApproveCreate,onRejectCreate,canApproveCreate}){
+function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUpdateSteps,onUpdateTask,uploadFiles,uploadingFiles,inp,currentUser,canManage,onApproveCreate,onRejectCreate,canApproveCreate,catalog,kpiCfg}){
   const steps=parseJSON(task.steps,[]);
   const team=parseJSON(task.team,[]);
   const locked=!!task.locked; // Nhiệm vụ đã "Kết thúc" — khóa mọi tương tác cho tới khi Khôi phục
@@ -163,6 +164,7 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
         <div style={{padding:18,display:"flex",flexDirection:"column",gap:10}}>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Nội dung công việc</label><textarea value={stepDraft.content||""} onChange={e=>setStepDraft(d=>({...d,content:e.target.value}))} rows={2} style={{...inp,resize:"vertical"}}/></div>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Hạn hoàn thành</label><ViDate value={stepDraft.deadline||""} onChange={e=>setStepDraft(d=>({...d,deadline:e.target.value}))} style={inp}/></div>
+          {catalog&&kpiCfg&&<StepKpiFields items={catalog} dept={task.dept} draft={stepDraft} patch={pt=>setStepDraft(d=>({...d,...pt}))} cfg={kpiCfg} inp={inp}/>}
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>👤 Người chủ trì</label><select value={stepDraft.lead_eid||""} onChange={e=>setStepDraft(d=>({...d,lead_eid:e.target.value}))} style={inp}><option value="">— Không gán —</option>{teamEmps.map(e=><option key={e.id} value={e.id}>{e.name} ({e.dept})</option>)}</select></div>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>🤝 Người phối hợp (chọn nhiều)</label><div style={{display:"flex",flexWrap:"wrap",gap:6,maxHeight:140,overflowY:"auto",padding:"4px 0"}}>{teamEmps.map(e=>{const sel=(stepDraft.collab_eids||[]).includes(e.id);const isLead=stepDraft.lead_eid===e.id;return(<button key={e.id} disabled={isLead} onClick={()=>{const c=stepDraft.collab_eids||[];const nc=sel?c.filter(x=>x!==e.id):[...c,e.id];setStepDraft(d=>({...d,collab_eids:nc}));}} style={{padding:"4px 10px",border:"1.5px solid "+(sel?"#16a34a":"#e5e7eb"),borderRadius:20,background:sel?"#dcfce7":"#fff",color:sel?"#15803d":"#6b7280",cursor:isLead?"default":"pointer",fontSize:11,fontWeight:sel?600:400,opacity:isLead?0.4:1}}>{sel&&"✓ "}{e.name}{isLead&&" (chủ trì)"}</button>);})}</div></div>
           <div><label style={{fontSize:11,color:"#6b7280",display:"block",marginBottom:3}}>Ghi chú</label><input value={stepDraft.note||""} onChange={e=>setStepDraft(d=>({...d,note:e.target.value}))} style={inp}/></div>
@@ -226,7 +228,7 @@ function TaskForm({form,setForm,onClose,onSave,employees,isMobile,inp,saving}){
 }
 
 // ───── COMPONENT CHÍNH ─────
-export default function OtherTasks({ currentUser, employees, getEmp, isMobile, inp, showToast, tasksData, setTasksData, uploadFiles, uploadingFiles, openTaskId, onTaskOpened }) {
+export default function OtherTasks({ catalog, kpiCfg, currentUser, employees, getEmp, isMobile, inp, showToast, tasksData, setTasksData, uploadFiles, uploadingFiles, openTaskId, onTaskOpened }) {
   // Dùng state chung từ App.jsx nếu được truyền vào (để thông báo chờ duyệt cập nhật ngay lập tức),
   // ngược lại tự tải và quản lý state riêng.
   const [localTasks,setLocalTasks]=useState([]);
@@ -383,6 +385,6 @@ export default function OtherTasks({ currentUser, employees, getEmp, isMobile, i
     )}
 
     {form&&<TaskForm form={form} setForm={setForm} onClose={()=>setForm(null)} onSave={saveTask} employees={employees} isMobile={isMobile} inp={inp} saving={saving}/>}
-    {detail&&<TaskDetail task={detail} onClose={()=>setDetail(null)} getEmp={getEmp} employees={employees} isMobile={isMobile} onEdit={()=>openEdit(detail)} onDelete={()=>deleteTask(detail.id)} onUpdateSteps={updateSteps} onUpdateTask={updateTask} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} inp={inp} currentUser={currentUser} canManage={canManage} onApproveCreate={approveCreate} onRejectCreate={rejectCreate} canApproveCreate={isDeptMgrOf(detail)}/>}
+    {detail&&<TaskDetail catalog={catalog} kpiCfg={kpiCfg} task={detail} onClose={()=>setDetail(null)} getEmp={getEmp} employees={employees} isMobile={isMobile} onEdit={()=>openEdit(detail)} onDelete={()=>deleteTask(detail.id)} onUpdateSteps={updateSteps} onUpdateTask={updateTask} uploadFiles={uploadFiles} uploadingFiles={uploadingFiles} inp={inp} currentUser={currentUser} canManage={canManage} onApproveCreate={approveCreate} onRejectCreate={rejectCreate} canApproveCreate={isDeptMgrOf(detail)}/>}
   </div>);
 }

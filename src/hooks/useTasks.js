@@ -110,7 +110,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     const st = t.status || getStatus(t);
     if (t.completed) {
       if (!canEditTask(t)) { showToast("Chỉ Trưởng phòng/Phó phòng/Ban Giám đốc mới được bỏ hoàn thành", "error"); return false; }
-      updateTask(t.id, { completed: false, completion_requested: false, progress: t.progress >= 100 ? 90 : t.progress, completed_at: null, rating: "", rating_note: "", rated_by: "", rated_at: "", completion_note: "", suspicious_completion: false }, "Bỏ hoàn thành");
+      updateTask(t.id, { completed: false, completion_requested: false, ...("rework_count" in t ? { rework_count: (t.rework_count || 0) + 1 } : {}), progress: t.progress >= 100 ? 90 : t.progress, completed_at: null, rating: "", rating_note: "", rated_by: "", rated_at: "", completion_note: "", suspicious_completion: false }, "Bỏ hoàn thành");
       return true;
     }
     if (t.completion_requested) { showToast("Nhiệm vụ đang chờ duyệt hoàn thành", "error"); return false; }

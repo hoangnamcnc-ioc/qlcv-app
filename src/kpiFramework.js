@@ -50,7 +50,7 @@ export function frameworkScore(items, cfg, common) {
   const onTime = sum(t => (t.status === "completed" ? w(t) : 0));
   const completedLate = sum(t => (t.status === "completed_late" ? w(t) : 0));
   const over = sum(t => (t.status === "overdue" ? w(t) : 0));
-  const eligible = assigned >= cfg.minResolved;
+  const eligible = items.length >= cfg.minResolved && assigned >= (cfg.minWeight ?? 0); // đếm SỐ VIỆC + khối lượng quy đổi tối thiểu
   if (assigned <= 0) return { onTime, completedLate, over, done, resolved: assigned, eligible, perfScore: 0, breakdown: null };
   const late = t => (t.status === "completed_late" ? Math.max(1, Math.round(t.lateDays || 1)) : 0);
   const raw = f => items.reduce((a, t) => a + f(t), 0); // không làm tròn để % tiến độ/chất lượng chính xác
