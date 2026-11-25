@@ -81,7 +81,8 @@ function DeptTab({ readOnly = false, deptRows, addDept, updateDept, deleteDept, 
   const [codeTouched, setCodeTouched] = useState(false);
   const [nc, setNc] = useState("#6366f1");
   const rows = [...(deptRows || [])].sort((a, b) => (a.ord ?? 0) - (b.ord ?? 0));
-  const countIn = code => (employees || []).filter(e => e.dept === code).length;
+  const countIn = code => (employees || []).filter(e => e.dept === code && !e.left_at).length; // chỉ người đang làm
+  const leftIn = code => (employees || []).filter(e => e.dept === code && e.left_at).length;
   // Gợi ý mã ngắn từ tên (viết tắt chữ cái đầu, bỏ dấu) nếu người dùng chưa tự gõ mã.
   const suggestCode = name => name.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").split(/\s+/).filter(Boolean).map(w => w[0]).join("").toUpperCase().slice(0, 8);
   const onName = v => { setNn(v); if (!codeTouched) setNcode(suggestCode(v)); };
@@ -100,7 +101,7 @@ function DeptTab({ readOnly = false, deptRows, addDept, updateDept, deleteDept, 
       </div>}
       <div style={{ ...card, padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", background: "#f9fafb", fontSize: 13, fontWeight: 600 }}>Danh sách phòng / ban ({rows.length})</div>
-        {rows.map(d => <DeptRow key={d.code} readOnly={readOnly} d={d} count={countIn(d.code)} onSave={updateDept} onDelete={deleteDept} inp={inp} isMobile={isMobile} bgd={bgd} overseerId={deptOversight[d.code] || ""} onSetOverseer={setDeptOverseer} />)}
+        {rows.map(d => <DeptRow key={d.code} readOnly={readOnly} d={d} count={countIn(d.code)} left={leftIn(d.code)} onSave={updateDept} onDelete={deleteDept} inp={inp} isMobile={isMobile} bgd={bgd} overseerId={deptOversight[d.code] || ""} onSetOverseer={setDeptOverseer} />)}
         {!rows.length && <div style={{ padding: 16, color: "#9ca3af", fontSize: 13 }}>Chưa có phòng/ban.</div>}
       </div>
       {deptAudit.length > 0 && (
@@ -120,7 +121,7 @@ function DeptTab({ readOnly = false, deptRows, addDept, updateDept, deleteDept, 
   );
 }
 
-function DeptRow({ readOnly = false, d, count, onSave, onDelete, inp, isMobile, bgd = [], overseerId = "", onSetOverseer }) {
+function DeptRow({ readOnly = false, d, count, left = 0, onSave, onDelete, inp, isMobile, bgd = [], overseerId = "", onSetOverseer }) {
   const [name, setName] = useState(d.name);
   const [color, setColor] = useState(d.color || "#6366f1");
   const dirty = name.trim() !== d.name || color !== (d.color || "#6366f1");
@@ -130,7 +131,7 @@ function DeptRow({ readOnly = false, d, count, onSave, onDelete, inp, isMobile, 
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <input type="color" value={color} onChange={e => setColor(e.target.value)} disabled={readOnly} style={{ width: 34, height: 34, border: "1px solid #d1d5db", borderRadius: 6, cursor: readOnly ? "default" : "pointer", background: "#fff", padding: 2, flexShrink: 0 }} />
         <input value={name} onChange={e => setName(e.target.value)} disabled={readOnly} style={{ ...inp, flex: 1, minWidth: 160 }} />
-        <span style={{ fontSize: 11.5, color: "#6b7280", whiteSpace: "nowrap" }}>{count} người</span>
+        <span style={{ fontSize: 11.5, color: "#6b7280", whiteSpace: "nowrap" }}>{count} người{left > 0 ? ` (+${left} đã nghỉ)` : ""}</span>
         {!readOnly && <button disabled={!dirty || !name.trim()} onClick={() => onSave(d.code, { name: name.trim(), color })} style={{ background: dirty ? "#16a34a" : "#e5e7eb", color: dirty ? "#fff" : "#9ca3af", border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: dirty ? "pointer" : "default" }}>💾 Lưu</button>}
         {!readOnly && <button onClick={() => onDelete(d.code)} title={count > 0 ? "Còn người thuộc đơn vị này" : "Xóa"} style={{ border: "1px solid #fca5a5", background: "#fff0f0", color: "#dc2626", borderRadius: 7, padding: "6px 9px", fontSize: 12.5, cursor: "pointer" }}>🗑️</button>}
       </div>
