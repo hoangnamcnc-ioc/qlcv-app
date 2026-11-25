@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabase";
+import { askConfirm } from "./dialog";
 
 const nowStr=()=>new Date().toLocaleString("vi-VN");
 const TYPES={
@@ -28,7 +29,7 @@ export default function Feedback({ currentUser, isMobile, inp, showToast, canMan
 
   const updateStatus=async(id,status)=>{const{error}=await supabase.from("feedback").update({status}).eq("id",id);if(!error)setItems(p=>p.map(x=>x.id===id?{...x,status}:x));else showToast&&showToast("Lỗi cập nhật","error");};
   const sendReply=async(id)=>{const txt=(reply[id]||"").trim();if(!txt)return;const{error}=await supabase.from("feedback").update({reply:txt,status:"done"}).eq("id",id);if(!error){setItems(p=>p.map(x=>x.id===id?{...x,reply:txt,status:"done"}:x));setReply(r=>({...r,[id]:""}));showToast&&showToast("Đã phản hồi");}else showToast&&showToast("Lỗi","error");};
-  const deleteItem=async(id)=>{if(!window.confirm("Xóa góp ý này?"))return;await supabase.from("feedback").delete().eq("id",id);setItems(p=>p.filter(x=>x.id!==id));};
+  const deleteItem=async(id)=>{if(!await askConfirm("Xóa góp ý này?"))return;await supabase.from("feedback").delete().eq("id",id);setItems(p=>p.filter(x=>x.id!==id));};
 
   const filtered=useMemo(()=>filter==="all"?items:items.filter(i=>i.type===filter||i.status===filter),[items,filter]);
   const counts=useMemo(()=>({total:items.length,new:items.filter(i=>i.status==="new").length}),[items]);

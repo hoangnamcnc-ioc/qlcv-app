@@ -4,6 +4,7 @@ import { getPreviewUrl, parseJSON, todayStr, fmtDate, getStatus } from "./helper
 import { extractFileText } from "./fileText";
 import { STATUS } from "./constants";
 import { ViDate } from "./components/ViDate";
+import { askConfirm } from "./dialog";
 
 const nowStr=()=>new Date().toLocaleString("vi-VN");
 // todayStr import từ helpers (đã tính theo giờ địa phương) — không tự tính bằng toISOString() vì bị lệch 1 ngày trước 7h sáng
@@ -126,7 +127,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
     if(!chain.length)return;
     const last=chain[chain.length-1];
     if(last.by_id!==currentUser?.id&&!isTop){showToast&&showToast("Chỉ người đã chuyển (hoặc Giám đốc) mới thu hồi được","error");return;}
-    if(!window.confirm(`Thu hồi văn bản đã chuyển cho ${last.to_name}? Người nhận sẽ không còn thấy văn bản này.`))return;
+    if(!await askConfirm(`Thu hồi văn bản đã chuyển cho ${last.to_name}? Người nhận sẽ không còn thấy văn bản này.`))return;
     const newChain=chain.slice(0,-1);
     const{error}=await supabase.from("documents").update({forwards:JSON.stringify(newChain)}).eq("id",d.id);
     if(error){showToast&&showToast("Lỗi: "+(error.message||""),"error");return;}
@@ -145,7 +146,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
     else{const doc={id:`doc${Date.now()}`,...row,created:nowStr(),created_by:currentUser.full_name};const{error}=await supabase.from("documents").insert(doc);if(!error){setItems(p=>[doc,...p]);showToast&&showToast("Đã thêm văn bản");setForm(null);}else showToast&&showToast("Lỗi: "+(error.message||""),"error");}
     setSaving(false);};
 
-  const remove=async id=>{if(!window.confirm("Xóa văn bản này?"))return;await supabase.from("documents").delete().eq("id",id);setItems(p=>p.filter(x=>x.id!==id));};
+  const remove=async id=>{if(!await askConfirm("Xóa văn bản này?"))return;await supabase.from("documents").delete().eq("id",id);setItems(p=>p.filter(x=>x.id!==id));};
 
   const toggleSelect=id=>setSelected(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
   // Chỉ chọn/xóa hàng loạt được các văn bản mình THỰC SỰ có quyền xóa (canManageDoc) — tránh TP/PTP
@@ -157,7 +158,7 @@ export default function Documents({ currentUser, isMobile, inp, showToast, canMa
     const allowed=new Set(selectableIds());
     const ids=[...selected].filter(id=>allowed.has(id));
     if(ids.length===0)return;
-    if(!window.confirm(`Xóa ${ids.length} văn bản đã chọn?`))return;
+    if(!await askConfirm(`Xóa ${ids.length} văn bản đã chọn?`))return;
     const{error}=await supabase.from("documents").delete().in("id",ids);
     if(error){showToast&&showToast("Lỗi: "+(error.message||""),"error");return;}
     setItems(p=>p.filter(x=>!ids.includes(x.id)));

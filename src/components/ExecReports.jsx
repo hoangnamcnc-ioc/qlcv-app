@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } f
 import { DEPTS, DEPT_COLOR, deptLabel, STATUS, VI_MONTHS, RATING, GRADING_START, GRADE_MINS, inGradingScope } from "../constants";
 import { isCompletedStatus, parseNowStr, fmtDate } from "../helpers";
 import { ViDate } from "./ViDate";
+import { askConfirm } from "../dialog";
 const RATING_KEYS = ["xuat_sac", "tot", "tb", "kem"];
 
 // ── Ngưỡng xếp loại quý/năm (điểm trung bình các tháng đủ điều kiện) ──
@@ -25,7 +26,7 @@ export function GradingTab({ isMobile, inp, monthlyScores, snapshotMonth, syncMa
   const [snapYear, setSnapYear] = useState(now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear());
   const [snapping, setSnapping] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const doSyncMgr = async () => { if (!syncManagerSnapshots) return; if (!window.confirm("Cập nhật lại điểm ĐIỀU HÀNH (Trưởng/Phó phòng) cho tất cả các tháng đã chốt theo công thức mới?\n\nĐiểm nhân viên đã chốt được GIỮ NGUYÊN.")) return; setSyncing(true); await syncManagerSnapshots(); setSyncing(false); };
+  const doSyncMgr = async () => { if (!syncManagerSnapshots) return; if (!await askConfirm("Cập nhật lại điểm ĐIỀU HÀNH (Trưởng/Phó phòng) cho tất cả các tháng đã chốt theo công thức mới?\n\nĐiểm nhân viên đã chốt được GIỮ NGUYÊN.")) return; setSyncing(true); await syncManagerSnapshots(); setSyncing(false); };
   // Chốt sổ điểm (ghi dữ liệu) chỉ dành cho BGĐ/Admin — mọi vai trò xem được bảng nhưng không tự chốt.
   const canFinalize = ["admin", "director"].includes(currentUser?.role);
 

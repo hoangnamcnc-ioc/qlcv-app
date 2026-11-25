@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { supabase } from "../supabase";
+import { askConfirm, askPrompt } from "../dialog";
 
 // CRUD tài khoản đăng nhập (bảng users). BẢO MẬT (bước 1b): anon KHÔNG còn ghi trực tiếp bảng users
 // (revoke insert/update/delete) để chống tạo admin giả / đổi mật khẩu người khác. Mọi thao tác đi qua
@@ -10,14 +11,14 @@ export default function useUsers({ users, setUsers, showToast, setSaving, curren
   const [userEditId, setUserEditId] = useState(null);
   const adminPassRef = useRef(""); // giữ trong bộ nhớ phiên làm việc, KHÔNG lưu ra localStorage
 
-  const getAdminPass = () => {
+  const getAdminPass = async () => {
     if (adminPassRef.current) return adminPassRef.current;
-    const p = window.prompt("Nhập MẬT KHẨU quản trị của bạn để xác nhận thao tác tài khoản:", "");
+    const p = await askPrompt("Nhập MẬT KHẨU quản trị của bạn để xác nhận thao tác tài khoản:", "", { password: true });
     if (p) adminPassRef.current = p;
     return p || "";
   };
   const callAdmin = async (fn, args) => {
-    const pass = getAdminPass();
+    const pass = await getAdminPass();
     if (!pass) return { error: { message: "Đã hủy — cần mật khẩu quản trị" } };
     const { data, error } = await supabase.rpc(fn, { p_admin_user: currentUser?.username, p_admin_pass: pass, ...args });
     if (error && /mật khẩu|quyền|permission|admin/i.test(error.message || "")) adminPassRef.current = ""; // sai pass → lần sau hỏi lại
@@ -45,14 +46,14 @@ export default function useUsers({ users, setUsers, showToast, setSaving, curren
     showToast("Đã lưu tài khoản");
   };
   const deleteUser = async id => {
-    if (!window.confirm("Xóa tài khoản này?")) return;
+    if (!await askConfirm("Xóa tài khoản này?")) return;
     const { error } = await callAdmin("admin_delete_user", { p_id: id });
     if (error) { showToast("Lỗi xóa: " + (error.message || ""), "error"); return; }
     setUsers(p => p.filter(u => u.id !== id));
     showToast("Đã xóa tài khoản");
   };
   const resetUserPwd = async u => {
-    if (!window.confirm(`Đặt lại mật khẩu của "${u.full_name}" về mặc định (abc123)?`)) return;
+    if (!await askConfirm(`Đặt lại mật khẩu của "${u.full_name}" về mặc định (abc123)?`)) return;
     const { error } = await callAdmin("admin_reset_password", { p_id: u.id });
     if (error) { showToast("Lỗi đặt lại mật khẩu: " + (error.message || ""), "error"); return; }
     showToast(`Đã đặt lại mật khẩu của ${u.full_name} → abc123`);

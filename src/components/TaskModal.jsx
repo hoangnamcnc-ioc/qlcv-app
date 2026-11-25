@@ -3,6 +3,7 @@ import { DEPT_COLOR, RATING, LATE_REASONS } from "../constants";
 import { parseJSON, getFileIcon, getPreviewUrl, forceDownload, fmtDate } from "../helpers";
 import { ProgressBar, RatingBadge, Chip, PChip } from "./ui";
 import { aiEnabled, aiSummarizeComments } from "../aiIntent";
+import { askPrompt } from "../dialog";
 
 // Tiêu đề khối bình luận + nút "✨ Tóm tắt" (AI) khi luồng trao đổi dài (≥4 bình luận) để người mới vào nắm nhanh.
 // Markdown nhẹ: chỉ xử lý **in đậm** và gạch đầu dòng, không chèn HTML thô.
@@ -92,7 +93,7 @@ export default function TaskModal({
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#15803d", marginBottom: 8 }}>🆕 {getEmp(modal.eid)?.name || modal.created_by_name} tự tạo việc này — cần bạn duyệt</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button onClick={() => approveCreateTask(modal.id)} style={{ fontSize: 13, padding: "8px 16px", border: "none", borderRadius: 8, background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 600 }}>✅ Duyệt việc này</button>
-                  <button onClick={() => { const r = window.prompt("Lý do từ chối (BẮT BUỘC — sẽ được ghi lại làm bằng chứng, tối thiểu 5 ký tự):", ""); if (r !== null) rejectCreateTask(modal.id, r.trim()); }} style={{ fontSize: 13, padding: "8px 16px", border: "1px solid #fca5a5", borderRadius: 8, background: "#fff0f0", color: "#dc2626", cursor: "pointer", fontWeight: 600 }}>❌ Từ chối</button>
+                  <button onClick={async () => { const r = await askPrompt("Lý do từ chối (BẮT BUỘC — sẽ được ghi lại làm bằng chứng, tối thiểu 5 ký tự):", ""); if (r !== null) rejectCreateTask(modal.id, r.trim()); }} style={{ fontSize: 13, padding: "8px 16px", border: "1px solid #fca5a5", borderRadius: 8, background: "#fff0f0", color: "#dc2626", cursor: "pointer", fontWeight: 600 }}>❌ Từ chối</button>
                 </div>
               </div>
             ) : (

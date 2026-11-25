@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../supabase";
+import { askConfirm } from "../dialog";
 
 const ROLE_RANK = { "Trưởng phòng": 0, "TP. HCTH": 0, "Phó trưởng phòng": 1, "Phó phòng": 1, "Chuyên viên": 2, "Nhân viên": 3 };
 
@@ -17,7 +18,7 @@ export default function useEmployees({ employees, setEmployees, showToast, setSa
   const submitEmp = async () => { const { data, editId } = empForm; const nm = (data.name || "").trim(); if (!nm) return;
     // Chặn TRÙNG tên cùng phòng (cảnh báo, cho phép xác nhận nếu thực sự trùng tên).
     const dup = (employees || []).some(e => e.id !== editId && e.dept === data.dept && (e.name || "").trim().toLowerCase() === nm.toLowerCase());
-    if (dup && !window.confirm(`Phòng ${data.dept} đã có người tên "${nm}". Vẫn thêm?`)) return;
+    if (dup && !await askConfirm(`Phòng ${data.dept} đã có người tên "${nm}". Vẫn thêm?`)) return;
     const ok = editId ? await updateEmployee(editId, data) : await addEmployee(data); if (ok === false) return; setEmpForm(null); };
 
   // includeLeft=true: kèm người ĐÃ NGHỈ VIỆC (xem hồ sơ/lịch sử). Mặc định chỉ người đang làm → các danh sách chọn/giao việc không còn thấy họ.

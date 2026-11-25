@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import { isDailyRecurring } from "../taskNudge";
 import { DEPTS, FULL_ACCESS, RATING, LATE_REASONS, STATUS_ORDER } from "../constants";
 import { today, todayStr, nowStr, parseNowStr, getStatus, isCompletedStatus, isLateStatus, parseJSON } from "../helpers";
+import { askConfirm } from "../dialog";
 
 const PAGE_SIZE = 20;
 
@@ -155,7 +156,7 @@ export default function useTasks({ tasks, setTasks, employees, currentUser, canS
     setApproveModal(null); setApproveRating(""); setApproveNote("");
   };
   const rejectCompletionRequest = async (task) => {
-    if (!window.confirm("Từ chối yêu cầu hoàn thành và trả nhiệm vụ về cho người thực hiện làm lại?")) return;
+    if (!await askConfirm("Từ chối yêu cầu hoàn thành và trả nhiệm vụ về cho người thực hiện làm lại?")) return;
     await updateTask(task.id, { completion_requested: false, ...("rework_count" in task ? { rework_count: (task.rework_count || 0) + 1 } : {}) }, "Từ chối yêu cầu hoàn thành, yêu cầu làm lại");
     showToast("Đã từ chối, nhiệm vụ trở lại trạng thái thực hiện");
   };

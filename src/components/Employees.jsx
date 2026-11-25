@@ -2,6 +2,7 @@ import React from "react";
 import { DEPTS, DEPT_COLOR, deptLabel } from "../constants";
 import { isCompletedStatus } from "../helpers";
 import { parseJSON } from "../helpers";
+import { askConfirm } from "../dialog";
 
 export default function Employees({
   isMobile, inp,
@@ -21,7 +22,7 @@ export default function Employees({
   const leftList = (employees || []).filter(e => e.dept === empDeptTab && e.left_at).sort((a, b) => (b.left_at || "").localeCompare(a.left_at || ""));
   const fmtD = d => (d || "").split("-").reverse().join("/");
   // Xóa vĩnh viễn rất nguy hiểm (mất liên kết lịch sử) → luôn hỏi lại và nhắc dùng "Nghỉ việc".
-  const confirmDelete = emp => { if (window.confirm(`XÓA VĨNH VIỄN "${emp.name}"?
+  const confirmDelete = async emp => { if (await askConfirm(`XÓA VĨNH VIỄN "${emp.name}"?
 
 Việc cũ, điểm và bình luận của người này sẽ mất liên kết với tên người.
 Nếu người này chỉ NGHỈ VIỆC, hãy bấm nút 🚪 "Nghỉ việc" để giữ nguyên toàn bộ lịch sử.`)) deleteEmployee(emp.id); };

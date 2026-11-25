@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { getPreviewUrl, fmtDate } from "./helpers";
 import { ViDate } from "./components/ViDate";
+import { askConfirm } from "./dialog";
 
 const DEPTS = ["HCTH","QL-KTDL","HT-NTS"];
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
@@ -147,7 +148,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
   const addStepComment=async(idx)=>{if(!cmtText.trim()&&cmtFiles.length===0)return;const c={by:currentUser.full_name,text:cmtText.trim(),files:cmtFiles,at:new Date().toLocaleString("vi-VN")};const ns=steps.map((s,i)=>i===idx?{...s,comments:[...(s.comments||[]),c]}:s);await onUpdateSteps(proj,ns);setCmtText("");setCmtFiles([]);};
   const openEditStep=(s,idx)=>{setEditStep(idx);setStepDraft({...s});};
   const saveStep=async()=>{const ns=steps.map((s,i)=>i===editStep?stepDraft:s);await onUpdateSteps(proj,ns);setEditStep(null);setStepDraft(null);};
-  const deleteStep=async idx=>{if(!window.confirm("Xóa bước này?"))return;const ns=steps.filter((_,i)=>i!==idx).map((s,i)=>({...s,id:i+1}));await onUpdateSteps(proj,ns);};
+  const deleteStep=async idx=>{if(!await askConfirm("Xóa bước này?"))return;const ns=steps.filter((_,i)=>i!==idx).map((s,i)=>({...s,id:i+1}));await onUpdateSteps(proj,ns);};
   const addStep=async()=>{const ns=[...steps,{id:steps.length+1,phase:steps.length?steps[steps.length-1].phase:"",content:"Bước mới",condition:"",output:"",collab:"",approver:"",ctrl:"",lead:"",lead_eid:"",collab_eids:[],status:"pending",start:"",end:"",note:"",attachments:[]}].map((s,i)=>({...s,id:i+1}));await onUpdateSteps(proj,ns);setEditStep(ns.length-1);setStepDraft(ns[ns.length-1]);};
   const insertStepAfter=async(idx)=>{const newStep={phase:steps[idx]?.phase||"",content:"Bước mới",condition:"",output:"",collab:"",approver:"",ctrl:"",lead:"",lead_eid:"",collab_eids:[],status:"pending",start:"",end:"",note:"",attachments:[]};const ns=[...steps.slice(0,idx+1),newStep,...steps.slice(idx+1)].map((s,i)=>({...s,id:i+1}));await onUpdateSteps(proj,ns);setEditStep(idx+1);setStepDraft(ns[idx+1]);};
   const phases=[...new Set(steps.map(s=>s.phase))];
@@ -291,7 +292,7 @@ function ProjectDetail({proj,onClose,canManage,getEmp,employees,users,isMobile,o
           {canEditProject&&<button onClick={onEdit} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>✏️ Sửa dự án</button>}
           {canManageProject&&(locked
             ?<button onClick={()=>onUpdateProject(proj,{locked:false})} style={{padding:"8px 16px",border:"1px solid #16a34a",borderRadius:8,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:13,fontWeight:600}}>🔓 Khôi phục dự án</button>
-            :<button onClick={()=>{if(window.confirm("Kết thúc dự án? Toàn bộ sẽ bị khóa cho tới khi Khôi phục."))onUpdateProject(proj,{locked:true});}} style={{padding:"8px 16px",border:"1px solid #4f46e5",borderRadius:8,background:"#eef2ff",color:"#4338ca",cursor:"pointer",fontSize:13,fontWeight:600}}>🔒 Kết thúc dự án</button>)}
+            :<button onClick={async ()=>{if(await askConfirm("Kết thúc dự án? Toàn bộ sẽ bị khóa cho tới khi Khôi phục."))onUpdateProject(proj,{locked:true});}} style={{padding:"8px 16px",border:"1px solid #4f46e5",borderRadius:8,background:"#eef2ff",color:"#4338ca",cursor:"pointer",fontSize:13,fontWeight:600}}>🔒 Kết thúc dự án</button>)}
         </div>
         {canDeleteProject?<button onClick={onDelete} style={{padding:"8px 16px",border:"1px solid #fca5a5",borderRadius:8,background:"#fff0f0",cursor:"pointer",fontSize:13,color:"#dc2626"}}>🗑️ Xóa dự án</button>:<span/>}
       </div>}
@@ -488,7 +489,7 @@ export default function Investment({ currentUser, employees, users, getEmp, isMo
       if(log.length>parseJSON(old.budget_log,[]).length)upd.budget_log=JSON.stringify(log);
     }
     const{error}=await supabase.from("projects").update(upd).eq("id",f.id);if(!error){setProjects(p=>p.map(x=>x.id===f.id?{...x,...upd}:x));showToast&&showToast("Đã cập nhật dự án");setProjForm(null);onScoringChange?.();}else showToast&&showToast("Lỗi: "+(error.message||""),"error");}else{const proj={id:`pj${Date.now()}`,name:f.name,dept:f.dept,expense_type:f.expense_type||"operating",leader_id:f.leader_id||"",fund_source:f.fund_source,total_budget:Number(f.total_budget)||0,spent:Number(f.spent)||0,lead_eid:f.lead_eid,member_eids:f.member_eids,deadline:f.deadline,note:f.note,steps:f.steps,created:todayStr,created_by:currentUser.full_name};const{error}=await supabase.from("projects").insert(proj);if(!error){setProjects(p=>[proj,...p]);showToast&&showToast("Đã tạo dự án");setProjForm(null);onScoringChange?.();}else showToast&&showToast("Lỗi: "+(error.message||""),"error");}setSaving(false);};
-  const deleteProject=async id=>{if(!window.confirm("Xóa vĩnh viễn dự án này?"))return;setSaving(true);await supabase.from("projects").delete().eq("id",id);setProjects(p=>p.filter(x=>x.id!==id));setProjDetail(null);setSaving(false);showToast&&showToast("Đã xóa dự án");onScoringChange?.();};
+  const deleteProject=async id=>{if(!await askConfirm("Xóa vĩnh viễn dự án này?"))return;setSaving(true);await supabase.from("projects").delete().eq("id",id);setProjects(p=>p.filter(x=>x.id!==id));setProjDetail(null);setSaving(false);showToast&&showToast("Đã xóa dự án");onScoringChange?.();};
   const updateProjectSteps=async(proj,newSteps)=>{const stepsStr=JSON.stringify(newSteps);const{error}=await supabase.from("projects").update({steps:stepsStr}).eq("id",proj.id);if(!error){setProjects(p=>p.map(x=>x.id===proj.id?{...x,steps:stepsStr}:x));setProjDetail(d=>d&&d.id===proj.id?{...d,steps:stepsStr}:d);onScoringChange?.();}else showToast&&showToast("Lỗi cập nhật bước","error");};
   const saveProjectQuality=async(id,upd)=>{const{error}=await supabase.from("projects").update(upd).eq("id",id);if(!error){setProjects(p=>p.map(x=>x.id===id?{...x,...upd}:x));setProjDetail(d=>d&&d.id===id?{...d,...upd}:d);showToast&&showToast("Đã lưu nghiệm thu tổng thể");onScoringChange?.();}else showToast&&showToast("Lỗi lưu nghiệm thu","error");};
   // Cập nhật trường bất kỳ của dự án (dùng cho Kết thúc/Khôi phục — cột locked)

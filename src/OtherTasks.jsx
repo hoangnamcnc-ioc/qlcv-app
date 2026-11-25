@@ -4,6 +4,7 @@ import { fmtDate, getPreviewUrl, getFileIcon, nowStr } from "./helpers";
 import { isAssignable } from "./constants";
 import { ViDate } from "./components/ViDate";
 import { StepKpiFields } from "./components/KpiCatalog";
+import { askConfirm, askPrompt } from "./dialog";
 
 const DEPT_COLOR = {"HCTH":"#6366f1","QL-KTDL":"#0ea5e9","HT-NTS":"#10b981"};
 const today=new Date();today.setHours(0,0,0,0);
@@ -48,7 +49,7 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
   const confirmApproval=async()=>{const{idx,quality,note}=approvalPopup;const ns=steps.map((s,i)=>i===idx?{...s,status:"done",quality,quality_note:note,approved_by:currentUser.full_name,approved_at:new Date().toLocaleDateString("vi-VN")}:s);await onUpdateSteps(task,ns);setApprovalPopup(null);};
   const openEditStep=(s,idx)=>{setEditStep(idx);setStepDraft({...s});};
   const saveStep=async()=>{const ns=steps.map((s,i)=>i===editStep?stepDraft:s);await onUpdateSteps(task,ns);setEditStep(null);setStepDraft(null);};
-  const deleteStep=async idx=>{if(!window.confirm("Xóa bước này?"))return;const ns=steps.filter((_,i)=>i!==idx).map((s,i)=>({...s,id:i+1}));await onUpdateSteps(task,ns);};
+  const deleteStep=async idx=>{if(!await askConfirm("Xóa bước này?"))return;const ns=steps.filter((_,i)=>i!==idx).map((s,i)=>({...s,id:i+1}));await onUpdateSteps(task,ns);};
   const addStep=async()=>{const ns=[...steps,{id:steps.length+1,content:"Bước mới",deadline:"",lead_eid:"",collab_eids:[],status:"pending",note:""}];await onUpdateSteps(task,ns);setEditStep(ns.length-1);setStepDraft(ns[ns.length-1]);};
   const insertStepAfter=async(idx)=>{const newStep={content:"Bước mới",deadline:"",lead_eid:"",collab_eids:[],status:"pending",note:""};const ns=[...steps.slice(0,idx+1),newStep,...steps.slice(idx+1)].map((s,i)=>({...s,id:i+1}));await onUpdateSteps(task,ns);setEditStep(idx+1);setStepDraft(ns[idx+1]);};
 
@@ -75,7 +76,7 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
             <div style={{fontSize:13,fontWeight:600,color:"#15803d",marginBottom:8}}>🆕 {task.created_by} tự tạo nhiệm vụ này — cần bạn duyệt</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <button onClick={()=>onApproveCreate&&onApproveCreate(task)} style={{fontSize:13,padding:"8px 16px",border:"none",borderRadius:8,background:"#16a34a",color:"#fff",cursor:"pointer",fontWeight:600}}>✅ Duyệt nhiệm vụ</button>
-              <button onClick={()=>{const r=window.prompt("Lý do từ chối (BẮT BUỘC — sẽ được ghi lại làm bằng chứng, tối thiểu 5 ký tự):","");if(r!==null)onRejectCreate&&onRejectCreate(task,r.trim());}} style={{fontSize:13,padding:"8px 16px",border:"1px solid #fca5a5",borderRadius:8,background:"#fff0f0",color:"#dc2626",cursor:"pointer",fontWeight:600}}>❌ Từ chối</button>
+              <button onClick={async ()=>{const r=await askPrompt("Lý do từ chối (BẮT BUỘC — sẽ được ghi lại làm bằng chứng, tối thiểu 5 ký tự):","");if(r!==null)onRejectCreate&&onRejectCreate(task,r.trim());}} style={{fontSize:13,padding:"8px 16px",border:"1px solid #fca5a5",borderRadius:8,background:"#fff0f0",color:"#dc2626",cursor:"pointer",fontWeight:600}}>❌ Từ chối</button>
             </div>
           </div>
         ):(
@@ -128,7 +129,7 @@ function TaskDetail({task,onClose,getEmp,employees,isMobile,onEdit,onDelete,onUp
           {canEditTask&&!locked&&<button onClick={onEdit} style={{padding:"8px 16px",border:"1px solid #d1d5db",borderRadius:8,background:"#f9fafb",cursor:"pointer",fontSize:13}}>✏️ Sửa nhiệm vụ</button>}
           {canEditTask&&(locked
             ?<button onClick={()=>onUpdateTask(task,{locked:false})} style={{padding:"8px 16px",border:"1px solid #16a34a",borderRadius:8,background:"#f0fdf4",color:"#15803d",cursor:"pointer",fontSize:13,fontWeight:600}}>🔓 Khôi phục nhiệm vụ</button>
-            :<button onClick={()=>{if(window.confirm("Kết thúc nhiệm vụ? Toàn bộ sẽ bị khóa cho tới khi Khôi phục."))onUpdateTask(task,{locked:true});}} style={{padding:"8px 16px",border:"1px solid #4f46e5",borderRadius:8,background:"#eef2ff",color:"#4338ca",cursor:"pointer",fontSize:13,fontWeight:600}}>🔒 Kết thúc nhiệm vụ</button>)}
+            :<button onClick={async ()=>{if(await askConfirm("Kết thúc nhiệm vụ? Toàn bộ sẽ bị khóa cho tới khi Khôi phục."))onUpdateTask(task,{locked:true});}} style={{padding:"8px 16px",border:"1px solid #4f46e5",borderRadius:8,background:"#eef2ff",color:"#4338ca",cursor:"pointer",fontSize:13,fontWeight:600}}>🔒 Kết thúc nhiệm vụ</button>)}
         </div>
         {canDeleteTask&&!locked?<button onClick={onDelete} style={{padding:"8px 16px",border:"1px solid #fca5a5",borderRadius:8,background:"#fff0f0",cursor:"pointer",fontSize:13,color:"#dc2626"}}>🗑️ Xóa nhiệm vụ</button>:<span/>}
       </div>}
@@ -305,7 +306,7 @@ export default function OtherTasks({ catalog, kpiCfg, currentUser, employees, ge
   const approveCreate=async(t)=>{const{error}=await supabase.from("other_tasks").update({pending_create:false}).eq("id",t.id);if(!error){setTasks(p=>p.map(x=>x.id===t.id?{...x,pending_create:false}:x));setDetail(null);showToast&&showToast("Đã duyệt — nhiệm vụ được chính thức ghi nhận");}else showToast&&showToast("Lỗi: "+(error.message||""),"error");};
   const rejectCreate=async(t,reason)=>{const r=(reason||"").trim();if(r.length<5){showToast&&showToast("Bắt buộc nêu rõ lý do từ chối (ít nhất 5 ký tự)","error");return;}const patch={pending_create:false,create_rejected:true,create_reject_reason:r,create_rejected_by:currentUser.full_name,create_rejected_at:nowStr()};const{error}=await supabase.from("other_tasks").update(patch).eq("id",t.id);if(!error){setTasks(p=>p.map(x=>x.id===t.id?{...x,...patch}:x));setDetail(null);showToast&&showToast("Đã từ chối — lý do đã được ghi lại làm bằng chứng");}else showToast&&showToast("Lỗi: "+(error.message||""),"error");};
 
-  const deleteTask=async id=>{if(!window.confirm("Xóa vĩnh viễn nhiệm vụ này?"))return;await supabase.from("other_tasks").delete().eq("id",id);setTasks(p=>p.filter(x=>x.id!==id));setDetail(null);showToast&&showToast("Đã xóa nhiệm vụ");};
+  const deleteTask=async id=>{if(!await askConfirm("Xóa vĩnh viễn nhiệm vụ này?"))return;await supabase.from("other_tasks").delete().eq("id",id);setTasks(p=>p.filter(x=>x.id!==id));setDetail(null);showToast&&showToast("Đã xóa nhiệm vụ");};
   const updateSteps=async(task,newSteps)=>{const stepsStr=JSON.stringify(newSteps);const{error}=await supabase.from("other_tasks").update({steps:stepsStr}).eq("id",task.id);if(!error){setTasks(p=>p.map(x=>x.id===task.id?{...x,steps:stepsStr}:x));setDetail(d=>d&&d.id===task.id?{...d,steps:stepsStr}:d);}else showToast&&showToast("Lỗi cập nhật bước","error");};
   // Cập nhật trường bất kỳ của nhiệm vụ (dùng cho Kết thúc/Khôi phục nhiệm vụ - cột locked)
   const updateTask=async(task,fields)=>{const{error}=await supabase.from("other_tasks").update(fields).eq("id",task.id);if(!error){setTasks(p=>p.map(x=>x.id===task.id?{...x,...fields}:x));setDetail(d=>d&&d.id===task.id?{...d,...fields}:d);}else showToast&&showToast("Lỗi cập nhật nhiệm vụ","error");};
@@ -321,7 +322,7 @@ export default function OtherTasks({ catalog, kpiCfg, currentUser, employees, ge
         <div style={{display:"flex",flexDirection:"column",gap:8}}>{pendingApprovals.map(t=>(
           <div key={t.id} style={{background:"#fff",border:"1px solid #d1fae5",borderRadius:8,padding:"10px 12px",display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap",alignItems:"center"}}>
             <div style={{cursor:"pointer",flex:1,minWidth:160}} onClick={()=>setDetail(t)}><div style={{fontWeight:600,fontSize:13}}>{t.name}</div><div style={{fontSize:11,color:"#6b7280"}}>{t.created_by} tự tạo · {t.created} · {parseJSON(t.steps,[]).length} bước</div></div>
-            <div style={{display:"flex",gap:6}}><button onClick={()=>approveCreate(t)} style={{fontSize:12,padding:"5px 12px",border:"none",borderRadius:6,background:"#16a34a",color:"#fff",cursor:"pointer",fontWeight:600}}>✅ Duyệt</button><button onClick={()=>{const r=window.prompt("Lý do từ chối (BẮT BUỘC — sẽ được ghi lại làm bằng chứng, tối thiểu 5 ký tự):","");if(r!==null)rejectCreate(t,r.trim());}} style={{fontSize:12,padding:"5px 12px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",color:"#dc2626",cursor:"pointer",fontWeight:600}}>❌ Từ chối</button></div>
+            <div style={{display:"flex",gap:6}}><button onClick={()=>approveCreate(t)} style={{fontSize:12,padding:"5px 12px",border:"none",borderRadius:6,background:"#16a34a",color:"#fff",cursor:"pointer",fontWeight:600}}>✅ Duyệt</button><button onClick={async ()=>{const r=await askPrompt("Lý do từ chối (BẮT BUỘC — sẽ được ghi lại làm bằng chứng, tối thiểu 5 ký tự):","");if(r!==null)rejectCreate(t,r.trim());}} style={{fontSize:12,padding:"5px 12px",border:"1px solid #fca5a5",borderRadius:6,background:"#fff0f0",color:"#dc2626",cursor:"pointer",fontWeight:600}}>❌ Từ chối</button></div>
           </div>))}</div>
       </div>
     )}

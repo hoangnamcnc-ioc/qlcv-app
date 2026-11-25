@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { DEPTS, DEPT_COLOR, SUPPORT_CHANNELS, SUPPORT_CHANNELS_BY_CATEGORY, SUPPORT_CONTENT_LABEL, SUPPORT_DIFFICULTY, SUPPORT_CATEGORIES } from "./constants";
 import { todayStr, getFileIcon, parseJSON, getPreviewUrl, fmtDate } from "./helpers";
 import { ViDate } from "./components/ViDate";
+import { askConfirm } from "./dialog";
 
 // ───── Hỗ trợ người dùng/PAHT và vận hành DC — nền tảng số dùng chung (điện thoại/Zalo) ─────
 // Mỗi trường hợp ghi nhận xong là tính "hoàn thành" ngay (không có bước duyệt) — quy đổi thành điểm hiệu suất
@@ -63,7 +64,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
 
   // Xóa mềm — chuyển vào Thùng rác thay vì mất vĩnh viễn ngay, để Trưởng/Phó phòng/BGĐ còn rà soát lại được
   const deleteCase = async (id) => {
-    if (!window.confirm("Chuyển trường hợp này vào thùng rác?")) return;
+    if (!await askConfirm("Chuyển trường hợp này vào thùng rác?")) return;
     const { error } = await supabase.from("support_cases").update({ deleted: true }).eq("id", id);
     if (!error) { setCases(p => p.map(x => x.id === id ? { ...x, deleted: true } : x)); onScoringChange?.(); }
     else showToast && showToast("Lỗi: " + (error.message || ""), "error");
@@ -74,7 +75,7 @@ export default function SupportCases({ currentUser, employees, getEmp, isMobile,
     else showToast && showToast("Lỗi: " + (error.message || ""), "error");
   };
   const purgeCase = async (id) => {
-    if (!window.confirm("Xóa VĨNH VIỄN trường hợp này? Không thể hoàn tác.")) return;
+    if (!await askConfirm("Xóa VĨNH VIỄN trường hợp này? Không thể hoàn tác.")) return;
     const { error } = await supabase.from("support_cases").delete().eq("id", id);
     if (!error) setCases(p => p.filter(c => c.id !== id));
     else showToast && showToast("Lỗi: " + (error.message || ""), "error");

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchAllLearning, setPromoted, deleteLearning } from "./chatLearning";
 import { unknownWords } from "./chatIntent";
+import { askConfirm } from "./dialog";
 
 // Trang admin: xem & duyệt những gì trợ lý chat đã "học" từ phản hồi người dùng.
 // - 👍 = câu được xác nhận đúng · 👎 kèm "dạy lại" = câu ánh xạ sang ý đúng
@@ -60,7 +61,7 @@ export default function ChatLearningAdmin({ isMobile, showToast }) {
     else showToast && showToast("Không cập nhật được — kiểm tra bảng chat_learning", "error");
   };
   const doDelete = async (row) => {
-    if (!window.confirm("Xoá mẫu học này? Trợ lý sẽ không dùng nó nữa.")) return;
+    if (!await askConfirm("Xoá mẫu học này? Trợ lý sẽ không dùng nó nữa.")) return;
     setBusy(row.id);
     const ok = await deleteLearning(row.id);
     setBusy(null);
