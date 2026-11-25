@@ -4,7 +4,8 @@
 #   sudo bash /opt/qlcv/app/deploy/setup-server.sh qlcv.ten-mien-cua-anh.vn
 # Dựng: PostgreSQL + PostgREST (Docker), máy chủ API Node (kho file đính kèm + email nhắc việc + trợ lý AI), Caddy (HTTPS tự động),
 # tường lửa, fail2ban, lịch chạy (cron), sao lưu hằng đêm.
-# CHƯA bao gồm: nạp dữ liệu cũ (deploy/migrate/) và build giao diện (deploy/update.sh).
+# Cài MỚI hoàn toàn (không cần dữ liệu cũ): tự dựng cấu trúc CSDL và tạo tài khoản quản trị. CHƯA bao gồm build giao diện (deploy/update.sh).
+# (Nếu cần nạp dữ liệu từ hệ thống Supabase cũ: xem deploy/migrate/ — tùy chọn.)
 set -euo pipefail
 DOMAIN="${1:?Cú pháp: setup-server.sh <tên-miền>  (A record của tên miền phải trỏ về IP máy chủ này trước)}"
 APP=/opt/qlcv/app
@@ -44,6 +45,15 @@ chmod 600 "$STACK/.env"
 (cd "$STACK" && docker compose pull && docker compose up -d)
 echo "Chờ CSDL sẵn sàng…"
 for i in $(seq 1 40); do docker exec qlcv-db pg_isready -U postgres -d postgres >/dev/null 2>&1 && break; sleep 3; done
+# CÀI MỚI: dựng cấu trúc CSDL + tài khoản quản trị (bỏ qua nếu CSDL đã có dữ liệu)
+if [ "$(docker exec -i qlcv-db psql -U postgres -d postgres -Atc "select to_regclass('public.tasks') is not null")" != "t" ]; then
+  bash "$APP/deploy/db/apply-schema.sh"
+  bash "$APP/deploy/db/seed-admin.sh" | tee /root/admin-account.txt
+  chmod 600 /root/admin-account.txt
+  echo ">>> Thông tin tài khoản quản trị đã lưu ở /root/admin-account.txt — ghi lại rồi XÓA file này sau khi đăng nhập thành công."
+else
+  echo "CSDL đã có cấu trúc — bỏ qua bước dựng mới."
+fi
 
 echo "== 7/7 Caddy, API, lịch chạy, tường lửa =="
 sed "s/__DOMAIN__/$DOMAIN/g" "$APP/deploy/Caddyfile.template" > /etc/caddy/Caddyfile
@@ -61,14 +71,22 @@ if ! crontab -u qlcv -l 2>/dev/null | grep -q daily-digest; then
 fi
 # Người dùng qlcv cần chạy `docker exec` để sao lưu
 usermod -aG docker qlcv || true
+if [ ! -f /etc/qlcv/web.env ]; then
+  printf 'VITE_SUPABASE_URL=https://%s
+VITE_SUPABASE_KEY=%s
+VITE_WRITE_PIN=
+' "$DOMAIN" "$ANON_KEY" > /etc/qlcv/web.env
+  chmod 600 /etc/qlcv/web.env
+fi
+echo "Build giao diện (vài phút)…"
+bash "$APP/deploy/update.sh" || echo "!!! Build giao diện chưa xong — sửa lỗi rồi chạy lại: bash $APP/deploy/update.sh"
 ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw --force enable
 systemctl enable --now fail2ban
 
 echo
 echo "HOÀN TẤT PHẦN MÁY CHỦ. Việc tiếp theo:"
 echo "  1) Điền SMTP/Gemini vào /etc/qlcv/api.env rồi: systemctl restart qlcv-api"
-echo "  2) Nạp dữ liệu cũ + file đính kèm: xem deploy/README_CHUYEN_HOST.md, mục 2"
-echo "  3) Tạo /etc/qlcv/web.env (VITE_SUPABASE_URL=https://$DOMAIN, VITE_SUPABASE_KEY=ANON_KEY, VITE_WRITE_PIN=<mã cũ>) rồi: bash $APP/deploy/update.sh"
+echo "  2) Mở https://$DOMAIN và đăng nhập bằng tài khoản quản trị (lưu ở /root/admin-account.txt)"
 echo "  Khóa công khai (ANON_KEY) dùng cho giao diện:"
 echo "  $ANON_KEY"
 echo "  Kiểm tra cổng: ss -tlnp | grep -E '5432|3000|3001|8000'   (tất cả phải là 127.0.0.1)"
