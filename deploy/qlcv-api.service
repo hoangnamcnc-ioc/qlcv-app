@@ -1,6 +1,7 @@
 [Unit]
 Description=QLCV API (email nhắc việc, nhắc lịch trực, trợ lý AI)
 After=network.target docker.service
+Wants=docker.service
 
 [Service]
 Type=simple
@@ -13,6 +14,7 @@ RestartSec=3
 # Hạn chế quyền của dịch vụ
 NoNewPrivileges=true
 ProtectSystem=full
+ReadWritePaths=/var/lib/qlcv /var/log/qlcv
 PrivateTmp=true
 
 [Install]

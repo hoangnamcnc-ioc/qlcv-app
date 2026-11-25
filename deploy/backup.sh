@@ -5,7 +5,7 @@ set -euo pipefail
 DIR=/var/backups/qlcv
 mkdir -p "$DIR/db" "$DIR/storage"
 STAMP=$(date +%Y%m%d-%H%M)
-docker exec supabase-db pg_dump -U postgres -d postgres --schema=public --no-owner | gzip > "$DIR/db/qlcv-$STAMP.sql.gz"
-rsync -a --delete /opt/qlcv/supabase/volumes/storage/ "$DIR/storage/"
+docker exec qlcv-db pg_dump -U postgres -d postgres --schema=public --no-owner | gzip > "$DIR/db/qlcv-$STAMP.sql.gz"
+rsync -a --delete /var/lib/qlcv/storage/ "$DIR/storage/"
 find "$DIR/db" -name 'qlcv-*.sql.gz' -mtime +14 -delete
 echo "$(date) sao lưu xong: $(du -sh "$DIR" | cut -f1)"

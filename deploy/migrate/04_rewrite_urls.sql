@@ -1,6 +1,6 @@
 -- BƯỚC 4 — Đổi địa chỉ file đính kèm trong dữ liệu: trước đây trỏ vào https://<mã>.supabase.co/storage/..., nay phải trỏ vào tên miền mới.
 -- Quét MỌI cột text/varchar/json/jsonb của schema public, thay địa chỉ cũ bằng mới. Chạy trên máy chủ:
---   docker exec -i supabase-db psql -U postgres -d postgres \
+--   docker exec -i qlcv-db psql -U postgres -d postgres \
 --     -v old='https://<mã-dự-án>.supabase.co' -v new='https://qlcv.ten-mien.vn' < deploy/migrate/04_rewrite_urls.sql
 -- Chạy lại nhiều lần an toàn.
 select set_config('qlcv.old', :'old', false), set_config('qlcv.new', :'new', false);

@@ -10,7 +10,7 @@ count_tables() {
   done
 }
 cloud() { psql "$CLOUD_DB_URL" "$@"; }
-local_db() { docker exec -i supabase-db psql -U postgres -d postgres "$@"; }
+local_db() { docker exec -i qlcv-db psql -U postgres -d postgres "$@"; }
 count_tables cloud > /tmp/cloud_counts.txt
 count_tables local_db > /tmp/local_counts.txt
 if diff -q /tmp/cloud_counts.txt /tmp/local_counts.txt > /dev/null; then

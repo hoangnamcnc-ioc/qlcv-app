@@ -1,19 +1,19 @@
-# Caddy: HTTPS tự động (Let's Encrypt) + giao diện web + chuyển tiếp Supabase và API về cùng 1 tên miền (không lo CORS).
+# Caddy: HTTPS tự động (Let's Encrypt) + giao diện web + chuyển tiếp dữ liệu/kho file/API về cùng 1 tên miền (không lo CORS).
 # Thay __DOMAIN__ bằng tên miền thật (VD: qlcv.ioc-daklak.vn) — setup-server.sh làm việc này tự động.
 __DOMAIN__ {
 	encode zstd gzip
 
-	# Dữ liệu (PostgREST), kho file (Storage) qua cổng Kong của Supabase (chỉ nghe 127.0.0.1:8000)
-	@supabase path /rest/v1/* /storage/v1/* /auth/v1/* /realtime/v1/*
-	handle @supabase {
-		reverse_proxy 127.0.0.1:8000 {
-			flush_interval -1
-		}
+	# Dữ liệu: PostgREST (cắt tiền tố /rest/v1 vì PostgREST phục vụ ở gốc)
+	handle_path /rest/v1/* {
+		reverse_proxy 127.0.0.1:3000
 	}
 
-	# Email nhắc việc, nhắc lịch trực, trợ lý AI
-	handle /api/* {
-		reverse_proxy 127.0.0.1:3001
+	# Kho file đính kèm + email nhắc việc + trợ lý AI: máy chủ API Node
+	@api path /storage/v1/* /api/*
+	handle @api {
+		reverse_proxy 127.0.0.1:3001 {
+			flush_interval -1
+		}
 	}
 
 	# Giao diện web (bản build của dự án)
@@ -25,8 +25,18 @@ __DOMAIN__ {
 		header /index.html Cache-Control "no-cache"
 	}
 
-	# Giới hạn kích thước tải lên (file đính kèm)
 	request_body {
 		max_size 100MB
+	}
+}
+
+# Cổng NỘI BỘ cho máy chủ API/script gọi dữ liệu theo đúng đường dẫn /rest/v1 (chỉ nghe 127.0.0.1, không ra Internet)
+http://127.0.0.1:8000 {
+	bind 127.0.0.1
+	handle_path /rest/v1/* {
+		reverse_proxy 127.0.0.1:3000
+	}
+	handle /storage/v1/* {
+		reverse_proxy 127.0.0.1:3001
 	}
 }
